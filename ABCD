@@ -306,3 +306,43 @@ in line number 253 if there is no data in userInputSelector.applicants[0].total_
 then {props.data.rwb_label_name} this should not been shown Please help me in logic
 
 
+
+
+
+
+
+{userInputSelector.applicants[0].total_outstanding_other_loan_amount?.length > 0 ||
+userInputSelector.applicants[0].total_outstanding_other_monthly_payment?.length > 0 ? (
+  props.data.rwb_label_name
+) : null}
+
+
+
+
+
+<div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "5px 10px 0 0",
+    lineHeight: "30px",
+  }}
+>
+  {props.data.label_length == 38 && <span className="banner-icon"></span>}
+
+  {userInputSelector.applicants[0].total_outstanding_other_loan_amount?.length > 0 ||
+  userInputSelector.applicants[0].total_outstanding_other_monthly_payment?.length > 0
+    ? props.data.rwb_label_name
+    : null}
+
+  {props.data.label_length == 38 && (
+    <div className="hk-headerclose-btnH">
+      <img
+        src={closeIcon}
+        alt="close Icon"
+        className="hk-headerclose-btn"
+      />
+    </div>
+  )}
+</div>
+
