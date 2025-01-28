@@ -306,3 +306,86 @@ userInputSelector.applicants[0].total_outstanding_other_loan_amount === "" and u
 then {props.data.rwb_label_name}
 
 Should not have corresponding rwb_label_name but rest all the data should be there as it is.
+
+
+
+return (
+  <>
+    {noFieldDisplay ||
+    (props.data.logical_field_name ===
+      "total_outstanding_other_loan_amount" &&
+      userInputSelector.applicants[0].total_outstanding_other_loan_amount ===
+        "" &&
+      props.data.logical_field_name ===
+        "total_outstanding_other_monthly_payment" &&
+      userInputSelector.applicants[0].total_outstanding_other_monthly_payment
+        .length === "")
+      ? ""
+      : <div className="display">
+          {props &&
+            props.data &&
+            props.data.component_type !== "authorize" &&
+            props.data.default_visibility === null && (
+              <>
+                <label
+                  title="display_label_rp"
+                  htmlFor={props.data.logical_field_name}
+                  className="display_label_rp"
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "5px 10px 0 0",
+                      lineHeight: "30px",
+                    }}
+                  >
+                    {props.data.label_length == 38 && (
+                      <span className="banner-icon"></span>
+                    )}
+
+                    {props.data.rwb_label_name}
+
+                    {props.data.label_length == 38 && (
+                      <div className="hk-headerclose-btnH">
+                        <img
+                          src={closeIcon}
+                          alt="close Icon"
+                          className="hk-headerclose-btn"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </label>
+                <p>
+                  {props.data.logical_field_name === "res_address" ||
+                  props.data.logical_field_name === "office_address"
+                    ? resAddressEng(
+                        userInputSelector,
+                        lovDescSelector,
+                        props.data.logical_field_name
+                      )
+                    : props.data.logical_field_name ===
+                        "product_service_information_request" ||
+                      props.data.logical_field_name ===
+                        "individual_customer_authority_and_identity"
+                    ? stageSelector[0].stageInfo.applicants[0][
+                        props.data.logical_field_name + "_a_1"
+                      ] === "Y"
+                      ? language === CONSTANTS.LANG_EN
+                        ? CONSTANTS.YES
+                        : language === CONSTANTS.LANG_CN
+                        ? "是"
+                        : "是"
+                      : language === CONSTANTS.LANG_EN
+                      ? CONSTANTS.NO
+                      : language === CONSTANTS.LANG_CN
+                      ? "否"
+                      : "否"
+                    : getfieldValue()}
+                </p>
+              </>
+            )}
+        </div>}
+  </>
+);
