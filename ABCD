@@ -389,3 +389,253 @@ return (
         </div>}
   </>
 );
+
+
+
+
+
+
+
+
+import { useSelector } from "react-redux";
+import {
+  KeyWithAnyModel,
+  StoreModel,
+} from "../../../utils/model/common-model";
+import {
+  GetLovDesc,
+  resAddressEng,
+} from "../../../modules/dashboard/review-page/review-page.utils";
+import "./display.scss";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { getUrl } from "../../../utils/common/change.utils";
+import { useEffect, useState } from "react";
+import closeIcon from "../../../modules/preApproval/images/icon-cross-black@3x.png";
+
+const Display = (props: KeyWithAnyModel) => {
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const lovDescSelector = useSelector((state: StoreModel) => state.lovDesc);
+  const userInputSelector = useSelector(
+    (state: StoreModel) => state.stages.userInput
+  );
+  const language = getUrl.getLanguageInfo("lang");
+  const [ChnResDisplay, setChnResDisplay] = useState(false);
+  const [ChnMailDisplay, setChnMailDisplay] = useState(false);
+
+  useEffect(() => {
+    if (
+      props.data &&
+      props.data.logical_field_name === "residential_address_chn" &&
+      (!userInputSelector?.applicants?.[0]?.res_name_of_street_1 ||
+        !userInputSelector?.applicants?.[0]?.res_building_estate_1 ||
+        !userInputSelector?.applicants?.[0]?.res_room_flat_1)
+    ) {
+      setChnResDisplay(true);
+    } else if (
+      props.data &&
+      props.data.logical_field_name === "mailing_address_chn" &&
+      (userInputSelector.applicants[0].alt_address_same_as_res_address_2 ===
+        "N" ||
+        userInputSelector.applicants[0].alt_address_same_as_res_address_3 ===
+          "N")
+    ) {
+      if (
+        !userInputSelector.applicants[0].res_name_of_street_3 &&
+        !userInputSelector.applicants[0].res_room_flat_3 &&
+        !userInputSelector.applicants[0].res_building_estate_3
+      ) {
+        setChnMailDisplay(true);
+      }
+    } else if (
+      props.data &&
+      props.data.logical_field_name === "mailing_address_chn" &&
+      (userInputSelector.applicants[0].alt_address_same_as_res_address_2 ===
+        "Y" ||
+        userInputSelector.applicants[0].alt_address_same_as_res_address_3 ===
+          "Y")
+    ) {
+      if (
+        !userInputSelector.applicants[0].res_name_of_street_1 &&
+        !userInputSelector.applicants[0].res_room_flat_1 &&
+        !userInputSelector.applicants[0].res_building_estate_1
+      ) {
+        setChnMailDisplay(true);
+      }
+    }
+  }, []);
+
+  const getfieldValue = () => {
+    let fieldValue = "";
+    if (props.data) {
+      if (props.data.component_type === "Amount") {
+        fieldValue =
+          "HKD " +
+          userInputSelector.applicants[0][
+            props.data.logical_field_name
+          ]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
+          ".00";
+        return fieldValue;
+      }
+      if (props.data.logical_field_name === "annual_income_pl") {
+        fieldValue =
+          "HKD " +
+          userInputSelector.applicants[0][
+            props.data.logical_field_name
+          ]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
+          ".00";
+        return fieldValue;
+      }
+      if (props.data.logical_field_name === "marketing_questionaires") {
+        if (userInputSelector.applicants[0].marketing_email === "Y") {
+          fieldValue += "Email";
+        }
+        if (userInputSelector.applicants[0].marketing_mobile_message === "Y") {
+          if (fieldValue) fieldValue += ", ";
+          fieldValue += "Mobile Message";
+        }
+        if (userInputSelector.applicants[0].marketing_phone_others === "Y") {
+          if (fieldValue) fieldValue += ", ";
+          fieldValue +=
+            "Phone Call (except calls from Relationship Managers or Premium Executive)";
+        }
+        if (userInputSelector.applicants[0].marketing_post === "Y") {
+          if (fieldValue) fieldValue += ", ";
+          fieldValue += "Post";
+        }
+        if (userInputSelector.applicants[0].marketing_phone_all === "Y") {
+          if (fieldValue) fieldValue += ", ";
+          fieldValue += "Phone Call (all calls)";
+        }
+        return fieldValue;
+      }
+      if (props.data.logical_field_name === "HKID") {
+        fieldValue =
+          userInputSelector.applicants[0][props.data.logical_field_name][0] +
+          "-" +
+          userInputSelector.applicants[0][
+            props.data.logical_field_name
+          ].substring(
+            1,
+            userInputSelector.applicants[0][props.data.logical_field_name]
+              .length - 1
+          ) +
+          "-" +
+          userInputSelector.applicants[0][props.data.logical_field_name][
+            userInputSelector.applicants[0][props.data.logical_field_name]
+              .length - 1
+          ];
+        return fieldValue;
+      }
+      if (props.data.component_type === "Phone") {
+        fieldValue = userInputSelector.applicants[0][
+          props.data.logical_field_name
+        ]
+          ? "+" + userInputSelector.applicants[0][props.data.logical_field_name]
+          : "";
+        return fieldValue;
+      }
+      if (props.data.logical_field_name === "apply_for_pl") {
+        if (stageSelector[0].stageInfo.products[0].product_type === "1258") {
+          fieldValue = "STANDARD CHARTERED PERSONAL INSTALMENT LOAN";
+        } else if (
+          stageSelector[0].stageInfo.products[0].product_type === "1312"
+        ) {
+          fieldValue = "Debt Consolidation Loan";
+        }
+        return fieldValue;
+      }
+      if (props.data.lov === "Yes") {
+        fieldValue = GetLovDesc(
+          stageSelector[0].stageInfo.applicants[0][
+            props.data.logical_field_name + "_a_1"
+          ],
+          lovDescSelector,
+          props.data.logical_field_name
+        );
+        return fieldValue;
+      }
+      if (
+        userInputSelector.applicants[0]["other_loans"] === "Y" &&
+        (props.data.logical_field_name ===
+          "total_outstanding_other_monthly_payment" ||
+          props.data.logical_field_name ===
+            "total_outstanding_other_loan_amount" ||
+          props.data.logical_field_name ===
+            "monthly_installment_mortgage_payment")
+      ) {
+        fieldValue = userInputSelector.applicants[0][
+          props.data.logical_field_name
+        ]
+          ? "HKD " +
+            userInputSelector.applicants[0][
+              props.data.logical_field_name
+            ]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
+            ".00"
+          : "";
+        return fieldValue;
+      } else {
+        fieldValue =
+          userInputSelector.applicants[0][props.data.logical_field_name];
+        return fieldValue;
+      }
+    }
+  };
+
+  const logicalName = props.data?.logical_field_name;
+  let noFieldDisplay = false;
+
+  // Hide logic for specific cases
+  if (
+    props.data.logical_field_name === "total_outstanding_other_loan_amount" &&
+    userInputSelector.applicants[0].total_outstanding_other_loan_amount === "" &&
+    userInputSelector.applicants[0].total_outstanding_other_monthly_payment
+      .length === ""
+  ) {
+    noFieldDisplay = true;
+  }
+
+  return (
+    <>
+      {noFieldDisplay ? (
+        ""
+      ) : (
+        <div className="display">
+          {props &&
+            props.data &&
+            props.data.component_type !== "authorize" &&
+            props.data.default_visibility === null && (
+              <>
+                <label
+                  title="display_label_rp"
+                  htmlFor={props.data.logical_field_name}
+                  className="display_label_rp"
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "5px 10px 0 0",
+                      lineHeight: "30px",
+                    }}
+                  >
+                    {props.data.label_length === 38 && (
+                      <span className="banner-icon"></span>
+                    )}
+
+                    {props.data.rwb_label_name}
+
+                    {props.data.label_length === 38 && (
+                      <div className="hk-headerclose-btnH">
+                        <img
+                          src={closeIcon}
+                          alt="close Icon"
+                          className="hk-headerclose-btn"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </label>
+                <p>
+                  {props.data.logical_field_name === "res_address" ||
+                  props.data.logical_field_name === "office_address"
+                    ?
