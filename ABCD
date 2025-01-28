@@ -12,7 +12,7 @@ import { CONSTANTS } from "../../../utils/common/constants";
 import { getUrl } from "../../../utils/common/change.utils";
 import { useEffect, useState } from "react";
 import closeIcon from "../../../modules/preApproval/images/icon-cross-black@3x.png";
-
+ 
 const Display = (props: KeyWithAnyModel) => {
   const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
   const lovDescSelector = useSelector((state: StoreModel) => state.lovDesc);
@@ -22,7 +22,7 @@ const Display = (props: KeyWithAnyModel) => {
   const language = getUrl.getLanguageInfo("lang");
   const [ChnResDisplay, setChnResDisplay] = useState(false);
   const [ChnMailDisplay, setChnMailDisplay] = useState(false);
-
+ 
   useEffect(() => {
     if (
       props.data &&
@@ -82,7 +82,7 @@ const Display = (props: KeyWithAnyModel) => {
       }
     }
   }, []);
-
+ 
   const getfieldValue = () => {
     let fieldValue = "";
     if (props.data) {
@@ -110,19 +110,19 @@ const Display = (props: KeyWithAnyModel) => {
           }
           if(userInputSelector.applicants[0].marketing_mobile_message==='Y'){
             if(fieldValue) fieldValue += ', ';
-            fieldValue +='Mobile Message' 
+            fieldValue +='Mobile Message'
           }
           if(userInputSelector.applicants[0].marketing_phone_others==='Y'){
             if(fieldValue) fieldValue += ', ';
-            fieldValue +='Phone Call (except calls from Relationship Managers or Premium Executive)' 
+            fieldValue +='Phone Call (except calls from Relationship Managers or Premium Executive)'
           }
           if(userInputSelector.applicants[0].marketing_post==='Y'){
             if(fieldValue) fieldValue += ', ';
-            fieldValue +='Post' 
+            fieldValue +='Post'
           }
           if(userInputSelector.applicants[0].marketing_phone_all==='Y'){
             if(fieldValue) fieldValue += ', ';
-            fieldValue +='Phone Call (all calls)' 
+            fieldValue +='Phone Call (all calls)'
           }
         return fieldValue;
       }
@@ -172,7 +172,7 @@ const Display = (props: KeyWithAnyModel) => {
         return fieldValue;
       }
       if(userInputSelector.applicants[0]["other_loans"] === "Y" && (props.data.logical_field_name === "total_outstanding_other_monthly_payment" || props.data.logical_field_name === "total_outstanding_other_loan_amount" || props.data.logical_field_name === "monthly_installment_mortgage_payment")) {
-        fieldValue =userInputSelector.applicants[0][props.data.logical_field_name] ? 
+        fieldValue =userInputSelector.applicants[0][props.data.logical_field_name] ?
           "HKD " +
           userInputSelector.applicants[0][props.data.logical_field_name]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
           ".00"
@@ -186,7 +186,7 @@ const Display = (props: KeyWithAnyModel) => {
       }
     }
   };
-
+ 
   const logicalName=props.data?.logical_field_name;
   let noFieldDisplay=false;
   if(logicalName){
@@ -206,7 +206,7 @@ const Display = (props: KeyWithAnyModel) => {
       props.data.logical_field_name === "credit_limit_extension" ||
       props.data.logical_field_name === "atm_service" ||
       props.data.logical_field_name === "atm_account_number_1" ||
-      props.data.logical_field_name === "atm_account_number_2" || 
+      props.data.logical_field_name === "atm_account_number_2" ||
       props.data.logical_field_name === "estatement"
   }
   if(props.data.logical_field_name === "monthly_installment_mortgage_payment" && userInputSelector.applicants[0]["other_loans"] === "N") {
@@ -224,7 +224,7 @@ const Display = (props: KeyWithAnyModel) => {
   if(props.data.logical_field_name === "relationship_of_related_person" && userInputSelector.applicants[0]["related_party"] === "N") {
     noFieldDisplay =true
   }
-
+ 
   return (
     <>
     {noFieldDisplay ? "":
@@ -250,8 +250,9 @@ const Display = (props: KeyWithAnyModel) => {
                   {props.data.label_length == 38 && (
                     <span className="banner-icon"></span>
                   )}
-                  if (userInputSelector.applicants[0].total_outstanding_other_loan_amount.length == 0 || userInputSelector.applicants[0].total_outstanding_other_monthly_payment.length ==0)
+ 
                   {props.data.rwb_label_name}
+ 
                   {props.data.label_length == 38 && (
                     <div className="hk-headerclose-btnH">
                       <img
@@ -293,56 +294,15 @@ const Display = (props: KeyWithAnyModel) => {
             </>
           )}
       </div>
-       } 
+       }
     </>
   );
 };
-
+ 
 export default Display;
 
+userInputSelector.applicants[0].total_outstanding_other_loan_amount === "" and userInputSelector.applicants[0].total_outstanding_other_monthly_payment.length === ""
 
-in line number 253 if there is no data in userInputSelector.applicants[0].total_outstanding_other_loan_amount.length == 0 and userInputSelector.applicants[0].total_outstanding_other_monthly_payment.length ==0
+then {props.data.rwb_label_name}
 
-then {props.data.rwb_label_name} this should not been shown Please help me in logic
-
-
-
-
-
-
-
-{userInputSelector.applicants[0].total_outstanding_other_loan_amount?.length > 0 ||
-userInputSelector.applicants[0].total_outstanding_other_monthly_payment?.length > 0 ? (
-  props.data.rwb_label_name
-) : null}
-
-
-
-
-
-<div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "5px 10px 0 0",
-    lineHeight: "30px",
-  }}
->
-  {props.data.label_length == 38 && <span className="banner-icon"></span>}
-
-  {userInputSelector.applicants[0].total_outstanding_other_loan_amount?.length > 0 ||
-  userInputSelector.applicants[0].total_outstanding_other_monthly_payment?.length > 0
-    ? props.data.rwb_label_name
-    : null}
-
-  {props.data.label_length == 38 && (
-    <div className="hk-headerclose-btnH">
-      <img
-        src={closeIcon}
-        alt="close Icon"
-        className="hk-headerclose-btn"
-      />
-    </div>
-  )}
-</div>
-
+Should not have corresponding rwb_label_name but rest all the data should be there as it is.
