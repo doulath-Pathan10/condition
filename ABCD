@@ -1,641 +1,88 @@
-import { useSelector } from "react-redux";
-import {
-  KeyWithAnyModel,
-  /*LovInputValRPModel,*/ StoreModel,
-} from "../../../utils/model/common-model";
-import {
-  GetLovDesc,
-  resAddressEng,
-} from "../../../modules/dashboard/review-page/review-page.utils";
-import "./display.scss";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { getUrl } from "../../../utils/common/change.utils";
-import { useEffect, useState } from "react";
-import closeIcon from "../../../modules/preApproval/images/icon-cross-black@3x.png";
- 
-const Display = (props: KeyWithAnyModel) => {
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const lovDescSelector = useSelector((state: StoreModel) => state.lovDesc);
-  const userInputSelector = useSelector(
-    (state: StoreModel) => state.stages.userInput
-  );
-  const language = getUrl.getLanguageInfo("lang");
-  const [ChnResDisplay, setChnResDisplay] = useState(false);
-  const [ChnMailDisplay, setChnMailDisplay] = useState(false);
- 
-  useEffect(() => {
-    if (
-      props.data &&
-      props.data.logical_field_name === "residential_address_chn" &&
-      (userInputSelector?.applicants?.[0]?.res_name_of_street_1 === null ||
-        userInputSelector?.applicants?.[0]?.res_name_of_street_1 === undefined ||
-        userInputSelector?.applicants?.[0]?.res_name_of_street_1 === "") &&
-      (userInputSelector?.applicants?.[0]?.res_building_estate_1 === null ||
-        userInputSelector?.applicants?.[0]?.res_building_estate_1 === undefined ||
-        userInputSelector?.applicants?.[0]?.res_building_estate_1 === "") &&
-      (userInputSelector?.applicants?.[0]?.res_room_flat_1 === null ||
-        userInputSelector?.applicants?.[0]?.res_room_flat_1 === undefined ||
-        userInputSelector?.applicants?.[0]?.res_room_flat_1 === "")
-    ) {
-      setChnResDisplay(true);
-    } else if (
-      props.data &&
-      props.data.logical_field_name === "mailing_address_chn" &&
-      (userInputSelector.applicants[0].alt_address_same_as_res_address_2 ===
-        "N" ||
-        userInputSelector.applicants[0].alt_address_same_as_res_address_3 ===
-          "N")
-    ) {
-      if (
-        (userInputSelector.applicants[0].res_name_of_street_3 === null ||
-          userInputSelector.applicants[0].res_name_of_street_3 === undefined ||
-          userInputSelector.applicants[0].res_name_of_street_3 === "") &&
-        (userInputSelector.applicants[0].res_room_flat_3 === null ||
-          userInputSelector.applicants[0].res_room_flat_3 === undefined ||
-          userInputSelector.applicants[0].res_room_flat_3 === "") &&
-        (userInputSelector.applicants[0].res_building_estate_3 === null ||
-          userInputSelector.applicants[0].res_building_estate_3 === undefined ||
-          userInputSelector.applicants[0].res_building_estate_3 === "")
-      ) {
-        setChnMailDisplay(true);
-      }
-    } else if (
-      props.data &&
-      props.data.logical_field_name === "mailing_address_chn" &&
-      (userInputSelector.applicants[0].alt_address_same_as_res_address_2 ===
-        "Y" ||
-        userInputSelector.applicants[0].alt_address_same_as_res_address_3 ===
-          "Y")
-    ) {
-      if (
-        (userInputSelector.applicants[0].res_name_of_street_1 === null ||
-          userInputSelector.applicants[0].res_name_of_street_1 === undefined ||
-          userInputSelector.applicants[0].res_name_of_street_1 === "") &&
-        (userInputSelector.applicants[0].res_room_flat_1 === null ||
-          userInputSelector.applicants[0].res_room_flat_1 === undefined ||
-          userInputSelector.applicants[0].res_room_flat_1 === "") &&
-        (userInputSelector.applicants[0].res_building_estate_1 === null ||
-          userInputSelector.applicants[0].res_building_estate_1 === undefined ||
-          userInputSelector.applicants[0].res_building_estate_1 === "")
-      ) {
-        setChnMailDisplay(true);
-      }
-    }
-  }, []);
- 
-  const getfieldValue = () => {
-    let fieldValue = "";
-    if (props.data) {
-      if (props.data.component_type === "Amount") {
-        fieldValue =
-          "HKD " +
-          userInputSelector.applicants[0][
-            props.data.logical_field_name
-          ]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
-          ".00";
-        return fieldValue;
-      }
-      if (props.data.logical_field_name === "annual_income_pl") {
-        fieldValue =
-          "HKD " +
-          userInputSelector.applicants[0][
-            props.data.logical_field_name
-          ]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
-          ".00";
-        return fieldValue;
-      }
-      if (props.data.logical_field_name === "marketing_questionaires") {
-          if(userInputSelector.applicants[0].marketing_email==='Y'){
-            fieldValue +='Email'
-          }
-          if(userInputSelector.applicants[0].marketing_mobile_message==='Y'){
-            if(fieldValue) fieldValue += ', ';
-            fieldValue +='Mobile Message'
-          }
-          if(userInputSelector.applicants[0].marketing_phone_others==='Y'){
-            if(fieldValue) fieldValue += ', ';
-            fieldValue +='Phone Call (except calls from Relationship Managers or Premium Executive)'
-          }
-          if(userInputSelector.applicants[0].marketing_post==='Y'){
-            if(fieldValue) fieldValue += ', ';
-            fieldValue +='Post'
-          }
-          if(userInputSelector.applicants[0].marketing_phone_all==='Y'){
-            if(fieldValue) fieldValue += ', ';
-            fieldValue +='Phone Call (all calls)'
-          }
-        return fieldValue;
-      }
-      if (props.data.logical_field_name === "HKID") {
-        fieldValue =
-          userInputSelector.applicants[0][props.data.logical_field_name][0] +
-          "-" +
-          userInputSelector.applicants[0][
-            props.data.logical_field_name
-          ].substring(
-            1,
-            userInputSelector.applicants[0][props.data.logical_field_name]
-              .length - 1
-          ) +
-          "-" +
-          userInputSelector.applicants[0][props.data.logical_field_name][
-            userInputSelector.applicants[0][props.data.logical_field_name]
-              .length - 1
-          ];
-        return fieldValue;
-      }
-      if (props.data.component_type === "Phone") {
-        fieldValue = userInputSelector.applicants[0][
-          props.data.logical_field_name
-        ]
-          ? "+" + userInputSelector.applicants[0][props.data.logical_field_name]
-          : "";
-        return fieldValue;
-      }
-      if(props.data.logical_field_name === "apply_for_pl") {
-        if(stageSelector[0].stageInfo.products[0].product_type === "1258"){
-          fieldValue= "STANDARD CHARTERED PERSONAL INSTALMENT LOAN"
-        }
-        else if(stageSelector[0].stageInfo.products[0].product_type === "1312"){
-          fieldValue= "Debt Consolidation Loan"
-        }
-        return fieldValue;
-      }
-      if (props.data.lov === "Yes") {
-        fieldValue = GetLovDesc(
-          stageSelector[0].stageInfo.applicants[0][
-            props.data.logical_field_name + "_a_1"
-          ],
-          lovDescSelector,
-          props.data.logical_field_name
-        );
-        return fieldValue;
-      }
-      if(userInputSelector.applicants[0]["other_loans"] === "Y" && (props.data.logical_field_name === "total_outstanding_other_monthly_payment" || props.data.logical_field_name === "total_outstanding_other_loan_amount" || props.data.logical_field_name === "monthly_installment_mortgage_payment")) {
-        fieldValue =userInputSelector.applicants[0][props.data.logical_field_name] ?
-          "HKD " +
-          userInputSelector.applicants[0][props.data.logical_field_name]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
-          ".00"
-          :
-          ''
-        return fieldValue;
-      }
-      else {
-        fieldValue = userInputSelector.applicants[0][props.data.logical_field_name];
-        return fieldValue;
-      }
-    }
-  };
- 
-  const logicalName=props.data?.logical_field_name;
-  let noFieldDisplay=false;
-  if(logicalName){
-    noFieldDisplay = props && props.data &&
-      props.data.logical_field_name === "integrated_deposit_account" ||
-      props.data.logical_field_name === "us_resident" ||
-      props.data.logical_field_name === "us_citizen" ||
-      props.data.logical_field_name === "education_level" ||
-      props.data.logical_field_name === "green_card_holder" ||
-      props.data.logical_field_name === "home_phone_number" ||
-      props.data.logical_field_name === "place_of_birth" ||
-      props.data.logical_field_name === "purpose_of_account" ||
-      props.data.logical_field_name === "tax_resident_of_any_country_region" ||
-      props.data.logical_field_name === "tin_hkid" ||
-      props.data.logical_field_name === "tax_resident_other_countries_regions" ||
-      props.data.logical_field_name === "referral_pl" ||
-      props.data.logical_field_name === "credit_limit_extension" ||
-      props.data.logical_field_name === "atm_service" ||
-      props.data.logical_field_name === "atm_account_number_1" ||
-      props.data.logical_field_name === "atm_account_number_2" ||
-      props.data.logical_field_name === "estatement"
-  }
-  if(props.data.logical_field_name === "monthly_installment_mortgage_payment" && userInputSelector.applicants[0]["other_loans"] === "N") {
-    noFieldDisplay =true
-  }
-  if(props.data.logical_field_name === "total_outstanding_other_loan_amount" && userInputSelector.applicants[0]["other_loans"] === "N") {
-    noFieldDisplay =true
-  }
-  if(props.data.logical_field_name === "total_outstanding_other_monthly_payment" && userInputSelector.applicants[0]["other_loans"] === "N") {
-    noFieldDisplay =true
-  }
-  if(props.data.logical_field_name === "name_of_related_person" && userInputSelector.applicants[0]["related_party"] === "N") {
-    noFieldDisplay =true
-  }
-  if(props.data.logical_field_name === "relationship_of_related_person" && userInputSelector.applicants[0]["related_party"] === "N") {
-    noFieldDisplay =true
-  }
- 
-  return (
-    <>
-    {noFieldDisplay ? "":
-      <div className="display">
-        {props &&
-          props.data &&
-          props.data.component_type !== "authorize" &&
-          props.data.default_visibility === null && (
-            <>
-              <label
-               title="display_label_rp"
-                htmlFor={props.data.logical_field_name}
-                className="display_label_rp"
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "5px 10px 0 0",
-                    lineHeight: "30px",
-                  }}
-                >
-                  {props.data.label_length == 38 && (
-                    <span className="banner-icon"></span>
-                  )}
- 
-                  {props.data.rwb_label_name}
- 
-                  {props.data.label_length == 38 && (
-                    <div className="hk-headerclose-btnH">
-                      <img
-                        src={closeIcon}
-                        alt="close Icon"
-                        className="hk-headerclose-btn"
-                      />
-                    </div>
-                  )}
-                </div>
-              </label>
-              <p>
-                {props.data.logical_field_name === "res_address" ||
-                props.data.logical_field_name === "office_address"
-                  ? resAddressEng(
-                    userInputSelector,
-                    lovDescSelector,
-                    props.data.logical_field_name
-                    )
-                    : props.data.logical_field_name ===
-                      "product_service_information_request" ||
-                    props.data.logical_field_name ===
-                      "individual_customer_authority_and_identity"
-                  ? stageSelector[0].stageInfo.applicants[0][
-                    props.data.logical_field_name+"_a_1"
-                  ] === "Y"
-                  ? language === CONSTANTS.LANG_EN
-                  ? CONSTANTS.YES
-                  : language === CONSTANTS.LANG_CN
-                  ? "是"
-                  : "是"
-                  : language === CONSTANTS.LANG_EN
-                  ? CONSTANTS.NO
-                  : language === CONSTANTS.LANG_CN
-                  ? "否"
-                  : "否"
-                  : getfieldValue()}
-              </p>
-            </>
-          )}
-      </div>
-       }
-    </>
-  );
+To create a table in React that matches the one in your image, you can use basic HTML elements or a component library like Material-UI or Bootstrap for styling. Below is an example of how to create a simple table using React:
+
+### Example Code
+
+```jsx
+import React from 'react';
+
+const FeeAndChargesTable = () => {
+    return (
+        <div>
+            <h2>Key Highlight of Interest, Fees and Charges:</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <tbody>
+                    <tr>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>
+                            Annual Interest Rate (APR) for Retail Purchase
+                        </td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>
+                            35.70% (If you do not pay your balance in full by the due date each month)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>
+                            APR for Cash Advance / Finance Charge for Cash Advance
+                        </td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>
+                            35.93% (For all Credit Cards except Smart Credit Card)<br />
+                            34.11% (For Smart Card only)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>
+                            Annual Membership Fee/ Annual Fee/ Annual Fee Anniversary (charge per card on annual basis)
+                        </td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>
+                            {/* No charge details in image, can be added here if needed */}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Card Type</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+                <thead>
+                    <tr>
+                        <th style={{ border: '1px solid black', padding: '8px' }}>Card Type</th>
+                        <th style={{ border: '1px solid black', padding: '8px' }}>Principal Card</th>
+                        <th style={{ border: '1px solid black', padding: '8px' }}>Supplementary Card</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Smart Credit Card</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Waived</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Waived</td>
+                    </tr>
+                    <tr>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Cathay Mastercard</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>HK$2,000</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Waived</td>
+                    </tr>
+                    <tr>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Cathay Mastercard - Priority Banking</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>HK$4,000</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Waived</td>
+                    </tr>
+                    <tr>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Cathay Mastercard - Priority Private</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>HK$8,000</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Waived</td>
+                    </tr>
+                    <tr>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Simply Cash Visa Card</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>HK$2,000</td>
+                        <td style={{ border: '1px solid black', padding: '8px' }}>Waived</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>Please refer to the KFS (including Fees and Charges) for Annual Fee of other card types.</p>
+        </div>
+    );
 };
- 
-export default Display;
 
-userInputSelector.applicants[0].total_outstanding_other_loan_amount === "" and userInputSelector.applicants[0].total_outstanding_other_monthly_payment.length === ""
+export default FeeAndChargesTable;
+```
 
-then {props.data.rwb_label_name}
-
-Should not have corresponding rwb_label_name but rest all the data should be there as it is.
-
-
-
-return (
-  <>
-    {noFieldDisplay ||
-    (props.data.logical_field_name ===
-      "total_outstanding_other_loan_amount" &&
-      userInputSelector.applicants[0].total_outstanding_other_loan_amount ===
-        "" &&
-      props.data.logical_field_name ===
-        "total_outstanding_other_monthly_payment" &&
-      userInputSelector.applicants[0].total_outstanding_other_monthly_payment
-        .length === "")
-      ? ""
-      : <div className="display">
-          {props &&
-            props.data &&
-            props.data.component_type !== "authorize" &&
-            props.data.default_visibility === null && (
-              <>
-                <label
-                  title="display_label_rp"
-                  htmlFor={props.data.logical_field_name}
-                  className="display_label_rp"
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "5px 10px 0 0",
-                      lineHeight: "30px",
-                    }}
-                  >
-                    {props.data.label_length == 38 && (
-                      <span className="banner-icon"></span>
-                    )}
-
-                    {props.data.rwb_label_name}
-
-                    {props.data.label_length == 38 && (
-                      <div className="hk-headerclose-btnH">
-                        <img
-                          src={closeIcon}
-                          alt="close Icon"
-                          className="hk-headerclose-btn"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </label>
-                <p>
-                  {props.data.logical_field_name === "res_address" ||
-                  props.data.logical_field_name === "office_address"
-                    ? resAddressEng(
-                        userInputSelector,
-                        lovDescSelector,
-                        props.data.logical_field_name
-                      )
-                    : props.data.logical_field_name ===
-                        "product_service_information_request" ||
-                      props.data.logical_field_name ===
-                        "individual_customer_authority_and_identity"
-                    ? stageSelector[0].stageInfo.applicants[0][
-                        props.data.logical_field_name + "_a_1"
-                      ] === "Y"
-                      ? language === CONSTANTS.LANG_EN
-                        ? CONSTANTS.YES
-                        : language === CONSTANTS.LANG_CN
-                        ? "是"
-                        : "是"
-                      : language === CONSTANTS.LANG_EN
-                      ? CONSTANTS.NO
-                      : language === CONSTANTS.LANG_CN
-                      ? "否"
-                      : "否"
-                    : getfieldValue()}
-                </p>
-              </>
-            )}
-        </div>}
-  </>
-);
-
-
-
-
-
-
-
-
-import { useSelector } from "react-redux";
-import {
-  KeyWithAnyModel,
-  StoreModel,
-} from "../../../utils/model/common-model";
-import {
-  GetLovDesc,
-  resAddressEng,
-} from "../../../modules/dashboard/review-page/review-page.utils";
-import "./display.scss";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { getUrl } from "../../../utils/common/change.utils";
-import { useEffect, useState } from "react";
-import closeIcon from "../../../modules/preApproval/images/icon-cross-black@3x.png";
-
-const Display = (props: KeyWithAnyModel) => {
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const lovDescSelector = useSelector((state: StoreModel) => state.lovDesc);
-  const userInputSelector = useSelector(
-    (state: StoreModel) => state.stages.userInput
-  );
-  const language = getUrl.getLanguageInfo("lang");
-  const [ChnResDisplay, setChnResDisplay] = useState(false);
-  const [ChnMailDisplay, setChnMailDisplay] = useState(false);
-
-  useEffect(() => {
-    if (
-      props.data &&
-      props.data.logical_field_name === "residential_address_chn" &&
-      (!userInputSelector?.applicants?.[0]?.res_name_of_street_1 ||
-        !userInputSelector?.applicants?.[0]?.res_building_estate_1 ||
-        !userInputSelector?.applicants?.[0]?.res_room_flat_1)
-    ) {
-      setChnResDisplay(true);
-    } else if (
-      props.data &&
-      props.data.logical_field_name === "mailing_address_chn" &&
-      (userInputSelector.applicants[0].alt_address_same_as_res_address_2 ===
-        "N" ||
-        userInputSelector.applicants[0].alt_address_same_as_res_address_3 ===
-          "N")
-    ) {
-      if (
-        !userInputSelector.applicants[0].res_name_of_street_3 &&
-        !userInputSelector.applicants[0].res_room_flat_3 &&
-        !userInputSelector.applicants[0].res_building_estate_3
-      ) {
-        setChnMailDisplay(true);
-      }
-    } else if (
-      props.data &&
-      props.data.logical_field_name === "mailing_address_chn" &&
-      (userInputSelector.applicants[0].alt_address_same_as_res_address_2 ===
-        "Y" ||
-        userInputSelector.applicants[0].alt_address_same_as_res_address_3 ===
-          "Y")
-    ) {
-      if (
-        !userInputSelector.applicants[0].res_name_of_street_1 &&
-        !userInputSelector.applicants[0].res_room_flat_1 &&
-        !userInputSelector.applicants[0].res_building_estate_1
-      ) {
-        setChnMailDisplay(true);
-      }
-    }
-  }, []);
-
-  const getfieldValue = () => {
-    let fieldValue = "";
-    if (props.data) {
-      if (props.data.component_type === "Amount") {
-        fieldValue =
-          "HKD " +
-          userInputSelector.applicants[0][
-            props.data.logical_field_name
-          ]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
-          ".00";
-        return fieldValue;
-      }
-      if (props.data.logical_field_name === "annual_income_pl") {
-        fieldValue =
-          "HKD " +
-          userInputSelector.applicants[0][
-            props.data.logical_field_name
-          ]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
-          ".00";
-        return fieldValue;
-      }
-      if (props.data.logical_field_name === "marketing_questionaires") {
-        if (userInputSelector.applicants[0].marketing_email === "Y") {
-          fieldValue += "Email";
-        }
-        if (userInputSelector.applicants[0].marketing_mobile_message === "Y") {
-          if (fieldValue) fieldValue += ", ";
-          fieldValue += "Mobile Message";
-        }
-        if (userInputSelector.applicants[0].marketing_phone_others === "Y") {
-          if (fieldValue) fieldValue += ", ";
-          fieldValue +=
-            "Phone Call (except calls from Relationship Managers or Premium Executive)";
-        }
-        if (userInputSelector.applicants[0].marketing_post === "Y") {
-          if (fieldValue) fieldValue += ", ";
-          fieldValue += "Post";
-        }
-        if (userInputSelector.applicants[0].marketing_phone_all === "Y") {
-          if (fieldValue) fieldValue += ", ";
-          fieldValue += "Phone Call (all calls)";
-        }
-        return fieldValue;
-      }
-      if (props.data.logical_field_name === "HKID") {
-        fieldValue =
-          userInputSelector.applicants[0][props.data.logical_field_name][0] +
-          "-" +
-          userInputSelector.applicants[0][
-            props.data.logical_field_name
-          ].substring(
-            1,
-            userInputSelector.applicants[0][props.data.logical_field_name]
-              .length - 1
-          ) +
-          "-" +
-          userInputSelector.applicants[0][props.data.logical_field_name][
-            userInputSelector.applicants[0][props.data.logical_field_name]
-              .length - 1
-          ];
-        return fieldValue;
-      }
-      if (props.data.component_type === "Phone") {
-        fieldValue = userInputSelector.applicants[0][
-          props.data.logical_field_name
-        ]
-          ? "+" + userInputSelector.applicants[0][props.data.logical_field_name]
-          : "";
-        return fieldValue;
-      }
-      if (props.data.logical_field_name === "apply_for_pl") {
-        if (stageSelector[0].stageInfo.products[0].product_type === "1258") {
-          fieldValue = "STANDARD CHARTERED PERSONAL INSTALMENT LOAN";
-        } else if (
-          stageSelector[0].stageInfo.products[0].product_type === "1312"
-        ) {
-          fieldValue = "Debt Consolidation Loan";
-        }
-        return fieldValue;
-      }
-      if (props.data.lov === "Yes") {
-        fieldValue = GetLovDesc(
-          stageSelector[0].stageInfo.applicants[0][
-            props.data.logical_field_name + "_a_1"
-          ],
-          lovDescSelector,
-          props.data.logical_field_name
-        );
-        return fieldValue;
-      }
-      if (
-        userInputSelector.applicants[0]["other_loans"] === "Y" &&
-        (props.data.logical_field_name ===
-          "total_outstanding_other_monthly_payment" ||
-          props.data.logical_field_name ===
-            "total_outstanding_other_loan_amount" ||
-          props.data.logical_field_name ===
-            "monthly_installment_mortgage_payment")
-      ) {
-        fieldValue = userInputSelector.applicants[0][
-          props.data.logical_field_name
-        ]
-          ? "HKD " +
-            userInputSelector.applicants[0][
-              props.data.logical_field_name
-            ]?.replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
-            ".00"
-          : "";
-        return fieldValue;
-      } else {
-        fieldValue =
-          userInputSelector.applicants[0][props.data.logical_field_name];
-        return fieldValue;
-      }
-    }
-  };
-
-  const logicalName = props.data?.logical_field_name;
-  let noFieldDisplay = false;
-
-  // Hide logic for specific cases
-  if (
-    props.data.logical_field_name === "total_outstanding_other_loan_amount" &&
-    userInputSelector.applicants[0].total_outstanding_other_loan_amount === "" &&
-    userInputSelector.applicants[0].total_outstanding_other_monthly_payment
-      .length === ""
-  ) {
-    noFieldDisplay = true;
-  }
-
-  return (
-    <>
-      {noFieldDisplay ? (
-        ""
-      ) : (
-        <div className="display">
-          {props &&
-            props.data &&
-            props.data.component_type !== "authorize" &&
-            props.data.default_visibility === null && (
-              <>
-                <label
-                  title="display_label_rp"
-                  htmlFor={props.data.logical_field_name}
-                  className="display_label_rp"
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "5px 10px 0 0",
-                      lineHeight: "30px",
-                    }}
-                  >
-                    {props.data.label_length === 38 && (
-                      <span className="banner-icon"></span>
-                    )}
-
-                    {props.data.rwb_label_name}
-
-                    {props.data.label_length === 38 && (
-                      <div className="hk-headerclose-btnH">
-                        <img
-                          src={closeIcon}
-                          alt="close Icon"
-                          className="hk-headerclose-btn"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </label>
-                <p>
-                  {props.data.logical_field_name === "res_address" ||
-                  props.data.logical_field_name === "office_address"
-                    ?
+### Explanation:
+- **
