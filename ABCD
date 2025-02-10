@@ -86,3 +86,164 @@ export default FeeAndChargesTable;
 
 ### Explanation:
 - **
+
+
+
+
+
+
+To create a table in React that displays the data from the image, we need to set up the structure in a component and provide the data in an object format. Here’s how you can do it:
+
+1. **Data Structure**: 
+
+We'll represent the data in an object format.
+
+```javascript
+const tableData = {
+    interestRates: [
+        {
+            title: "Annual Interest Rate (APR) for Retail Purchase",
+            rate: "35.70% (If you do not pay your balance in full by the due date each month)"
+        },
+        {
+            title: "APR for Cash Advance / Finance Charge for Cash Advance",
+            rate: "35.93% (For all Credit Cards except Smart Credit Card)"
+        },
+        {
+            title: "APR for Cash Advance / Finance Charge for Cash Advance",
+            rate: "34.11% (For Smart Card only)"
+        }
+    ],
+    cardTypes: [
+        {
+            type: "Smart Credit Card",
+            principal: "Waived",
+            supplementary: "Waived"
+        },
+        {
+            type: "Cathay Mastercard",
+            principal: "HK$2,000",
+            supplementary: "Waived"
+        },
+        {
+            type: "Cathay Mastercard - Priority Banking",
+            principal: "HK$4,000",
+            supplementary: "Waived"
+        },
+        {
+            type: "Cathay Mastercard - Priority Private",
+            principal: "HK$8,000",
+            supplementary: "Waived"
+        },
+        {
+            type: "Simply Cash Visa Card",
+            principal: "HK$2,000",
+            supplementary: "Waived"
+        }
+    ]
+};
+```
+
+2. **React Component**: 
+
+Now we will create a React component to render this data in a table layout.
+
+```javascript
+import React from 'react';
+
+const DataTable = () => {
+    const tableData = {
+        interestRates: [
+            {
+                title: "Annual Interest Rate (APR) for Retail Purchase",
+                rate: "35.70% (If you do not pay your balance in full by the due date each month)"
+            },
+            {
+                title: "APR for Cash Advance / Finance Charge for Cash Advance",
+                rate: "35.93% (For all Credit Cards except Smart Credit Card)"
+            },
+            {
+                title: "APR for Cash Advance / Finance Charge for Cash Advance",
+                rate: "34.11% (For Smart Card only)"
+            }
+        ],
+        cardTypes: [
+            {
+                type: "Smart Credit Card",
+                principal: "Waived",
+                supplementary: "Waived"
+            },
+            {
+                type: "Cathay Mastercard",
+                principal: "HK$2,000",
+                supplementary: "Waived"
+            },
+            {
+                type: "Cathay Mastercard - Priority Banking",
+                principal: "HK$4,000",
+                supplementary: "Waived"
+            },
+            {
+                type: "Cathay Mastercard - Priority Private",
+                principal: "HK$8,000",
+                supplementary: "Waived"
+            },
+            {
+                type: "Simply Cash Visa Card",
+                principal: "HK$2,000",
+                supplementary: "Waived"
+            }
+        ]
+    };
+
+    return (
+        <div>
+            <h2>Interest Rates</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {tableData.interestRates.map((item, index) => (
+                        <tr key={index}>
+                            <td>{item.title}</td>
+                            <td>{item.rate}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+
+            <h2>Card Types</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Card Type</th>
+                        <th>Principal Card</th>
+                        <th>Supplementary Card</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {tableData.cardTypes.map((card, index) => (
+                        <tr key={index}>
+                            <td>{card.type}</td>
+                            <td>{card.principal}</td>
+                            <td>{card.supplementary}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+export default DataTable;
+```
+
+### Explanation:
+- **Data Structure**: The `tableData` object holds the interest rates and card types as arrays of objects, with relevant properties.
+- **React Component**: The `DataTable` component renders two tables, one for interest rates and another for card types, using the mapped data from `tableData`. Each table displays headers and rows based on the provided data structure. 
+
+You can include this component in your React application to render the tables as shown in the image.
