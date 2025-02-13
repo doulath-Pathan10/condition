@@ -1,33 +1,22 @@
-To write test cases for the `LoanDisbursement` component using React and Jest, we need to cover various aspects of the component, including rendering, user interactions, state changes, and API calls. We will use `jest` and `@testing-library/react` for testing. Additionally, we will mock API calls using `jest.mock` and `axios-mock-adapter`.
+If you're encountering issues with `axios-mock-adapter`, we can use `jest`'s built-in mocking capabilities to mock Axios requests instead. Below is an updated version of the test code that avoids using `axios-mock-adapter` and instead uses `jest.mock` to mock Axios directly.
 
-Here’s how you can write the test cases:
-
-### 1. Setup Dependencies
-
-Make sure you have the following dependencies installed:
-
-```bash
-npm install --save-dev @testing-library/react @testing-library/jest-dom jest axios-mock-adapter
-```
-
-### 2. Create the Test File
-
-Create a file named `LoanDisbursement.test.tsx` in the same directory as your component.
-
-### 3. Write Test Cases
+### Updated Test Code
 
 ```tsx
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import LoanDisbursement from './LoanDisbursement';
 import axios from 'axios';
-import MockAdapter from 'axios-mock-adapter';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import { StoreModel } from '../../../../utils/model/common-model';
 import { preApprovalAction } from '../../store/preApproval-slice';
 import { stagesAction } from '../../../../utils/store/stages-slice';
 import { CONSTANTS } from '../../../../utils/common/constants';
+
+// Mock Axios
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 // Mock the store
 const mockStore = configureStore([]);
@@ -67,12 +56,9 @@ const store = mockStore({
   },
 });
 
-// Mock axios
-const mockAxios = new MockAdapter(axios);
-
 describe('LoanDisbursement Component', () => {
   beforeEach(() => {
-    mockAxios.reset();
+    jest.clearAllMocks();
     store.clearActions();
   });
 
@@ -118,10 +104,12 @@ describe('LoanDisbursement Component', () => {
   });
 
   it('calls the API when the loan amount or tenor is changed', async () => {
-    mockAxios.onPost('/api/getOfferCalulated').reply(200, {
-      apr: 5,
-      monthly_flat_rate: 2,
-      repayment_amount: 1000,
+    mockedAxios.post.mockResolvedValueOnce({
+      data: {
+        apr: 5,
+        monthly_flat_rate: 2,
+        repayment_amount: 1000,
+      },
     });
 
     render(
@@ -134,13 +122,13 @@ describe('LoanDisbursement Component', () => {
     fireEvent.change(slider, { target: { value: 15000 } });
 
     await waitFor(() => {
-      expect(mockAxios.history.post.length).toBe(1);
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
       expect(screen.getByText('5%')).toBeInTheDocument();
     });
   });
 
   it('handles API errors gracefully', async () => {
-    mockAxios.onPost('/api/getOfferCalulated').reply(500);
+    mockedAxios.post.mockRejectedValueOnce(new Error('API Error'));
 
     render(
       <Provider store={store}>
@@ -152,15 +140,15 @@ describe('LoanDisbursement Component', () => {
     fireEvent.change(slider, { target: { value: 15000 } });
 
     await waitFor(() => {
-      expect(mockAxios.history.post.length).toBe(1);
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
       expect(screen.getByText('Error occurred')).toBeInTheDocument();
     });
   });
 
   it('navigates to the next stage when the continue button is clicked', async () => {
-    mockAxios.onPost('/api/getOffer2').reply(200, {
-      status: 200,
+    mockedAxios.post.mockResolvedValueOnce({
       data: {
+        status: 200,
         application: {
           response_type: 'INFO',
           response_action: 'SUCCESS',
@@ -195,27 +183,31 @@ describe('LoanDisbursement Component', () => {
 });
 ```
 
-### 4. Explanation of Test Cases
+### Key Changes:
+1. **Mocking Axios**:
+   - Instead of using `axios-mock-adapter`, we use `jest.mock('axios')` to mock Axios directly.
+   - `mockedAxios.post` is used to mock API responses and errors.
 
-1. **Rendering Test**: Ensures the component renders without crashing and displays the correct initial values.
-2. **Slider Interaction Test**: Checks if the loan amount updates when the slider is changed.
-3. **Tenor Selection Test**: Verifies that the loan tenor updates when a different tenor is selected.
-4. **API Call Test**: Ensures the API is called when the loan amount or tenor is changed and updates the UI accordingly.
-5. **API Error Handling Test**: Checks if the component handles API errors gracefully.
-6. **Navigation Test**: Verifies that the component navigates to the next stage when the continue button is clicked.
+2. **API Call Test**:
+   - We mock the `post` method of Axios using `mockResolvedValueOnce` and `mockRejectedValueOnce` to simulate successful and failed API calls.
 
-### 5. Running the Tests
+3. **Error Handling**:
+   - The test checks if the component displays an error message when the API call fails.
 
+4. **Navigation Test**:
+   - The test verifies that the component navigates to the next stage when the "Continue" button is clicked.
+
+### Running the Tests:
 Run the tests using the following command:
 
 ```bash
 npm test
 ```
 
-This will execute all the test cases and provide coverage information. You can also generate a coverage report by running:
+To generate a coverage report:
 
 ```bash
 npm test -- --coverage
 ```
 
-This will give you a detailed report of the code coverage, helping you identify any untested branches or lines in your component.
+This approach avoids the issues with `axios-mock-adapter` and uses `jest`'s built-in mocking capabilities, which are more reliable and easier to maintain.
