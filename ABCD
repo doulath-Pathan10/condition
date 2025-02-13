@@ -1,213 +1,33 @@
-If you're encountering issues with `axios-mock-adapter`, we can use `jest`'s built-in mocking capabilities to mock Axios requests instead. Below is an updated version of the test code that avoids using `axios-mock-adapter` and instead uses `jest.mock` to mock Axios directly.
+import { useState } from 'react';
+import Model from "../model/model";
+import "./info-tooltips.scss";
+import { CONSTANTS } from '../../../utils/common/constants';
+import { getUrl } from '../../../utils/common/change.utils';
+export const InfoTooltips = (props: any) => {
 
-### Updated Test Code
+    const getMarkup = () => {
+        return {
+            __html: `
+          <div>${props && props.infoTooltips}</div>
+        `,
+        };
+    };
 
-```tsx
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import LoanDisbursement from './LoanDisbursement';
-import axios from 'axios';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import { StoreModel } from '../../../../utils/model/common-model';
-import { preApprovalAction } from '../../store/preApproval-slice';
-import { stagesAction } from '../../../../utils/store/stages-slice';
-import { CONSTANTS } from '../../../../utils/common/constants';
+    const [showPopup, setShowPopup] = useState(false)
+    const language = getUrl.getLanguageInfo("lang");
+    const closePopup = () => {
+        setShowPopup(false)
+    }
+    return (
+        <>
+            <div className="tool-tip__icon" onClick={() => setShowPopup(!showPopup)}></div>
+            {(showPopup) && (
+                showPopup &&
+                <Model name='info_tooltips' btnTxt={language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK} closePopup={closePopup} body_content={<span dangerouslySetInnerHTML={getMarkup()}></span>}> </Model>
 
-// Mock Axios
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+            )}
+        </>
+    )
+}
 
-// Mock the store
-const mockStore = configureStore([]);
-const store = mockStore({
-  stages: {
-    stages: [
-      {
-        stageInfo: {
-          products: [
-            {
-              product_category: 'PL',
-              offer_details: [
-                {
-                  approved_amount: 10000,
-                  approved_tenor: 12,
-                  apr: 5,
-                  flatRate: 2,
-                  repaymentAmount: 1000,
-                  offer_status: '1001',
-                  bestOffer: 'N',
-                },
-                {
-                  approved_amount: 20000,
-                  approved_tenor: 24,
-                  apr: 6,
-                  flatRate: 3,
-                  repaymentAmount: 2000,
-                  offer_status: '1002',
-                  bestOffer: 'Y',
-                },
-              ],
-            },
-          ],
-        },
-      },
-    ],
-  },
-});
-
-describe('LoanDisbursement Component', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    store.clearActions();
-  });
-
-  it('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    expect(screen.getByText('Congratulations!')).toBeInTheDocument();
-  });
-
-  it('displays the correct initial values', () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    expect(screen.getByText('HKD 10000')).toBeInTheDocument();
-    expect(screen.getByText('12 Months')).toBeInTheDocument();
-  });
-
-  it('updates the loan amount when the slider is changed', () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    const slider = screen.getByRole('slider');
-    fireEvent.change(slider, { target: { value: 15000 } });
-    expect(screen.getByText('HKD 15000')).toBeInTheDocument();
-  });
-
-  it('updates the loan tenor when a different tenor is selected', () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    const tenorButton = screen.getByText('24 Months');
-    fireEvent.click(tenorButton);
-    expect(screen.getByText('24 Months')).toBeInTheDocument();
-  });
-
-  it('calls the API when the loan amount or tenor is changed', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
-      data: {
-        apr: 5,
-        monthly_flat_rate: 2,
-        repayment_amount: 1000,
-      },
-    });
-
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const slider = screen.getByRole('slider');
-    fireEvent.change(slider, { target: { value: 15000 } });
-
-    await waitFor(() => {
-      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('5%')).toBeInTheDocument();
-    });
-  });
-
-  it('handles API errors gracefully', async () => {
-    mockedAxios.post.mockRejectedValueOnce(new Error('API Error'));
-
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const slider = screen.getByRole('slider');
-    fireEvent.change(slider, { target: { value: 15000 } });
-
-    await waitFor(() => {
-      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Error occurred')).toBeInTheDocument();
-    });
-  });
-
-  it('navigates to the next stage when the continue button is clicked', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
-      data: {
-        status: 200,
-        application: {
-          response_type: 'INFO',
-          response_action: 'SUCCESS',
-        },
-        products: [
-          {
-            offer_details: [
-              {
-                offer_status: '1001',
-              },
-            ],
-          },
-        ],
-      },
-    });
-
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(store.getActions()).toContainEqual(
-        stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.ACD_4)
-      );
-    });
-  });
-});
-```
-
-### Key Changes:
-1. **Mocking Axios**:
-   - Instead of using `axios-mock-adapter`, we use `jest.mock('axios')` to mock Axios directly.
-   - `mockedAxios.post` is used to mock API responses and errors.
-
-2. **API Call Test**:
-   - We mock the `post` method of Axios using `mockResolvedValueOnce` and `mockRejectedValueOnce` to simulate successful and failed API calls.
-
-3. **Error Handling**:
-   - The test checks if the component displays an error message when the API call fails.
-
-4. **Navigation Test**:
-   - The test verifies that the component navigates to the next stage when the "Continue" button is clicked.
-
-### Running the Tests:
-Run the tests using the following command:
-
-```bash
-npm test
-```
-
-To generate a coverage report:
-
-```bash
-npm test -- --coverage
-```
-
-This approach avoids the issues with `axios-mock-adapter` and uses `jest`'s built-in mocking capabilities, which are more reliable and easier to maintain.
+export default InfoTooltips;
