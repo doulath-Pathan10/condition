@@ -1,33 +1,72 @@
-import { useState } from 'react';
-import Model from "../model/model";
-import "./info-tooltips.scss";
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import InfoTooltips from './InfoTooltips';
+import Model from '../model/model';
 import { CONSTANTS } from '../../../utils/common/constants';
 import { getUrl } from '../../../utils/common/change.utils';
-export const InfoTooltips = (props: any) => {
 
-    const getMarkup = () => {
-        return {
-            __html: `
-          <div>${props && props.infoTooltips}</div>
-        `,
-        };
-    };
+// Mock the Model component
+jest.mock('../model/model', () => (props) => (
+  <div data-testid="model">
+    <div>{props.body_content}</div>
+    <button onClick={props.closePopup}>{props.btnTxt}</button>
+  </div>
+));
 
-    const [showPopup, setShowPopup] = useState(false)
-    const language = getUrl.getLanguageInfo("lang");
-    const closePopup = () => {
-        setShowPopup(false)
-    }
-    return (
-        <>
-            <div className="tool-tip__icon" onClick={() => setShowPopup(!showPopup)}></div>
-            {(showPopup) && (
-                showPopup &&
-                <Model name='info_tooltips' btnTxt={language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK} closePopup={closePopup} body_content={<span dangerouslySetInnerHTML={getMarkup()}></span>}> </Model>
+// Mock the getUrl.getLanguageInfo function
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn(),
+  },
+}));
 
-            )}
-        </>
-    )
-}
+describe('InfoTooltips', () => {
+  const props = {
+    infoTooltips: 'This is a tooltip content',
+  };
 
-export default InfoTooltips;
+  beforeEach(() => {
+    getUrl.getLanguageInfo.mockClear();
+  });
+
+  test('renders the tooltip icon correctly', () => {
+    render(<InfoTooltips {...props} />);
+    const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
+    expect(tooltipIcon).toBeInTheDocument();
+  });
+
+  test('opens the popup when the tooltip icon is clicked', () => {
+    render(<InfoTooltips {...props} />);
+    const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
+    fireEvent.click(tooltipIcon);
+    const model = screen.getByTestId('model');
+    expect(model).toBeInTheDocument();
+  });
+
+  test('closes the popup when the close button is clicked', () => {
+    render(<InfoTooltips {...props} />);
+    const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
+    fireEvent.click(tooltipIcon);
+    const closeButton = screen.getByRole('button', { name: CONSTANTS.OK });
+    fireEvent.click(closeButton);
+    const model = screen.queryByTestId('model');
+    expect(model).not.toBeInTheDocument();
+  });
+
+  test('renders the correct language text for the button based on the language', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
+    render(<InfoTooltips {...props} />);
+    const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
+    fireEvent.click(tooltipIcon);
+    const closeButton = screen.getByRole('button', { name: CONSTANTS.OK_CN });
+    expect(closeButton).toBeInTheDocument();
+  });
+
+  test('renders the correct content inside the popup', () => {
+    render(<InfoTooltips {...props} />);
+    const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
+    fireEvent.click(tooltipIcon);
+    const content = screen.getByText(props.infoTooltips);
+    expect(content).toBeInTheDocument();
+  });
+});
