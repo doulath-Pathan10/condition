@@ -1,17 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import InfoTooltips from './InfoTooltips';
-import Model from '../model/model';
 import { CONSTANTS } from '../../../utils/common/constants';
 import { getUrl } from '../../../utils/common/change.utils';
-
-// Mock the Model component
-jest.mock('../model/model', () => (props) => (
-  <div data-testid="model">
-    <div>{props.body_content}</div>
-    <button onClick={props.closePopup}>{props.btnTxt}</button>
-  </div>
-));
 
 // Mock the getUrl.getLanguageInfo function
 jest.mock('../../../utils/common/change.utils', () => ({
@@ -26,6 +17,7 @@ describe('InfoTooltips', () => {
   };
 
   beforeEach(() => {
+    // Reset the mock implementation before each test
     getUrl.getLanguageInfo.mockClear();
   });
 
@@ -39,33 +31,54 @@ describe('InfoTooltips', () => {
     render(<InfoTooltips {...props} />);
     const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
     fireEvent.click(tooltipIcon);
-    const model = screen.getByTestId('model');
-    expect(model).toBeInTheDocument();
+    const popupContent = screen.getByText(props.infoTooltips);
+    expect(popupContent).toBeInTheDocument();
   });
 
   test('closes the popup when the close button is clicked', () => {
     render(<InfoTooltips {...props} />);
     const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
-    fireEvent.click(tooltipIcon);
-    const closeButton = screen.getByRole('button', { name: CONSTANTS.OK });
-    fireEvent.click(closeButton);
-    const model = screen.queryByTestId('model');
-    expect(model).not.toBeInTheDocument();
+    fireEvent.click(tooltipIcon); // Open the popup
+    const closeButton = screen.getByRole('button', { name: CONSTANTS.OK }); // Default language is English
+    fireEvent.click(closeButton); // Close the popup
+    const popupContent = screen.queryByText(props.infoTooltips);
+    expect(popupContent).not.toBeInTheDocument();
   });
 
-  test('renders the correct language text for the button based on the language', () => {
+  test('renders the correct language text for the button based on the language (English)', () => {
+    // Mock the language to be English
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips {...props} />);
+    const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
+    fireEvent.click(tooltipIcon); // Open the popup
+    const closeButton = screen.getByRole('button', { name: CONSTANTS.OK });
+    expect(closeButton).toBeInTheDocument();
+  });
+
+  test('renders the correct language text for the button based on the language (Chinese)', () => {
+    // Mock the language to be Chinese
     getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
     render(<InfoTooltips {...props} />);
     const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
-    fireEvent.click(tooltipIcon);
+    fireEvent.click(tooltipIcon); // Open the popup
     const closeButton = screen.getByRole('button', { name: CONSTANTS.OK_CN });
+    expect(closeButton).toBeInTheDocument();
+  });
+
+  test('renders the correct language text for the button based on the language (Hong Kong)', () => {
+    // Mock the language to be Hong Kong
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_HK);
+    render(<InfoTooltips {...props} />);
+    const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
+    fireEvent.click(tooltipIcon); // Open the popup
+    const closeButton = screen.getByRole('button', { name: CONSTANTS.OK_HK });
     expect(closeButton).toBeInTheDocument();
   });
 
   test('renders the correct content inside the popup', () => {
     render(<InfoTooltips {...props} />);
     const tooltipIcon = screen.getByRole('button', { name: /tool-tip__icon/i });
-    fireEvent.click(tooltipIcon);
+    fireEvent.click(tooltipIcon); // Open the popup
     const content = screen.getByText(props.infoTooltips);
     expect(content).toBeInTheDocument();
   });
