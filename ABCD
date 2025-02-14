@@ -30,10 +30,28 @@ describe('LoanDisbursement Component', () => {
                       offer_status: '1001',
                       bestOffer: 'N',
                     },
+                    {
+                      approved_amount: '15000',
+                      approved_tenor: '24',
+                      apr: '6',
+                      flatRate: '3',
+                      repaymentAmount: '700',
+                      offer_status: '1002',
+                      bestOffer: 'Y',
+                    },
                   ],
                   product_category: 'PL',
                 },
               ],
+              applicants: [
+                {
+                  requested_loan_amount_a_1: '10000',
+                  requested_loan_tenor_a_1: '12',
+                },
+              ],
+              application: {
+                downshell: false,
+              },
             },
           },
         ],
@@ -78,7 +96,7 @@ describe('LoanDisbursement Component', () => {
   });
 
   test('calculates offer on month change', async () => {
-    axios.get.mockResolvedValueOnce({
+    axios.get.mockResolvedValue({
       status: 200,
       data: {
         apr: '6',
@@ -103,8 +121,25 @@ describe('LoanDisbursement Component', () => {
     });
   });
 
+  test('handles API error in calculateOffer', async () => {
+    axios.get.mockRejectedValue(new Error('API Error'));
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const select = screen.getByLabelText(/Tenor & Monthly Repayment/i);
+    fireEvent.change(select, { target: { value: '24' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText(/6%/i)).not.toBeInTheDocument();
+    });
+  });
+
   test('navigates to next stage', async () => {
-    axios.post.mockResolvedValueOnce({
+    axios.post.mockResolvedValue({
       status: 200,
       data: {
         application: {
@@ -137,7 +172,24 @@ describe('LoanDisbursement Component', () => {
     });
   });
 
-  test('renders language specific content', () => {
+  test('handles API error in nextStage', async () => {
+    axios.post.mockRejectedValue(new Error('API Error'));
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const button = screen.getByText(/Confirm to Proceed/i);
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(axios.post).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test('renders language specific content for zh-HK', () => {
     store = mockStore({
       stages: {
         stages: [
@@ -159,6 +211,31 @@ describe('LoanDisbursement Component', () => {
                   product_category: 'PL',
                 },
               ],
+            },
+          },
+        ],
+      },
+    });
+
+    // Mock getLanguageInfo to return 'zh-HK'
+    jest.spyOn(require('../../../../utils/common/change.utils'), 'getLanguageInfo').mockReturnValue('zh-HK');
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    expect(screen.getByText(/恭喜/i)).toBeInTheDocument();
+  });
+
+  test('renders default content when offerDetails is undefined', () => {
+    store = mockStore({
+      stages: {
+        stages: [
+          {
+            stageInfo: {
+              products: [],
             },
           },
         ],
