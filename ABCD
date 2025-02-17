@@ -1,317 +1,141 @@
-import React from 'react'
-import { useSelector } from 'react-redux';
-import HeaderRef from '../../../shared/components/header-ref/header-ref';
-import { StoreModel } from '../../../utils/model/common-model';
-import ReviewPageTermsandCondition from './review-page-repayment-tc';
-import { useState } from "react";
-import PopupModel from "../../../shared/components/popup-model/popup-model";
-import HeaderModel from "../../../shared/components/header-ref/header-modal";
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import ReviewPageInterestDetails from './ReviewPageInterestDetails';
 
-const ReviewPageInterestDetails = ({ handleCheckboxChange, isChecked, viewPDF, downloadPDF }: any) => {
-  const [openpopup, setOpenpop] = useState(false);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const productType = stageSelector[0].stageInfo?.products[0].product_type;
-  
-  const data:any = { 
-    "1258" : [
-       {
-         loanAmount: "1.$5,000-$199,999",
-         monthlyFlatRate: ["0.3100%", "0.3100%", "0.3100%", "0.3120%", "0.3150%"],
-         monthlyRepayment: ["$86.43", "$44.77", "$30.88", "$23.95", "$19.82"],
-         apr: ["7.01%", "7.22%", "7.23%", "7.25%", "7.26%"],
-       },
-       {
-         loanAmount: "2.$200,000-$499,999",
-         monthlyFlatRate: ["0.2700%", "0.2700%", "0.2310%", "0.2320%", "0.2330%"],
-         monthlyRepayment: ["$86.03", "$44.57", "$30.48", "$23.54", "$19.40"],
-         apr: ["6.09%", "6.28%", "6.31%", "6.31%", "6.31%"],
-       },
-       {
-         loanAmount: "3.$500,000-$699,999",
-         monthlyFlatRate: ["0.2300%", "0.2300%", "0.2310%", "0.2320%", "0.2330%"],
-         monthlyRepayment: ["$85.63", "$43.97", "$30.09", "$23.15", "$19.00"],
-         apr: ["5.18%", "5.34%", "5.39%", "5.40%", "5.40%"],
-       },
-       {
-         loanAmount: "4. $700,000-$1,499,999",
-         monthlyFlatRate: ["0.2300%", "0.2300%", "0.2310%", "0.2310%", "0.2320%"],
-         monthlyRepayment: ["$85.63", "$43.97", "$30.08", "$23.14", "$18.99"],
-         apr: ["5.18%", "5.34%", "5.37%", "5.38%", "5.38%"],
-       },
-       {
-         loanAmount: "5. $1,500,000 or above",
-         monthlyFlatRate: ["0.0830", "0.2200%", "0.2200%", "0.2200%", "0.2210%"],
-         monthlyRepayment: ["$ 84.16", "$ 43.87", "$ 29.98", "$ 23.03", "$ 18.88"],
-         apr: ["1.85%", "5.13%", "5.13%", "5.11%", "5.13%"],
-       },
-     ],
-   
-     "1312" : [
-      {
-        loanAmount: "$5,000-$49,999",
-        monthlyFlatRate: ["0.4674%", "0.4569%", "0.4581%", "0.4623%", "0.4677%", "0.4736%", "0.4800%"],
-        monthlyRepayment: ["$88.01", "$46.24", "$32.36", "$25.46", "$21.34", "$18.62", "$16.70"],
-        apr: ["10.69%", "10.69%", "10.69%", "10.69%", "10.69%", "10.69%", "10.69%"],
-      },
-      {
-        loanAmount: "$50,000-$199,999",
-        monthlyFlatRate: ["0.4210%", "0.4109%", "0.4114%", "0.4146%", "0.4188%","0.4235%","0.4235%"],
-        monthlyRepayment: ["$87.54", "$45.78", "$31.89", "$24.98", "$20.85", "$18.12", "$16.19"],
-        apr: ["9.60%", "9.60%", "9.60%", "9.60%", "9.60%","9.60%","9.60%"],
-      },
-      {
-        loanAmount: "$200,000-$499,999",
-        monthlyFlatRate: ["0.2080%", "0.2015%", "0.2000%", "0.2200%", "0.3706%","0.3743%","0.3785%"],
-        monthlyRepayment: ["$85.41", "$43.68", "$29.78", "$23.03", "$20.37", "$17.63", "$15.69"],
-        apr: ["4.67%", "4.67%", "4.67%", "5.13%", "8.52%", "8.52%", "8.52%"],
-      },
-      {
-        loanAmount: "$500,000-$699,999",
-        monthlyFlatRate: ["0.2080%", "0.2015%", "0.2000%", "0.2200%", "0.2992%","0.3015%","0.3040%"],
-        monthlyRepayment: ["$85.41", "$43.68", "$29.78", "$23.03", "$19.66", "$16.90", "$14.94"],
-        apr: ["4.67%", "4.67%", "4.67%", "5.13%", "6.91%", "6.91%", "6.91%"],
-      },
-      {
-        loanAmount: "$700,000 or above",
-        monthlyFlatRate: ["0.2080%", "0.2015%", "0.2000%", "0.2200%", "0.2525%","0.2540%","0.2559%"],
-        monthlyRepayment: ["$85.41", "$43.68", "$29.78", "$23.03", "$19.19", "$16.43", "$14.46"],
-        apr: ["4.67%", "4.67%", "4.67%", "5.13%", "5.85%", "5.85%", "5.85%"],
-      },
-   
-    ],
+const mockStore = configureStore([]);
 
-    "1282" : {
-      interestRates: [
-        {
-          label: "Annual Interest Rate (APR) for Retail Purchase",
-          value: "35.70% (If you do not pay your balance in full by the due date each month)",
-        },
-        {
-          label: "APR for Cash Advance / Finance Charge for Cash Advance",
-          values: [
-            "35.93% (For all Credit Cards except Smart Credit Card)",
-            "34.11% (For Smart Card only)",
-          ],
-        },
-      ],
-      membershipFees: [
-        { cardType: "Smart Credit Card", principal: "Waived", supplementary: "Waived" },
-        { cardType: "Cathay Mastercard", principal: "HK$2,000", supplementary: "Waived" },
-        { cardType: "Cathay Mastercard – Priority Banking", principal: "HK$4,000", supplementary: "Waived" },
-        { cardType: "Cathay Mastercard – Priority Private", principal: "HK$8,000", supplementary: "Waived" },
-        { cardType: "Simply Cash Visa Card", principal: "HK$2,000", supplementary: "Waived" },
-      ],
-    },    
+describe('ReviewPageInterestDetails', () => {
+  let store;
 
-    "1241" : {
-      interestRates: [
-        {
-          label: "Annual Interest Rate (APR) for Retail Purchase",
-          value: "35.70% (If you do not pay your balance in full by the due date each month)",
-        },
-        {
-          label: "APR for Cash Advance / Finance Charge for Cash Advance",
-          values: [
-            "35.93% (For all Credit Cards except Smart Credit Card)",
-            "34.11% (For Smart Card only)",
-          ],
-        },
-      ],
-      membershipFees: [
-        { cardType: "Smart Credit Card", principal: "Waived", supplementary: "Waived" },
-        { cardType: "Cathay Mastercard", principal: "HK$2,000", supplementary: "Waived" },
-        { cardType: "Cathay Mastercard – Priority Banking", principal: "HK$4,000", supplementary: "Waived" },
-        { cardType: "Cathay Mastercard – Priority Private", principal: "HK$8,000", supplementary: "Waived" },
-        { cardType: "Simply Cash Visa Card", principal: "HK$2,000", supplementary: "Waived" },
-      ],
-    },    
-   }
-const filteredData = data[productType] || {};
-const kfsDocumentPdf = useSelector((state: StoreModel) => state.preApproval?.kfsDocumentPdf);
-
-const viewksfPDF = () => {
-  setOpenpop(true);
-
-};
-const closeksfpdf = () => {
-  setOpenpop(false);
-}
-  return (
-    <>
-    <div className="background">
-      <div className="loan-table-container">
-      
-      {(productType === "1258" || productType === "1312") && (
-      <div>
-        <p className='tableKey'>Key highlight of Interest, Fee and Charges: </p>
-        <p>(Below provides you with indicative information about interest, fees and charges of this product but please refer to our offer letter for the final terms of your instalment loan.)</p>
-        {productType === "1258" ? <p>1. Personal Instalment Loan Repayment Table</p> : <p>1. Debit Consolidation Repayment Table</p>}
-        <table border={1} cellPadding="10" cellSpacing="0">
-          <thead>
-            <tr>
-              <th>Loan Amount</th>
-              <th></th> {/* Empty header for Monthly Flat Rate, Repayment, APR below */}
-              {productType === "1258" ? 
-              <>
-              <th>12 Months</th>
-              <th>24 Months</th>
-              <th>36 Months</th>
-              <th>48 Months</th>
-              <th>60 Months</th>
-              </> :
-              <>
-              <th>12</th>
-              <th>24</th>
-              <th>36</th>
-              <th>48</th>
-              <th>60</th>
-              <th>72</th>
-              <th>84</th>
-              </>
-              }
-            </tr>
-          </thead>
-          <tbody>
-            
-            {filteredData.map((row: { loanAmount: string | number | boolean | React.ReactElement<any, string | React.JSXElementConstructor<any>> | React.ReactFragment | React.ReactPortal | null | undefined; monthlyFlatRate: any[]; monthlyRepayment: any[]; apr: any[]; }, index: React.Key | null | undefined) => (
-              <React.Fragment key={index}>
-                <tr>
-                  <td rowSpan={3}>{row.loanAmount}</td>
-                  <td>Monthly Flat Rate</td>
-                  {row.monthlyFlatRate.map((rate, i) => (
-                    <td key={i}>{rate}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>Monthly Repayment (HKD)</td>
-                  {row.monthlyRepayment.map((repayment, i) => (
-                    <td key={i}>{repayment}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <td>APR</td>
-                  {row.apr.map((apr, i) => (
-                    <td key={i}>{apr}</td>
-                  ))}
-                </tr>
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-
-        <p>Monthly Flat Rate and Monthly Repayment Amount shown above are for reference only.  APRs (Annualised Percentage Rates) are reference rates which include the basic interest rate and other applicable fees and charges of a product expressed as an annualised rate. This APR does not include cash rebate (if applicable). The preferential interest rates are only applicable to clients who are not holding any Standard Chartered Credit Cards at the time of this application, or clients who use the Bank’s auto-payroll services. The Bank reserves the right to determine the applicable interest rate and handling fee, and to approve a loan application, which is to be considered on a case-by-case basis in accordance with the client’s credit records and other relevant factors as the Bank may consider in its absolute discretion. All offers are subject to Terms and Conditions. </p>
-        <p>*Monthly Repayment (HKD) for every 1,000 loan amount</p>
-        <p>2. Annual Fee / Fee: N/A</p>
-        <p>3. Late Payment Fee and Charge: HKD1,000 per month if you do not repay any monthly instalment on or before the relevant due date.</p>
-        <p>4. Prepayment / Early Settlement / Redemption Fee: 2.5% of the outstanding balance if you repay the loan in full early.</p>
-        <p>Remarks: For other fee and charges, please refer to Key Facts Statement.</p>
-        <hr />
-
-        <p> 
-          Please click the Personal Loan Application Declaration before application submission. You may also refer to the Key Facts Statement (Including Fees & Charges) and related terms and conditions that you have agreed to at the beginning of the application process.
-        </p>
-        <ReviewPageTermsandCondition viewPDF={viewPDF} downloadPDF={downloadPDF} />
-      </div>)} 
-      {(productType === "1282" || productType === "1241") && (
-        <div>
-          <p className='creditText'>Please click the Credit Card Application Declaration before application submission. You may also refer to the Key Facts Statement (Including Fees & Charges) and related terms and conditions that you have agreed to at the beginning of the application process.</p>
-         <ReviewPageTermsandCondition viewPDF={viewPDF} downloadPDF={downloadPDF} />
-         <p>Key highlight of Interest, Fee and Charges: </p>
-        <table className="tablepad" style={{ borderCollapse: "collapse", width: "100%" }}>
-          <tbody>
-            {filteredData.interestRates.map((item :any, index:any) => (
-              <tr key={index}>
-                <td>{item.label}</td>
-                {Array.isArray(item.values) ? (
-                  <td className="tablesmall">
-                    <table>
-                      <tbody>
-                        <tr className='tablesmalltd'>
-                          {item.values.map((val:any, i:any) => (
-                            <tr>
-                            <td key={i}>{val}</td>
-                            </tr>
-                          ))}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </td>
-                ) : (
-                  <td>{item.value}</td>
-                )}
-              </tr>
-            ))}
-            <tr>
-              <td>Annual Membership fee / Annual Fee / Anniversary Charge</td>
-              <td>
-                <table className="tablepad" style={{ width: "100%" }}>   
-                  <thead> 
-                    <tr>
-                      <td>Card Type</td>  
-                      <td>Principal Card</td>
-                      <td>Supplementary Card</td>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredData.membershipFees.map((card:any, index:any) => (
-                      <tr key={index}>
-                        <td>{card.cardType}</td>
-                        <td>{card.principal}</td>
-                        <td>{card.supplementary}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table> 
-              </td>
-            </tr>
-          </tbody>
-        </table> 
-        <div className='creditBottomText'>Please refer to the <span onClick={(link) => viewksfPDF()}>KFS (including Fees and Charges).</span> for Annual Fee of other card types</div> 
-        </div>
-      )}
-      </div>
-      <div className="p-background-color">
-      <div className="hintIcon">
-        <p>
-          To borrow or not to borrow? Borrow only if you can repay!
-        </p>
-        <div className="images">
-          <div></div>
-        </div>
-        </div>
-        <p>You may assess your repayment ability first to avoid any over-borrowing and have a clear understanding of your financial condition, daily expenses, and actual borrowing needs. Please repay the loan on time to avoid late payment charges and additional overdue interest.</p>
-        <h4 className="text2-color">Please confirm by ticking the box below.</h4>
-      </div>
-      <div className="TermsAndConditionsBox2">
-        <div className="confirmBox">
-          <div className="checkbox-terms">
-            <div>
-
-              <div>
-                <input className="styled-checkbox"
-                  type="checkbox"
-                  checked={isChecked}
-                  onChange={handleCheckboxChange}
-                />
-                <p>I confirm that<br></br>
-                  (i) I have read and agreed to be bound by the above declaration, terms and conditions and Key Facts Statement (Including Fees and Charges); and<br></br>
-                  (ii) my understanding to the responsible lending reminder and summary page details; and<br></br>
-                  (iii) this application is not referred by any intermediary or a third party who charged me for this referral, before submitting my application</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-      {(openpopup) && (
-        <PopupModel displayPopup={openpopup}>
-          {openpopup &&
-            <HeaderModel fileName={kfsDocumentPdf} closepdf={closeksfpdf} />
+  beforeEach(() => {
+    store = mockStore({
+      stages: {
+        stages: [
+          {
+            stageInfo: {
+              products: [
+                { product_type: '1258' } // Default product type for testing
+              ]
+            }
           }
-        </PopupModel>
-      )}
-        </>
-  )
-}
+        ]
+      },
+      preApproval: {
+        kfsDocumentPdf: 'mockPdfUrl'
+      }
+    });
+  });
 
-export default ReviewPageInterestDetails;
+  const renderComponent = (props = {}) => {
+    return render(
+      <Provider store={store}>
+        <ReviewPageInterestDetails
+          handleCheckboxChange={jest.fn()}
+          isChecked={false}
+          viewPDF={jest.fn()}
+          downloadPDF={jest.fn()}
+          {...props}
+        />
+      </Provider>
+    );
+  };
+
+  test('renders without crashing', () => {
+    renderComponent();
+    expect(screen.getByText(/Key highlight of Interest, Fee and Charges:/)).toBeInTheDocument();
+  });
+
+  test('renders loan table for product type 1258', () => {
+    renderComponent();
+    expect(screen.getByText('1. Personal Instalment Loan Repayment Table')).toBeInTheDocument();
+  });
+
+  test('renders loan table for product type 1312', () => {
+    store = mockStore({
+      stages: {
+        stages: [
+          {
+            stageInfo: {
+              products: [
+                { product_type: '1312' }
+              ]
+            }
+          }
+        ]
+      },
+      preApproval: {
+        kfsDocumentPdf: 'mockPdfUrl'
+      }
+    });
+    renderComponent();
+    expect(screen.getByText('1. Debit Consolidation Repayment Table')).toBeInTheDocument();
+  });
+
+  test('renders credit card details for product type 1282', () => {
+    store = mockStore({
+      stages: {
+        stages: [
+          {
+            stageInfo: {
+              products: [
+                { product_type: '1282' }
+              ]
+            }
+          }
+        ]
+      },
+      preApproval: {
+        kfsDocumentPdf: 'mockPdfUrl'
+      }
+    });
+    renderComponent();
+    expect(screen.getByText('Please click the Credit Card Application Declaration')).toBeInTheDocument();
+  });
+
+  test('renders credit card details for product type 1241', () => {
+    store = mockStore({
+      stages: {
+        stages: [
+          {
+            stageInfo: {
+              products: [
+                { product_type: '1241' }
+              ]
+            }
+          }
+        ]
+      },
+      preApproval: {
+        kfsDocumentPdf: 'mockPdfUrl'
+      }
+    });
+    renderComponent();
+    expect(screen.getByText('Please click the Credit Card Application Declaration')).toBeInTheDocument();
+  });
+
+  test('handles checkbox change', () => {
+    const handleCheckboxChange = jest.fn();
+    renderComponent({ handleCheckboxChange });
+    const checkbox = screen.getByRole('checkbox');
+    fireEvent.click(checkbox);
+    expect(handleCheckboxChange).toHaveBeenCalled();
+  });
+
+  test('opens and closes KFS PDF popup', () => {
+    renderComponent();
+    const kfsLink = screen.getByText('KFS (including Fees and Charges).');
+    fireEvent.click(kfsLink);
+    expect(screen.getByText('mockPdfUrl')).toBeInTheDocument();
+
+    const closeButton = screen.getByRole('button', { name: /close/i });
+    fireEvent.click(closeButton);
+    expect(screen.queryByText('mockPdfUrl')).not.toBeInTheDocument();
+  });
+
+  test('renders terms and conditions component', () => {
+    renderComponent();
+    expect(screen.getByText(/I confirm that/)).toBeInTheDocument();
+  });
+});
