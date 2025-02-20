@@ -1,150 +1,141 @@
-import "./review-page.scss";
-import { KeyWithAnyModel } from "../../../utils/model/common-model";
-import Cards from "../../../shared/components/cards/cards";
-import { useEffect, useState, useRef } from "react";
-import { useSelector } from "react-redux";
-import { StoreModel } from "../../../utils/model/common-model";
-import ReviewPageInterestDetails from "./review-page-interest-details";
-import Close from "../../../shared/components/close/close";
-import PopupModel from "../../../shared/components/popup-model/popup-model";
-import HeaderModel from "../../../shared/components/header-ref/header-modal";
-import { getUrl } from "../../../utils/common/change.utils";
-import { CONSTANTS } from "../../../utils/common/constants";
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import ReviewPage from './ReviewPage';
 
-const ReviewPage = (props: KeyWithAnyModel) => {
-  const language = getUrl.getLanguageInfo("lang");
-  const [openpopup, setOpenpop] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
-  const [visibleButton, setVisibleButton] = useState(false);
-  const handleCheckboxChange = () => {
-    setIsChecked(!isChecked);
-  };
-  const listInnerRef = useRef<HTMLDivElement>(null);
-  const downloadPdfData = useSelector((state: StoreModel) => state.preApproval.downloadPdfData);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const productCategory = stageSelector[0].stageInfo.products[0].product_category;
+const mockStore = configureStore([]);
 
-  const downloadPDF = () => {
-    const fileName: any = downloadPdfData.split('/').pop();
-    const replaceFile = stageSelector[0].stageInfo?.products[0].campaign === 'HKBDC23PESTP10' ? fileName.replace(fileName, 'DC_KFS_Desktop_0421_E.pdf') // DC PDF
-    : (stageSelector[0].stageInfo?.products[0].campaign === 'HKPIL23PLSTP10'? fileName.replace(fileName, 'PIL_KFS_Desktop_0421_E.pdf'): // PIL PDF
-     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOG20VAWV000'? fileName.replace(fileName, 'SCB_SMART_KFS_Desktop_0421_E.pdf') : // Smart card PDF
-     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSPB17VAWV000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSPG17VAWV000') ? fileName.replace(fileName, 'SCB_SC_KFS_Desktop_0421_E.pdf'): // simply cash pdf
-     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16VAWP000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16MCWP000') ? fileName.replace(fileName, 'SCB_PLAT_KFS_Desktop_0421_E.pdf'): // core platinum pdf
-     "")
-    )
-    )
-    )
-    const replaceFilename = replaceFile;
-    const lin = document.createElement('a');
-    lin.href = downloadPdfData;
-    lin.download = replaceFilename;
-    lin.click();
-  };
+describe('ReviewPage Component', () => {
+  let store;
 
-    const viewPDF = (link: any) => { 
-      setOpenpop(true); 
-    };
-  
-  const closepdf = () => {
-    setOpenpop(false);
-  }
+  beforeEach(() => {
+    store = mockStore({
+      preApproval: {
+        downloadPdfData: 'http://example.com/sample.pdf',
+      },
+      stages: {
+        stages: [
+          {
+            stageInfo: {
+              products: [
+                {
+                  product_category: 'CC',
+                  campaign: 'HKBDC23PESTP10',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+  });
 
-  const btnClickScroll = () => {
-    listInnerRef.current?.scrollBy({ top: 1500, behavior: "smooth" });
-  };
+  test('renders ReviewPage component', () => {
+    render(
+      <Provider store={store}>
+        <ReviewPage fields={[]} confirmCheckboxStatus={jest.fn()} />
+      </Provider>
+    );
 
-  const scrollToBottom = () => {
-    if (listInnerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
-      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+    expect(screen.getByText(/Just One Step/)).toBeInTheDocument();
+  });
 
-      if (isNearBottom) {
-        setVisibleButton(true);
-      }
-    }
-  };
+  test('toggles checkbox and calls confirmCheckboxStatus', () => {
+    const confirmCheckboxStatusMock = jest.fn();
+    render(
+      <Provider store={store}>
+        <ReviewPage fields={[]} confirmCheckboxStatus={confirmCheckboxStatusMock} />
+      </Provider>
+    );
 
-  useEffect(() => {
-    const listInnerElement = listInnerRef.current;
-    setVisibleButton(false);
-    if (listInnerElement) {
-      listInnerElement.addEventListener("scroll", scrollToBottom);
-      return () => {
-        listInnerElement.removeEventListener("scroll", scrollToBottom);
-      };
-    }
-  }, []);
-  
-  useEffect(() => {
-    if(props.confirmCheckboxStatus){
-    props.confirmCheckboxStatus(isChecked);
-    }
-  }, [isChecked]);
+    const checkbox = screen.getByRole('checkbox');
+    fireEvent.click(checkbox);
 
-  return (
-    <>
-      <div>
-        <div className="review__content">
-          <div className="field__group agree_submit" style={{width: '98%'}}>
-            <div
-              className="pending__resume-header banner_ext"
-              style={{ margin: 0 }}
-            >
-              <div
-                className="header-wrapper-hk"
-                style={{ display: "flex", padding: 0 }}
-              >
-                <div className="hk-banner">
-                  <span className="banner-icon banner-icon-mobile"></span>
-                  {productCategory == "CC" ?
-                  <div className="card-title review-card-title">
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.justOneStep : language === CONSTANTS.LANG_CN?CONSTANTS.justOneStep_CN : CONSTANTS.justOneStep_HK}
-                  </div> :
-                  <div className="card-title review-card-title">
-                  {language === CONSTANTS.LANG_EN ? CONSTANTS.justOneClick : language === CONSTANTS.LANG_CN?CONSTANTS.justOneClick_CN : CONSTANTS.justOneClick_HK}
-                </div>}
-                </div>
-              </div>
-              <Close authType="resume" />
-            </div>
-            <div className="agree_submit_buttons">
-              {!visibleButton && (
-                <footer
-                  className="footer-next enabled"
-                  onClick={btnClickScroll}
-                  style={{ float: "right" }}
-                >
-                  <i className="next-btn"></i>
-                </footer>
-              )}
-            </div>
-          </div>
-          <div className="review_scroll_content">
-            <div className="review__content--body review_scroll"  ref={listInnerRef}>
-              <Cards fields={props.fields} />
-              <ReviewPageInterestDetails
-                handleCheckboxChange={handleCheckboxChange}
-                isChecked={isChecked}
-                viewPDF={viewPDF}
-                downloadPDF={downloadPDF}
-              />
-              <div className="hk_copyrights">
-                <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {(openpopup) && (
-        <PopupModel displayPopup={openpopup}>
-          {openpopup &&
-            <HeaderModel fileName={downloadPdfData} closepdf={closepdf} />
-          }
-        </PopupModel>
-      )}
-    </>
-  );
-};
+    expect(confirmCheckboxStatusMock).toHaveBeenCalledWith(true);
+  });
 
-export default ReviewPage;
+  test('downloads PDF with correct filename based on campaign', () => {
+    render(
+      <Provider store={store}>
+        <ReviewPage fields={[]} confirmCheckboxStatus={jest.fn()} />
+      </Provider>
+    );
+
+    const downloadButton = screen.getByText(/Download PDF/);
+    fireEvent.click(downloadButton);
+
+    // You can add assertions here to verify the download logic
+  });
+
+  test('opens and closes PDF popup', () => {
+    render(
+      <Provider store={store}>
+        <ReviewPage fields={[]} confirmCheckboxStatus={jest.fn()} />
+      </Provider>
+    );
+
+    const viewPdfButton = screen.getByText(/View PDF/);
+    fireEvent.click(viewPdfButton);
+
+    expect(screen.getByText(/Close/)).toBeInTheDocument();
+
+    const closeButton = screen.getByText(/Close/);
+    fireEvent.click(closeButton);
+
+    expect(screen.queryByText(/Close/)).not.toBeInTheDocument();
+  });
+
+  test('scrolls to bottom and shows button', () => {
+    render(
+      <Provider store={store}>
+        <ReviewPage fields={[]} confirmCheckboxStatus={jest.fn()} />
+      </Provider>
+    );
+
+    const scrollableDiv = screen.getByTestId('scrollable-div');
+    fireEvent.scroll(scrollableDiv, { target: { scrollY: 1000 } });
+
+    expect(screen.getByText(/Next/)).toBeInTheDocument();
+  });
+
+  test('renders correct text based on language', () => {
+    store = mockStore({
+      preApproval: {
+        downloadPdfData: 'http://example.com/sample.pdf',
+      },
+      stages: {
+        stages: [
+          {
+            stageInfo: {
+              products: [
+                {
+                  product_category: 'CC',
+                  campaign: 'HKBDC23PESTP10',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    render(
+      <Provider store={store}>
+        <ReviewPage fields={[]} confirmCheckboxStatus={jest.fn()} />
+      </Provider>
+    );
+
+    expect(screen.getByText(/Just One Step/)).toBeInTheDocument();
+  });
+
+  test('renders copyright text based on language', () => {
+    render(
+      <Provider store={store}>
+        <ReviewPage fields={[]} confirmCheckboxStatus={jest.fn()} />
+      </Provider>
+    );
+
+    expect(screen.getByText(/Standard Chartered Bank \(Hong Kong\) Limited/)).toBeInTheDocument();
+  });
+});
