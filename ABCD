@@ -1,312 +1,150 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import Fields from './Fields'; // Adjust the import path as needed
-import { StoreModel } from '../../../utils/model/common-model'; // Adjust the import path as needed
+import "./review-page.scss";
+import { KeyWithAnyModel } from "../../../utils/model/common-model";
+import Cards from "../../../shared/components/cards/cards";
+import { useEffect, useState, useRef } from "react";
+import { useSelector } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
+import ReviewPageInterestDetails from "./review-page-interest-details";
+import Close from "../../../shared/components/close/close";
+import PopupModel from "../../../shared/components/popup-model/popup-model";
+import HeaderModel from "../../../shared/components/header-ref/header-modal";
+import { getUrl } from "../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../utils/common/constants";
 
-const mockStore = configureStore([]);
+const ReviewPage = (props: KeyWithAnyModel) => {
+  const language = getUrl.getLanguageInfo("lang");
+  const [openpopup, setOpenpop] = useState(false);
+  const [isChecked, setIsChecked] = useState(false);
+  const [visibleButton, setVisibleButton] = useState(false);
+  const handleCheckboxChange = () => {
+    setIsChecked(!isChecked);
+  };
+  const listInnerRef = useRef<HTMLDivElement>(null);
+  const downloadPdfData = useSelector((state: StoreModel) => state.preApproval.downloadPdfData);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const productCategory = stageSelector[0].stageInfo.products[0].product_category;
 
-describe('Fields Component', () => {
-  let store: any;
+  const downloadPDF = () => {
+    const fileName: any = downloadPdfData.split('/').pop();
+    const replaceFile = stageSelector[0].stageInfo?.products[0].campaign === 'HKBDC23PESTP10' ? fileName.replace(fileName, 'DC_KFS_Desktop_0421_E.pdf') // DC PDF
+    : (stageSelector[0].stageInfo?.products[0].campaign === 'HKPIL23PLSTP10'? fileName.replace(fileName, 'PIL_KFS_Desktop_0421_E.pdf'): // PIL PDF
+     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOG20VAWV000'? fileName.replace(fileName, 'SCB_SMART_KFS_Desktop_0421_E.pdf') : // Smart card PDF
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSPB17VAWV000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSPG17VAWV000') ? fileName.replace(fileName, 'SCB_SC_KFS_Desktop_0421_E.pdf'): // simply cash pdf
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16VAWP000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16MCWP000') ? fileName.replace(fileName, 'SCB_PLAT_KFS_Desktop_0421_E.pdf'): // core platinum pdf
+     "")
+    )
+    )
+    )
+    const replaceFilename = replaceFile;
+    const lin = document.createElement('a');
+    lin.href = downloadPdfData;
+    lin.download = replaceFilename;
+    lin.click();
+  };
 
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [
-          {
-            stageId: 'pd-1',
-            stageInfo: {
-              applicants: [{}],
-              fieldMetaData: {
-                data: {
-                  stages: [],
-                },
-              },
-            },
-          },
-        ],
-        currentStage: 'pd-1',
-        userInput: {
-          applicants: [{}],
-        },
-      },
-      lov: {},
-      urlParam: {
-        resume: false,
-      },
-      fielderror: {
-        mandatoryFields: [],
-        error: [],
-      },
-      valueUpdate: {
-        value: false,
-        changesUpdate: {
-          changes: false,
-        },
-      },
-      continueBtnSlice: {
-        continueEnable: true,
-      },
-      error: {
-        submit: false,
-      },
-      preApproval: {
-        currentStage: 'pd-1',
-        formConfigmetaData: {},
-      },
-    });
-  });
+    const viewPDF = (link: any) => { 
+      setOpenpop(true); 
+    };
+  
+  const closepdf = () => {
+    setOpenpop(false);
+  }
 
-  it('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
-    expect(screen.getByRole('form')).toBeInTheDocument();
-  });
+  const btnClickScroll = () => {
+    listInnerRef.current?.scrollBy({ top: 1500, behavior: "smooth" });
+  };
 
-  it('handles form submission', async () => {
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
+  const scrollToBottom = () => {
+    if (listInnerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
 
-    const form = screen.getByRole('form');
-    fireEvent.submit(form);
+      if (isNearBottom) {
+        setVisibleButton(true);
+      }
+    }
+  };
 
-    await waitFor(() => {
-      expect(store.getActions()).toContainEqual(
-        expect.objectContaining({ type: 'stages/resetNewAndOldFields' })
-      );
-    });
-  });
+  useEffect(() => {
+    const listInnerElement = listInnerRef.current;
+    setVisibleButton(false);
+    if (listInnerElement) {
+      listInnerElement.addEventListener("scroll", scrollToBottom);
+      return () => {
+        listInnerElement.removeEventListener("scroll", scrollToBottom);
+      };
+    }
+  }, []);
+  
+  useEffect(() => {
+    if(props.confirmCheckboxStatus){
+    props.confirmCheckboxStatus(isChecked);
+    }
+  }, [isChecked]);
 
-  it('handles back button click', () => {
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
+  return (
+    <>
+      <div>
+        <div className="review__content">
+          <div className="field__group agree_submit" style={{width: '98%'}}>
+            <div
+              className="pending__resume-header banner_ext"
+              style={{ margin: 0 }}
+            >
+              <div
+                className="header-wrapper-hk"
+                style={{ display: "flex", padding: 0 }}
+              >
+                <div className="hk-banner">
+                  <span className="banner-icon banner-icon-mobile"></span>
+                  {productCategory == "CC" ?
+                  <div className="card-title review-card-title">
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.justOneStep : language === CONSTANTS.LANG_CN?CONSTANTS.justOneStep_CN : CONSTANTS.justOneStep_HK}
+                  </div> :
+                  <div className="card-title review-card-title">
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.justOneClick : language === CONSTANTS.LANG_CN?CONSTANTS.justOneClick_CN : CONSTANTS.justOneClick_HK}
+                </div>}
+                </div>
+              </div>
+              <Close authType="resume" />
+            </div>
+            <div className="agree_submit_buttons">
+              {!visibleButton && (
+                <footer
+                  className="footer-next enabled"
+                  onClick={btnClickScroll}
+                  style={{ float: "right" }}
+                >
+                  <i className="next-btn"></i>
+                </footer>
+              )}
+            </div>
+          </div>
+          <div className="review_scroll_content">
+            <div className="review__content--body review_scroll"  ref={listInnerRef}>
+              <Cards fields={props.fields} />
+              <ReviewPageInterestDetails
+                handleCheckboxChange={handleCheckboxChange}
+                isChecked={isChecked}
+                viewPDF={viewPDF}
+                downloadPDF={downloadPDF}
+              />
+              <div className="hk_copyrights">
+                <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {(openpopup) && (
+        <PopupModel displayPopup={openpopup}>
+          {openpopup &&
+            <HeaderModel fileName={downloadPdfData} closepdf={closepdf} />
+          }
+        </PopupModel>
+      )}
+    </>
+  );
+};
 
-    const backButton = screen.getByText('Back');
-    fireEvent.click(backButton);
-
-    expect(store.getActions()).toContainEqual(
-      expect.objectContaining({ type: 'stages/updateStageId' })
-    );
-  });
-
-  it('handles checkbox status update', () => {
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
-
-    const checkbox = screen.getByRole('checkbox');
-    fireEvent.click(checkbox);
-
-    expect(store.getActions()).toContainEqual(
-      expect.objectContaining({ type: 'stages/modifyStage' })
-    );
-  });
-
-  it('handles field dispatch', () => {
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
-
-    const inputField = screen.getByRole('textbox');
-    fireEvent.change(inputField, { target: { value: 'test' } });
-
-    expect(store.getActions()).toContainEqual(
-      expect.objectContaining({ type: 'stages/modifyStage' })
-    );
-  });
-
-  it('handles form validation', () => {
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
-
-    const inputField = screen.getByRole('textbox');
-    fireEvent.change(inputField, { target: { value: '' } });
-
-    expect(screen.getByText('form-invalid')).toBeInTheDocument();
-  });
-
-  it('handles spinner display', () => {
-    store = mockStore({
-      stages: {
-        stages: [
-          {
-            stageId: 'ld-1',
-            stageInfo: {
-              applicants: [{}],
-              fieldMetaData: {
-                data: {
-                  stages: [],
-                },
-              },
-            },
-          },
-        ],
-        currentStage: 'ld-1',
-        userInput: {
-          applicants: [{}],
-        },
-      },
-      lov: {},
-      urlParam: {
-        resume: false,
-      },
-      fielderror: {
-        mandatoryFields: [],
-        error: [],
-      },
-      valueUpdate: {
-        value: false,
-        changesUpdate: {
-          changes: false,
-        },
-      },
-      continueBtnSlice: {
-        continueEnable: true,
-      },
-      error: {
-        submit: false,
-      },
-      preApproval: {
-        currentStage: 'ld-1',
-        formConfigmetaData: {},
-      },
-    });
-
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
-
-    expect(screen.getByRole('status')).toBeInTheDocument();
-  });
-
-  it('handles review page rendering', () => {
-    store = mockStore({
-      stages: {
-        stages: [
-          {
-            stageId: 'rp',
-            stageInfo: {
-              applicants: [{}],
-              fieldMetaData: {
-                data: {
-                  stages: [],
-                },
-              },
-            },
-          },
-        ],
-        currentStage: 'rp',
-        userInput: {
-          applicants: [{}],
-        },
-      },
-      lov: {},
-      urlParam: {
-        resume: false,
-      },
-      fielderror: {
-        mandatoryFields: [],
-        error: [],
-      },
-      valueUpdate: {
-        value: false,
-        changesUpdate: {
-          changes: false,
-        },
-      },
-      continueBtnSlice: {
-        continueEnable: true,
-      },
-      error: {
-        submit: false,
-      },
-      preApproval: {
-        currentStage: 'rp',
-        formConfigmetaData: {},
-      },
-    });
-
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
-
-    expect(screen.getByText('ReviewPage')).toBeInTheDocument();
-  });
-
-  it('handles fund disbursement rendering', () => {
-    store = mockStore({
-      stages: {
-        stages: [
-          {
-            stageId: 'ld-1',
-            stageInfo: {
-              applicants: [{}],
-              fieldMetaData: {
-                data: {
-                  stages: [],
-                },
-              },
-            },
-          },
-        ],
-        currentStage: 'ld-1',
-        userInput: {
-          applicants: [{}],
-        },
-      },
-      lov: {},
-      urlParam: {
-        resume: false,
-      },
-      fielderror: {
-        mandatoryFields: [],
-        error: [],
-      },
-      valueUpdate: {
-        value: false,
-        changesUpdate: {
-          changes: false,
-        },
-      },
-      continueBtnSlice: {
-        continueEnable: true,
-      },
-      error: {
-        submit: false,
-      },
-      preApproval: {
-        currentStage: 'ld-1',
-        formConfigmetaData: {},
-      },
-    });
-
-    render(
-      <Provider store={store}>
-        <Fields />
-      </Provider>
-    );
-
-    expect(screen.getByText('FundDisbursement')).toBeInTheDocument();
-  });
-});
+export default ReviewPage;
