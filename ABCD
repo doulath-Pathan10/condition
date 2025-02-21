@@ -1,5 +1,5 @@
 if (event.target.checked === true) {
-    if (toggle) {  // Ensure toggle is defined
+    if (toggle) {  // Check if toggle is not null
         toggle.style.opacity = "0.5";
         toggleText.style.color = "#8F8F8F";
         toggleText.style.letterSpacing = "-0.9px";
@@ -13,13 +13,11 @@ if (event.target.checked === true) {
 }
 
 
-
-
 beforeEach(() => {
     document.body.innerHTML = `
         <input id="marketing_phone_all" type="checkbox" />
         <input id="marketing_phone_others" type="checkbox" />
-        <div id="toggle"></div>
+        <div id="toggle" style="opacity: 1;"></div>
     `;
 
     jest.spyOn(document, 'querySelector').mockImplementation((selector) => {
@@ -32,13 +30,15 @@ beforeEach(() => {
 
 
 
-
-
-
 test('marketing_phone_all disables marketing_phone_others when checked', () => {
     const phoneAllInput = screen.getByLabelText('marketing_phone_all');
     fireEvent.click(phoneAllInput);
 
     const toggleElement = document.getElementById('toggle');
-    expect(toggleElement.style.opacity).toBe('0.5');
+    expect(toggleElement).not.toBeNull(); // Ensure element exists before accessing properties
+
+    if (toggleElement) {
+        expect(toggleElement.style.opacity).toBe('0.5');
+    }
 });
+
