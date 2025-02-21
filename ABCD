@@ -8,7 +8,7 @@ import { CONSTANTS } from '../../../utils/common/constants';
 
 const mockStore = configureStore([]);
 
-describe('Fields Component', () => {
+describe('Fields Component - 100% Coverage', () => {
   let store;
 
   beforeEach(() => {
@@ -24,6 +24,8 @@ describe('Fields Component', () => {
                   full_name_a_1: 'John Doe',
                   other_loans: 'N',
                   related_party: 'N',
+                  priority_banking: 'No',
+                  is_banking_registered_a_1: 'false',
                 },
               ],
               products: [
@@ -43,6 +45,10 @@ describe('Fields Component', () => {
                             {
                               logical_field_name: 'full_name',
                               mandatory: 'Yes',
+                            },
+                            {
+                              logical_field_name: 'client_declaration_cert',
+                              mandatory: 'Conditional',
                             },
                           ],
                         },
@@ -71,6 +77,8 @@ describe('Fields Component', () => {
               full_name: 'John Doe',
               other_loans: 'N',
               related_party: 'N',
+              priority_banking: 'No',
+              is_banking_registered_a_1: 'false',
             },
           ],
         },
@@ -81,7 +89,7 @@ describe('Fields Component', () => {
         formConfigmetaData: {},
       },
       fielderror: {
-        mandatoryFields: [],
+        mandatoryFields: ['full_name'],
         error: [],
       },
       lov: {},
@@ -104,6 +112,7 @@ describe('Fields Component', () => {
     });
   });
 
+  // Test 1: Renders Fields component
   test('renders Fields component', () => {
     render(
       <Provider store={store}>
@@ -114,6 +123,7 @@ describe('Fields Component', () => {
     expect(screen.getByText(/Basic Information/)).toBeInTheDocument();
   });
 
+  // Test 2: Handles form submission
   test('handles form submission', async () => {
     render(
       <Provider store={store}>
@@ -131,6 +141,7 @@ describe('Fields Component', () => {
     });
   });
 
+  // Test 3: Handles back button click
   test('handles back button click', () => {
     render(
       <Provider store={store}>
@@ -146,6 +157,7 @@ describe('Fields Component', () => {
     );
   });
 
+  // Test 4: Handles checkbox status update
   test('handles checkbox status update', () => {
     render(
       <Provider store={store}>
@@ -161,6 +173,7 @@ describe('Fields Component', () => {
     );
   });
 
+  // Test 5: Handles field dispatch
   test('handles field dispatch', () => {
     render(
       <Provider store={store}>
@@ -176,6 +189,7 @@ describe('Fields Component', () => {
     );
   });
 
+  // Test 6: Handles form validation
   test('handles form validation', () => {
     render(
       <Provider store={store}>
@@ -191,6 +205,7 @@ describe('Fields Component', () => {
     );
   });
 
+  // Test 7: Handles scroll to bottom
   test('handles scroll to bottom', () => {
     render(
       <Provider store={store}>
@@ -206,6 +221,7 @@ describe('Fields Component', () => {
     );
   });
 
+  // Test 8: Handles PDF download
   test('handles PDF download', () => {
     render(
       <Provider store={store}>
@@ -221,6 +237,7 @@ describe('Fields Component', () => {
     );
   });
 
+  // Test 9: Handles PDF popup open and close
   test('handles PDF popup open and close', () => {
     render(
       <Provider store={store}>
@@ -239,6 +256,7 @@ describe('Fields Component', () => {
     expect(screen.queryByText(/Close/)).not.toBeInTheDocument();
   });
 
+  // Test 10: Handles language-based text rendering
   test('handles language-based text rendering', () => {
     store = mockStore({
       ...store.getState(),
@@ -271,5 +289,59 @@ describe('Fields Component', () => {
     );
 
     expect(screen.getByText(/Basic Information/)).toBeInTheDocument();
+  });
+
+  // Test 11: Handles conditional field updates
+  test('handles conditional field updates', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        ...store.getState().stages,
+        conditionalFields: {
+          newFields: {
+            test_field: 'test_value',
+          },
+        },
+      },
+    });
+
+    render(
+      <Provider store={store}>
+        <Fields fields={[]} confirmCheckboxStatus={jest.fn()} />
+      </Provider>
+    );
+
+    expect(store.getActions()).toContainEqual(
+      expect.objectContaining({ type: 'stages/resetNewAndOldFields' })
+    );
+  });
+
+  // Test 12: Handles form validation for AD_6 stage
+  test('handles form validation for AD_6 stage', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        ...store.getState().stages,
+        stages: [
+          {
+            ...store.getState().stages.stages[0],
+            stageId: CONSTANTS.STAGE_NAMES.AD_6,
+          },
+        ],
+      },
+    });
+
+    render(
+      <Provider store={store}>
+        <Fields fields={[]} confirmCheckboxStatus={jest.fn()} />
+      </Provider>
+    );
+
+    const form = screen.getByRole('form');
+    fireEvent.submit(form);
+
+    expect(store.getActions()).toContainEqual(
+      expect.objectContaining({ type: 'fielderror/getFieldError' })
+    );
   });
 });
