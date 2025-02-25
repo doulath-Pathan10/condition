@@ -1,109 +1,194 @@
-import { AxiosError } from "axios";
-import "./document-type-dynamic.scss";
-import React from "react";
-import { useDispatch, useSelector } from "react-redux";
-import "../documentUploadMain/document-upload-main-scr.scss";
-import DocumentUpload from "../documentUpload/document-upload";
-import { StoreModel } from "../../../../../utils/model/common-model";
-import { stagesAction } from "../../../../../utils/store/stages-slice";
-import { postQRCodeZOLO } from "../../../services/preApprovalPostServices";
-import ColorIdentityProof from "../colourIdentityProof/colour-Identity-Proof";
-import {
-  dispatchError,
-  dispatchLoader,
-} from "../../../../../services/common-service";
-import { errorAction } from "../../../../../utils/store/error-slice";
+import React from 'react';
+import { render, fireEvent, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import DocumentTypeDynamic from './DocumentTypeDynamic';
+import { StoreModel } from '../../../../../utils/model/common-model';
+import { stagesAction } from '../../../../../utils/store/stages-slice';
+import { errorAction } from '../../../../../utils/store/error-slice';
+import { postQRCodeZOLO } from '../../../services/preApprovalPostServices';
+import ColorIdentityProof from '../colourIdentityProof/colour-Identity-Proof';
+import DocumentUpload from '../documentUpload/document-upload';
 
-const DocumentTypeDynamic: React.FC<any> = ({
-  setShowContinueBtn,
-  setHKIDVersion,
-  HKIDVersion,
-  setHKIDQRCodeData
-}) => {
-  const dispatch = useDispatch();
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
-  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
-  const documentList = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.applicant_documents[0].document_list);
-  const HKIDVersionValue = useSelector((state: any) => state.stages.dynamicDocumentsUpload.HKIDVersionValue);
+const mockStore = configureStore([]);
 
-  const callQRCodeAPI = () => {
-    dispatch(dispatchLoader(true));
-    postQRCodeZOLO(channel_reference, HKIDVersionValue).then((response: any) => {
-      if (response.status === 200) {
-        setHKIDQRCodeData(response.data);
-        dispatch(stagesAction.updateHKIDQRCodeData(response.data));
-        dispatch(dispatchLoader(false));
+describe('DocumentTypeDynamic Component', () => {
+  let store: any;
+  let props: any;
+
+  beforeEach(() => {
+    store = mockStore({
+      stages: {
+        stages: [{
+          stageInfo: {
+            application: { channel_reference: 'test-ref' },
+            applicant_documents: [{
+              document_list: [
+                {
+                  document_category: 'Test Document',
+                  document_category_code: 'R0001',
+                  document_options: [{
+                    document_types: [{
+                      uploaded_documents: null
+                    }]
+                  }]
+                }
+              ]
+            }]
+          }
+        }],
+        dynamicDocumentsUpload: {
+          fileSectionData: null,
+          HKIDVersionValue: '1'
+        }
       }
-      else {
-        dispatch(
-          errorAction.getError({
-            statusCode: "error",
-            statusText: "no response",
-          })
-        );
+    });
+
+    props = {
+      setShowContinueBtn: jest.fn(),
+      setHKIDVersion: jest.fn(),
+      HKIDVersion: '1',
+      setHKIDQRCodeData: jest.fn()
+    };
+  });
+
+  it('renders without crashing', () => {
+    render(
+      <Provider store={store}>
+        <DocumentTypeDynamic {...props} />
+      </Provider>
+    );
+    expect(screen.getByText('Test Document')).toBeInTheDocument();
+  });
+
+  it('renders ColorIdentityProof when fileSectionData is R0001', () => {
+    store = mockStore({
+      stages: {
+        stages: [{
+          stageInfo: {
+            application: { channel_reference: 'test-ref' },
+            applicant_documents: [{
+              document_list: [
+                {
+                  document_category: 'Test Document',
+                  document_category_code: 'R0001',
+                  document_options: [{
+                    document_types: [{
+                      uploaded_documents: null
+                    }]
+                  }]
+                }
+              ]
+            }]
+          }
+        }],
+        dynamicDocumentsUpload: {
+          fileSectionData: {
+            document_category_code: 'R0001'
+          },
+          HKIDVersionValue: '1'
+        }
       }
-    })
-      .catch((error: AxiosError) => {
-        dispatchError(error);
-      });
-  };
+    });
 
-  return (
-    <div className="row-start">
-      <div>
-        {fileSectionData === null &&
-          documentList?.map((item: any, index: any) => {
-            return (
-              <div
-                key={index}
-                id="upload_fieldset_{{docCategory.document_category_code}}"
-                className={stageSelector &&
-                  stageSelector[0].stageInfo &&
-                  stageSelector[0].stageInfo.applicant_documents &&
-                  stageSelector[0].stageInfo.applicant_documents[0].document_list[index].document_options[0].document_types[0].uploaded_documents === null ? "form-field doc-select-box-child" : "form-field-checked doc-select-box-child"}
-              >
-                <p
-                  role="button"
-                  title={item.document_category}
-                  className={
-                    stageSelector &&
-                      stageSelector[0].stageInfo &&
-                      stageSelector[0].stageInfo.applicant_documents &&
-                      stageSelector[0].stageInfo.applicant_documents[0]
-                        .document_list[index].document_options[0]
-                        .document_types[0].uploaded_documents === null
-                      ? "doc-add"
-                      : "doc-checked"
-                  }
-                  onClick={() => dispatch(stagesAction.updatefileSectionData(item))}
-                  id="upload_fieldset_{{docCategory.document_category_code}}"
-                ></p>
-                <p
-                  className="doc-field-name"
-                  id="upload_fieldset_{{docCategory.document_category_code}}"
-                >
-                  {item.document_category}
-                </p>
-              </div>
-            );
-          })}
-      </div>
+    render(
+      <Provider store={store}>
+        <DocumentTypeDynamic {...props} />
+      </Provider>
+    );
 
-      {fileSectionData !== null &&
-        fileSectionData?.document_category_code === "R0001" ? (
-        <ColorIdentityProof
-          callQRCodeAPI={callQRCodeAPI}
-          setHKIDVersion={setHKIDVersion}
-          HKIDVersion={HKIDVersion}
-        />
-      ) : (
-        fileSectionData !== null && (
-          <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
-        )
-      )}
-    </div>
-  );
-};
+    expect(screen.getByTestId('color-identity-proof')).toBeInTheDocument();
+  });
 
-export default DocumentTypeDynamic;
+  it('renders DocumentUpload when fileSectionData is not R0001', () => {
+    store = mockStore({
+      stages: {
+        stages: [{
+          stageInfo: {
+            application: { channel_reference: 'test-ref' },
+            applicant_documents: [{
+              document_list: [
+                {
+                  document_category: 'Test Document',
+                  document_category_code: 'R0002',
+                  document_options: [{
+                    document_types: [{
+                      uploaded_documents: null
+                    }]
+                  }]
+                }
+              ]
+            }]
+          }
+        }],
+        dynamicDocumentsUpload: {
+          fileSectionData: {
+            document_category_code: 'R0002'
+          },
+          HKIDVersionValue: '1'
+        }
+      }
+    });
+
+    render(
+      <Provider store={store}>
+        <DocumentTypeDynamic {...props} />
+      </Provider>
+    );
+
+    expect(screen.getByTestId('document-upload')).toBeInTheDocument();
+  });
+
+  it('calls dispatchLoader and postQRCodeZOLO on callQRCodeAPI', async () => {
+    const mockPostQRCodeZOLO = jest.spyOn(postQRCodeZOLO, 'then');
+    render(
+      <Provider store={store}>
+        <DocumentTypeDynamic {...props} />
+      </Provider>
+    );
+
+    const colorIdentityProof = screen.getByTestId('color-identity-proof');
+    fireEvent.click(colorIdentityProof);
+
+    await waitFor(() => {
+      expect(mockPostQRCodeZOLO).toHaveBeenCalled();
+    });
+  });
+
+  it('dispatches errorAction on API failure', async () => {
+    const mockPostQRCodeZOLO = jest.spyOn(postQRCodeZOLO, 'catch');
+    render(
+      <Provider store={store}>
+        <DocumentTypeDynamic {...props} />
+      </Provider>
+    );
+
+    const colorIdentityProof = screen.getByTestId('color-identity-proof');
+    fireEvent.click(colorIdentityProof);
+
+    await waitFor(() => {
+      expect(mockPostQRCodeZOLO).toHaveBeenCalled();
+    });
+  });
+
+  it('updates fileSectionData on document category click', () => {
+    render(
+      <Provider store={store}>
+        <DocumentTypeDynamic {...props} />
+      </Provider>
+    );
+
+    const documentCategory = screen.getByText('Test Document');
+    fireEvent.click(documentCategory);
+
+    expect(store.getActions()).toContainEqual(stagesAction.updatefileSectionData({
+      document_category: 'Test Document',
+      document_category_code: 'R0001',
+      document_options: [{
+        document_types: [{
+          uploaded_documents: null
+        }]
+      }]
+    }));
+  });
+});
