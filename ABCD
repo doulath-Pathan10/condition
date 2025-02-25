@@ -1,194 +1,42 @@
-import React from 'react';
-import { render, fireEvent, screen } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import DocumentTypeDynamic from './DocumentTypeDynamic';
-import { StoreModel } from '../../../../../utils/model/common-model';
-import { stagesAction } from '../../../../../utils/store/stages-slice';
-import { errorAction } from '../../../../../utils/store/error-slice';
-import { postQRCodeZOLO } from '../../../services/preApprovalPostServices';
-import ColorIdentityProof from '../colourIdentityProof/colour-Identity-Proof';
-import DocumentUpload from '../documentUpload/document-upload';
 
-const mockStore = configureStore([]);
+import OnboardingBeforeStart from "../commonComponents/onboarding-before-start/onboarding-before-start";
+import Fields from "../../dashboard/fields/fields";
+import { useState } from "react";
+import { useSelector } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
+import LoanDisbursement from "../commonComponents/loanDisbursement/loan-disbursement";
+import DocumentUploadSRC from "../commonComponents/documentUpload/documentUploadMain/document-upload-main-scr"; //"../../documentUpload/documentUploadMain/document-upload-main-scr";
+import Submission from "../submission/submission";
 
-describe('DocumentTypeDynamic Component', () => {
-  let store: any;
-  let props: any;
+const DynamicComponent: React.FC<any> = ({ isVisible, onScrollEnd, stageId, nextPage }) => {
+  const [selectedLeftMenu, setSelectedLeftMenu] = useState("");
+  const currentStage = useSelector((state: StoreModel) => state.preApproval.currentStage);
+  // const currentStage:any = "DC";
 
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: { channel_reference: 'test-ref' },
-            applicant_documents: [{
-              document_list: [
-                {
-                  document_category: 'Test Document',
-                  document_category_code: 'R0001',
-                  document_options: [{
-                    document_types: [{
-                      uploaded_documents: null
-                    }]
-                  }]
-                }
-              ]
-            }]
-          }
-        }],
-        dynamicDocumentsUpload: {
-          fileSectionData: null,
-          HKIDVersionValue: '1'
-        }
-      }
-    });
-
-    props = {
-      setShowContinueBtn: jest.fn(),
-      setHKIDVersion: jest.fn(),
-      HKIDVersion: '1',
-      setHKIDQRCodeData: jest.fn()
-    };
-  });
-
-  it('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic {...props} />
-      </Provider>
-    );
-    expect(screen.getByText('Test Document')).toBeInTheDocument();
-  });
-
-  it('renders ColorIdentityProof when fileSectionData is R0001', () => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: { channel_reference: 'test-ref' },
-            applicant_documents: [{
-              document_list: [
-                {
-                  document_category: 'Test Document',
-                  document_category_code: 'R0001',
-                  document_options: [{
-                    document_types: [{
-                      uploaded_documents: null
-                    }]
-                  }]
-                }
-              ]
-            }]
-          }
-        }],
-        dynamicDocumentsUpload: {
-          fileSectionData: {
-            document_category_code: 'R0001'
-          },
-          HKIDVersionValue: '1'
-        }
-      }
-    });
-
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic {...props} />
-      </Provider>
-    );
-
-    expect(screen.getByTestId('color-identity-proof')).toBeInTheDocument();
-  });
-
-  it('renders DocumentUpload when fileSectionData is not R0001', () => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: { channel_reference: 'test-ref' },
-            applicant_documents: [{
-              document_list: [
-                {
-                  document_category: 'Test Document',
-                  document_category_code: 'R0002',
-                  document_options: [{
-                    document_types: [{
-                      uploaded_documents: null
-                    }]
-                  }]
-                }
-              ]
-            }]
-          }
-        }],
-        dynamicDocumentsUpload: {
-          fileSectionData: {
-            document_category_code: 'R0002'
-          },
-          HKIDVersionValue: '1'
-        }
-      }
-    });
-
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic {...props} />
-      </Provider>
-    );
-
-    expect(screen.getByTestId('document-upload')).toBeInTheDocument();
-  });
-
-  it('calls dispatchLoader and postQRCodeZOLO on callQRCodeAPI', async () => {
-    const mockPostQRCodeZOLO = jest.spyOn(postQRCodeZOLO, 'then');
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic {...props} />
-      </Provider>
-    );
-
-    const colorIdentityProof = screen.getByTestId('color-identity-proof');
-    fireEvent.click(colorIdentityProof);
-
-    await waitFor(() => {
-      expect(mockPostQRCodeZOLO).toHaveBeenCalled();
-    });
-  });
-
-  it('dispatches errorAction on API failure', async () => {
-    const mockPostQRCodeZOLO = jest.spyOn(postQRCodeZOLO, 'catch');
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic {...props} />
-      </Provider>
-    );
-
-    const colorIdentityProof = screen.getByTestId('color-identity-proof');
-    fireEvent.click(colorIdentityProof);
-
-    await waitFor(() => {
-      expect(mockPostQRCodeZOLO).toHaveBeenCalled();
-    });
-  });
-
-  it('updates fileSectionData on document category click', () => {
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic {...props} />
-      </Provider>
-    );
-
-    const documentCategory = screen.getByText('Test Document');
-    fireEvent.click(documentCategory);
-
-    expect(store.getActions()).toContainEqual(stagesAction.updatefileSectionData({
-      document_category: 'Test Document',
-      document_category_code: 'R0001',
-      document_options: [{
-        document_types: [{
-          uploaded_documents: null
-        }]
-      }]
-    }));
-  });
-});
+  const renderPage = () => {
+    switch (currentStage) {
+      case "PD-0":
+        return <OnboardingBeforeStart stageID={stageId} isVisible={isVisible} onScrollEnd={onScrollEnd} nextPage={nextPage} />
+      case "PD-1":
+        return <OnboardingBeforeStart stageID={stageId} isVisible={isVisible} onScrollEnd={onScrollEnd} nextPage={nextPage} />
+      case "PD-2":
+        return <Fields selectedLeftMenu={selectedLeftMenu} />
+      // case "RP":
+      //   return <ReviewPage />
+      case "LD":
+        return <LoanDisbursement />
+      case "DC":
+        return <DocumentUploadSRC />
+      case "FFD":
+        return <Submission />
+      default:
+        return <Fields selectedLeftMenu={selectedLeftMenu} />
+    }
+  }
+  return (
+    <>
+      {renderPage()}
+    </>
+  )
+}
+export default DynamicComponent;
