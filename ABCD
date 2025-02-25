@@ -1,42 +1,62 @@
-
+import React from "react";
+import { render } from "@testing-library/react";
+import { useSelector } from "react-redux";
+import DynamicComponent from "../DynamicComponent";
 import OnboardingBeforeStart from "../commonComponents/onboarding-before-start/onboarding-before-start";
 import Fields from "../../dashboard/fields/fields";
-import { useState } from "react";
-import { useSelector } from "react-redux";
-import { StoreModel } from "../../../utils/model/common-model";
 import LoanDisbursement from "../commonComponents/loanDisbursement/loan-disbursement";
-import DocumentUploadSRC from "../commonComponents/documentUpload/documentUploadMain/document-upload-main-scr"; //"../../documentUpload/documentUploadMain/document-upload-main-scr";
+import DocumentUploadSRC from "../commonComponents/documentUpload/documentUploadMain/document-upload-main-scr";
 import Submission from "../submission/submission";
 
-const DynamicComponent: React.FC<any> = ({ isVisible, onScrollEnd, stageId, nextPage }) => {
-  const [selectedLeftMenu, setSelectedLeftMenu] = useState("");
-  const currentStage = useSelector((state: StoreModel) => state.preApproval.currentStage);
-  // const currentStage:any = "DC";
+// Mock dependencies
+jest.mock("react-redux", () => ({
+  useSelector: jest.fn(),
+}));
 
-  const renderPage = () => {
-    switch (currentStage) {
-      case "PD-0":
-        return <OnboardingBeforeStart stageID={stageId} isVisible={isVisible} onScrollEnd={onScrollEnd} nextPage={nextPage} />
-      case "PD-1":
-        return <OnboardingBeforeStart stageID={stageId} isVisible={isVisible} onScrollEnd={onScrollEnd} nextPage={nextPage} />
-      case "PD-2":
-        return <Fields selectedLeftMenu={selectedLeftMenu} />
-      // case "RP":
-      //   return <ReviewPage />
-      case "LD":
-        return <LoanDisbursement />
-      case "DC":
-        return <DocumentUploadSRC />
-      case "FFD":
-        return <Submission />
-      default:
-        return <Fields selectedLeftMenu={selectedLeftMenu} />
-    }
-  }
-  return (
-    <>
-      {renderPage()}
-    </>
-  )
-}
-export default DynamicComponent;
+jest.mock("../commonComponents/onboarding-before-start/onboarding-before-start", () => jest.fn(() => <div data-testid="onboarding"></div>));
+jest.mock("../../dashboard/fields/fields", () => jest.fn(() => <div data-testid="fields"></div>));
+jest.mock("../commonComponents/loanDisbursement/loan-disbursement", () => jest.fn(() => <div data-testid="loan-disbursement"></div>));
+jest.mock("../commonComponents/documentUpload/documentUploadMain/document-upload-main-scr", () => jest.fn(() => <div data-testid="document-upload"></div>));
+jest.mock("../submission/submission", () => jest.fn(() => <div data-testid="submission"></div>));
+
+describe("DynamicComponent", () => {
+  const renderComponent = (stage: string) => {
+    (useSelector as jest.Mock).mockReturnValue({ preApproval: { currentStage: stage } });
+    return render(<DynamicComponent isVisible={true} onScrollEnd={jest.fn()} stageId="1" nextPage={jest.fn()} />);
+  };
+
+  test("renders OnboardingBeforeStart for PD-0", () => {
+    const { getByTestId } = renderComponent("PD-0");
+    expect(getByTestId("onboarding")).toBeInTheDocument();
+  });
+
+  test("renders OnboardingBeforeStart for PD-1", () => {
+    const { getByTestId } = renderComponent("PD-1");
+    expect(getByTestId("onboarding")).toBeInTheDocument();
+  });
+
+  test("renders Fields for PD-2", () => {
+    const { getByTestId } = renderComponent("PD-2");
+    expect(getByTestId("fields")).toBeInTheDocument();
+  });
+
+  test("renders LoanDisbursement for LD", () => {
+    const { getByTestId } = renderComponent("LD");
+    expect(getByTestId("loan-disbursement")).toBeInTheDocument();
+  });
+
+  test("renders DocumentUploadSRC for DC", () => {
+    const { getByTestId } = renderComponent("DC");
+    expect(getByTestId("document-upload")).toBeInTheDocument();
+  });
+
+  test("renders Submission for FFD", () => {
+    const { getByTestId } = renderComponent("FFD");
+    expect(getByTestId("submission")).toBeInTheDocument();
+  });
+
+  test("renders Fields as default case", () => {
+    const { getByTestId } = renderComponent("UNKNOWN_STAGE");
+    expect(getByTestId("fields")).toBeInTheDocument();
+  });
+});
