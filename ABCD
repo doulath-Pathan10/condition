@@ -1,62 +1,224 @@
-import React from "react";
-import { render } from "@testing-library/react";
+import { getUrl } from "../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../utils/common/constants";
+import "./alert-modal.scss";
+import declineIcon from "../../../modules/preApproval/images/decline.png";
+import warningIcon from "../../../../src/assets/_images/ico_warning_sign_red.svg";
+import serviceErrorIcon from "../../preApproval/images/icon-sc-l-mobile-tech-error-serviceUnavailable.png";
+import successIcon from "../../preApproval/commonComponents/documentUpload/images-du/icon-sc-l-notification-alert-successful-cardBinding.png";
+import declineRlsIcon from "../../../modules/preApproval/images/group-71.png";
+import phoneIcon from '../../../assets/_images/icon-sc-small-icon-sc-s-phone-call.png'
+import DOMPurify from "dompurify";
+import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
 import { useSelector } from "react-redux";
-import DynamicComponent from "../DynamicComponent";
-import OnboardingBeforeStart from "../commonComponents/onboarding-before-start/onboarding-before-start";
-import Fields from "../../dashboard/fields/fields";
-import LoanDisbursement from "../commonComponents/loanDisbursement/loan-disbursement";
-import DocumentUploadSRC from "../commonComponents/documentUpload/documentUploadMain/document-upload-main-scr";
-import Submission from "../submission/submission";
 
-// Mock dependencies
-jest.mock("react-redux", () => ({
-  useSelector: jest.fn(),
-}));
+const AlertModel: React.FC<any> = ({
+  goBack,
+  exit,
+  alertType,
+  message,
+  errorCode
+}) => {
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const applicationRefNo = stageSelector[0].stageInfo.application.cos_ref_number;
+  const productInfo:KeyWithAnyModel = getUrl.getProductInfo();
+  const ref_number = "HK24101700230315"
+  const language = getUrl.getLanguageInfo("lang");
 
-jest.mock("../commonComponents/onboarding-before-start/onboarding-before-start", () => jest.fn(() => <div data-testid="onboarding"></div>));
-jest.mock("../../dashboard/fields/fields", () => jest.fn(() => <div data-testid="fields"></div>));
-jest.mock("../commonComponents/loanDisbursement/loan-disbursement", () => jest.fn(() => <div data-testid="loan-disbursement"></div>));
-jest.mock("../commonComponents/documentUpload/documentUploadMain/document-upload-main-scr", () => jest.fn(() => <div data-testid="document-upload"></div>));
-jest.mock("../submission/submission", () => jest.fn(() => <div data-testid="submission"></div>));
-
-describe("DynamicComponent", () => {
-  const renderComponent = (stage: string) => {
-    (useSelector as jest.Mock).mockReturnValue({ preApproval: { currentStage: stage } });
-    return render(<DynamicComponent isVisible={true} onScrollEnd={jest.fn()} stageId="1" nextPage={jest.fn()} />);
+  const getMarkup = (content: any) => {
+    return {
+      __html: DOMPurify.sanitize(content),
+    };
   };
 
-  test("renders OnboardingBeforeStart for PD-0", () => {
-    const { getByTestId } = renderComponent("PD-0");
-    expect(getByTestId("onboarding")).toBeInTheDocument();
-  });
+  return (
+    <>
+      {alertType && alertType === "DECLINERLS" &&
+        <div className="alertModal__container">
+          <div className="banner--declineRLS">
+            <img src={declineRlsIcon} />
+            <p >{language === CONSTANTS.LANG_EN ? CONSTANTS.headerText : language === CONSTANTS.LANG_CN ? CONSTANTS.headerText_CN : CONSTANTS.headerText_HK}</p>
+          </div>
+          <div className="application-contentRLS">
+            <p className="application-f1">{language === CONSTANTS.LANG_EN ? CONSTANTS.nextTextRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.nextTextRLS_CN : CONSTANTS.nextTextRLS_HK}</p>
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextRLS_CN : CONSTANTS.regretTextRLS_HK}</p>
+            <b>{language === CONSTANTS.LANG_EN ? CONSTANTS.enquiryContentRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.enquiryContentRLS_CN : CONSTANTS.enquiryContentRLS_HK}</b>
+            <div className="application-phone">
+                <div className="application-f3Img">
+                    <p><img src={phoneIcon} /></p>
+                </div>
+                <div className="applicationf3Text">
+                    <p className="application-f3"><b>(+852) 2886-8868</b></p>
+                </div>
+            </div>
+        </div>
+          <div className="reference-details">
+            <span>{language === CONSTANTS.LANG_EN ? `${CONSTANTS.refNoText} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.refNoText_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.refNoText_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}</span>
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.futureRefQuote : language === CONSTANTS.LANG_CN ? CONSTANTS.futureRefQuote_CN : CONSTANTS.futureRefQuote_HK}</p>
+          </div>
+          <p className="btn" onClick={goBack}> {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+        </div>
+      }
+      {alertType && alertType === "DECLINE" &&
+        <div className="alertModal__container">
+          <div className="banner--decline">
+            <img src={declineIcon} />
+          </div>
+          <div><p>{language === CONSTANTS.LANG_EN ? CONSTANTS.cardDeclineText : language === CONSTANTS.LANG_CN ? CONSTANTS.cardDeclineText_CN : CONSTANTS.cardDeclineText_HK}</p></div>
+          <div className="Thank-you-for-applyi">
+            {productInfo[0].product_category=="PL" ?
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextPL : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextPL_CN : CONSTANTS.regretTextPL_HK}</p>
+            :
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextCC : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextCC_CN : CONSTANTS.regretTextCC_HK}</p>
+            }
+          </div>
+          <div className="reference-details">
+            <span>{language === CONSTANTS.LANG_EN ? `${CONSTANTS.refNoText} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.refNoText_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.refNoText_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}</span>
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.futureRefQuote : language === CONSTANTS.LANG_CN ? CONSTANTS.futureRefQuote_CN : CONSTANTS.futureRefQuote_HK}</p>
+          </div>
+          <p className="btn" id='gobackBtn' onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+        </div>
+      }
+      {alertType && alertType === "RESUBMIT" &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+          <div className="alertModal__info">
+            <div className="app__ref">
+              {language === CONSTANTS.LANG_EN ? `${CONSTANTS.applicationNo} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.applicationNo_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.applicationNo_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}
+            </div>
+            <div className="alertModal__info__head">
+            </div>
+            <div className="alertModal__info__desc">
+              <p ><span dangerouslySetInnerHTML={getMarkup(message)} />
+              </p>
+              <p
+                className="btn"
+                onClick={goBack}
+              >
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.RETRY : language === CONSTANTS.RETRY_CN ? CONSTANTS.OK_CN : CONSTANTS.RETRY_HK}
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "OTPNot" &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+          <div className="alertModal__info">
+            <div className="app__ref">
+            </div>
+            <div className="alertModal__info__head">
+            </div>
+            <div className="alertModal__info__desc">
+              <p ><span>{language === CONSTANTS.LANG_EN ? CONSTANTS.otpNotAvailable : language === CONSTANTS.LANG_CN ? CONSTANTS.otpNotAvailable_CN : CONSTANTS.otpNotAvailable_HK}</span>
+              </p>
+              <p
+                className="btn"
+                onClick={goBack}
+              >
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "ErrorCode" && errorCode &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            {errorCode==="A02" ?
+            <img src={warningIcon} />
+             :
+             errorCode==="A20" || errorCode==="A26" || errorCode=== "IBANK_ERR0R2" ||errorCode === "IBANK_ERR0R4" || errorCode === 'IBANK_ERR0R1' ?
+             <img src={serviceErrorIcon} />
+             :
+             ""
+            }
+          </div>
+          <div className="info__head">
+            {productInfo[0].name!=="ALIPAY" && errorCode==="A02" ?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA02Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA02Header_CN : CONSTANTS.errorCodeA02Header_HK } </p>
+              :
+              productInfo[0].name!=="ALIPAY" &&  productInfo[0].name!=="asiamiles" &&  errorCode==="A03"?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Header_CN : CONSTANTS.errorCodeA03Header_HK } </p>
+              :
+              productInfo[0].name==="asiamiles" &&  errorCode==="A03"?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Header_CN : CONSTANTS.errorCodeA03Header_HK } </p>
+              :
+              ""
+            }
+          </div>
+          <div className="alertModal__info">
+            <div className="alertModal__info__desc">
+            {productInfo[0].name!=="ALIPAY" && errorCode==="A02"?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA02Content : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA02Content_CN : CONSTANTS.errorCodeA02Content_HK } </p>
+              :
+              productInfo[0].name!=="ALIPAY" &&  productInfo[0].name!=="asiamiles" &&  errorCode==="A03"?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Content : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Content_CN : CONSTANTS.errorCodeA03Content_HK } </p>
+              :
+              productInfo[0].name==="asiamiles" &&  errorCode==="A03" ?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03ContentAsiamiles : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03ContentAsiamiles_CN : CONSTANTS.errorCodeA03ContentAsiamiles_HK } </p>
+              :
+              errorCode==="A20" || errorCode==="A26" || errorCode=== "IBANK_ERR0R2" ||errorCode === "IBANK_ERR0R4" || errorCode === 'IBANK_ERR0R1' ?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.serviceErrorCodeContent : language === CONSTANTS.LANG_CN ? CONSTANTS.serviceErrorCodeContent_CN : CONSTANTS.serviceErrorCodeContent_HK } </p>
+              :
+              ""
+            }
+              <p
+                className="btn"
+                onClick={goBack}
+              >
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "Success" &&
+        <div className="popup-declare">
+          <div className="popup-container1-success">
+            <div className="popup-info__desc" style={{ padding: "5%" }}>
+              <img src={successIcon} />
+              <div className="textImage ">
+                <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.zolozText : language === CONSTANTS.LANG_CN ? CONSTANTS.zolozText_CN : CONSTANTS.zolozText_HK}</p>
+              </div>
+              <p className="decline-btn bg-button" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "invalideimagesize" &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+          <div className="alertModal__info">
+            <div className="app__ref">{language === CONSTANTS.LANG_EN ? CONSTANTS.fileSizeExceed : language === CONSTANTS.LANG_CN ? CONSTANTS.fileSizeExceed_CN : CONSTANTS.fileSizeExceed_HK} </div>
+          </div>
+          <div className="alertModal__info__desc">
+            <p className="btn" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "zoloError" &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+          <div className="alertModal__info">
+            <div className="app__ref">
+              {language === CONSTANTS.LANG_EN ? `${CONSTANTS.zoloErrorMsg}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.zoloErrorMsg_CN}` : `${CONSTANTS.zoloErrorMsg_HK}`}
+              </div>
+          </div>
+          <div className="alertModal__info__desc">
+            <p className="btn" onClick={goBack}>OK</p>
+          </div>
+        </div>
+      }
+    </>
+  )
+}
 
-  test("renders OnboardingBeforeStart for PD-1", () => {
-    const { getByTestId } = renderComponent("PD-1");
-    expect(getByTestId("onboarding")).toBeInTheDocument();
-  });
-
-  test("renders Fields for PD-2", () => {
-    const { getByTestId } = renderComponent("PD-2");
-    expect(getByTestId("fields")).toBeInTheDocument();
-  });
-
-  test("renders LoanDisbursement for LD", () => {
-    const { getByTestId } = renderComponent("LD");
-    expect(getByTestId("loan-disbursement")).toBeInTheDocument();
-  });
-
-  test("renders DocumentUploadSRC for DC", () => {
-    const { getByTestId } = renderComponent("DC");
-    expect(getByTestId("document-upload")).toBeInTheDocument();
-  });
-
-  test("renders Submission for FFD", () => {
-    const { getByTestId } = renderComponent("FFD");
-    expect(getByTestId("submission")).toBeInTheDocument();
-  });
-
-  test("renders Fields as default case", () => {
-    const { getByTestId } = renderComponent("UNKNOWN_STAGE");
-    expect(getByTestId("fields")).toBeInTheDocument();
-  });
-});
+export default AlertModel
