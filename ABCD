@@ -1,224 +1,344 @@
-import { getUrl } from "../../../utils/common/change.utils";
-import { CONSTANTS } from "../../../utils/common/constants";
-import "./alert-modal.scss";
-import declineIcon from "../../../modules/preApproval/images/decline.png";
-import warningIcon from "../../../../src/assets/_images/ico_warning_sign_red.svg";
-import serviceErrorIcon from "../../preApproval/images/icon-sc-l-mobile-tech-error-serviceUnavailable.png";
-import successIcon from "../../preApproval/commonComponents/documentUpload/images-du/icon-sc-l-notification-alert-successful-cardBinding.png";
-import declineRlsIcon from "../../../modules/preApproval/images/group-71.png";
-import phoneIcon from '../../../assets/_images/icon-sc-small-icon-sc-s-phone-call.png'
-import DOMPurify from "dompurify";
-import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
-import { useSelector } from "react-redux";
+import "./onboarding-before-start.scss";
+import { useState, useEffect, useRef } from "react";
+import Pdf from "../../../../shared/components/pdf/pdf";
+import { getData, getPDFData } from "../../services/preApprovalServices";
+import { CATEGORIES, KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../services/constants";
+import { useDispatch, useSelector } from "react-redux";
+import { StoreModel } from "../../../../utils/model/common-model";
+import Spinner from "../../../../shared/components/spinner/spinner";
+import { preApprovalAction } from "../../store/preApproval-slice";
+import { dispatchLoader } from "../../../../services/common-service";
+import { getUrl } from "../../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../../utils/common/constants";
+import PILPdfUrl1 from "../../../../assets/pdf-file/PIL/hk-personal-loan-terms-pil-aug09.pdf";
+import PILPdfUrl2 from "../../../../assets/pdf-file/PIL/hk-gn175.pdf";
+import PILPdfUrl3 from "../../../../assets/pdf-file/PIL/hk-loans-personal-instalment-loan-eng.pdf";
+import CCPdfUrl1 from "../../../../assets/pdf-file/CC/hk-gn175.pdf";
+import CCPdfUrl2 from "../../../../assets/pdf-file/CC/hk-gn177.pdf";
+import CCPdfUrl3 from "../../../../assets/pdf-file/CC/hk-cc-tncs-downloadnow.pdf";
+import CCPdfUrl4 from "../../../../assets/pdf-file/CC/e-statement-en.pdf";
+import CCPdfUrl5 from "../../../../assets/pdf-file/CC/hk-rewards-tncs-en.pdf";
+import CCPdfUrl6 from "../../../../assets/pdf-file/CC/hk-tnc-credit-card-instalment-plan-en.pdf";
 
-const AlertModel: React.FC<any> = ({
-  goBack,
-  exit,
-  alertType,
-  message,
-  errorCode
+const OnboardingBeforeStart: React.FC<any> = ({
+  isVisible,
+  onScrollEnd,
+  stageID,
+  nextPage
 }) => {
+  const listInnerRef = useRef<HTMLDivElement>(null);
+  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+  const [kfsDocPDF, setkfsDocPDF] = useState("");
+  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+  const [pdfName, setPdfName] = useState('')
+  const [showSpinner, setShowSpinner] = useState(true);
   const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const applicationRefNo = stageSelector[0].stageInfo.application.cos_ref_number;
-  const productInfo:KeyWithAnyModel = getUrl.getProductInfo();
-  const ref_number = "HK24101700230315"
-  const language = getUrl.getLanguageInfo("lang");
+  const campaignId = stageSelector[0].stageInfo.products[0].campaign;
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
+  const dispatch = useDispatch();
+  const language = getUrl.getLanguageInfo("lang");  
+  useEffect(() => {
+    setShowSpinner(true);
+    dispatch(dispatchLoader(true));
+    let KFS;
+    if(language==='zh'){
+      KFS=KFS_DOC_URL_Chinees
+    }else{
+      KFS=KFS_DOC_URL
+    }
 
-  const getMarkup = (content: any) => {
-    return {
-      __html: DOMPurify.sanitize(content),
-    };
+    getData(KFS)?.then((response: any) => {
+      const campaignID = formConfigmetaData?.products[0].campaign;
+      let pdfURLNew = "";
+      if (stageID === 0) {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+        const isSmallScreen = window.innerWidth < 768;
+        const isMobile = isMobileUA && isSmallScreen;
+        const pdfURL = isMobile? response.data.productsMob[campaignID] : response.data.products[campaignID];
+        const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        if (window.location.host === "localhost:3000") {
+          pdfURLNew = pdfURL[0].pdfURL.replace(
+            "https://pt.sc.com/",
+            "http://localhost:3000/"
+
+          );
+          setPdfName(getPDFName);
+        } else {
+          pdfURLNew = pdfURL[0].pdfURL;
+        }
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          const pdfurl: any = {};
+          pdfurl.pdf = response;
+          pdfurl.pdfurl = pdfURLNew;
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+      }
+      else if (stageID === 1) {
+        if (window.location.host === "localhost:3000") {
+          const userAgent = navigator.userAgent.toLowerCase();
+          const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+          const isSmallScreen = window.innerWidth < 768;
+          const isMobile = isMobileUA && isSmallScreen;
+          const pdfURLCheck = isMobile? response.data.CampaignTnCMob[campaignID] : response.data.CampaignTnC[campaignID];
+          pdfURLNew =pdfURLCheck[0]?.pdfURL.replace("https://pt.sc.com/", "http://localhost:3000/");
+          const getPDFName: any = new URL(pdfURLNew).pathname.split('/').pop();
+          setPdfName(getPDFName);
+        } else {
+          pdfURLNew = response?.data?.CampaignTnC[campaignID][0]?.pdfURL;
+        }
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setTandCDocumentPdf(pdfURLNew));
+          dispatch(preApprovalAction.setDownloadPDFData(response));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+      }
+      const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+      setPdfLinkTerms(allPDFLinks);
+    });
+  }, [stageID]);
+
+  useEffect(() => {
+    const listInnerElement = listInnerRef.current;
+        /* istanbul ignore else */
+    if (listInnerElement) {
+      listInnerElement.addEventListener("scroll", scrollToBottom);
+      // Clean-up
+      return () => {
+        listInnerElement.removeEventListener("scroll", scrollToBottom);
+      };
+    }
+    window.history.replaceState("", "", "/hk/before-start")
+  });
+
+  //For future reference we need this code
+  // const downloadPdf = (link: any) => {
+  //   const lin = document.createElement('a');
+  //   fetch(link, {
+  //     mode: "no-cors",
+  //     headers: {
+  //       "Content-Type": "application/xml; charset=utf-8",
+  //       "Authorization": `${process.env.REACT_APP_RTOB_AUTHORIZATION}`,
+  //     },
+  //   }).then((response: any) => {
+  //     var blob = new Blob([response.data], { type: "application/pdf" });
+  //     if (
+  //       navigator.userAgent.indexOf("Chrome") !== -1 ||
+  //       navigator.userAgent.match("CriOS")
+  //     ) {
+  //       blob = new Blob([response.data], { type: "application/pdf" });
+  //     } else {
+  //       var pdfBase64Data = new Uint8Array(response.data);
+  //       blob = new Blob([pdfBase64Data], {
+  //         type: "application/octet-stream",
+  //       });
+  //     }
+  //     const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+  //         /* istanbul ignore else */
+  //     if (isSafari) {
+  //       blob = new Blob([response.data], { type: "application/pdf" });
+  //     }
+  //     const dataURL = window.URL.createObjectURL(blob);
+  //     lin.href = dataURL;
+  //     if (isSafari) {
+  //       lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+  //       document.body.appendChild(lin);
+  //       lin.click();
+  //       document.body.removeChild(lin);
+  //     } else {
+  //       lin.download = pdfName;
+  //       document.body.appendChild(lin);
+  //       lin.click();
+  //       document.body.removeChild(lin);
+  //     }
+  //   });
+  // }
+
+ //Added for mock pdf
+  const downloadPdf = (title: any) => {
+    const lin = document.createElement('a');
+    if(campaignId === "HKPIL23PLSTP10" || campaignId === "HKBDC23PESTP10") {
+      if(title === "II. Personal Loan Terms") {
+        lin.href = PILPdfUrl1;
+      } else if(title === "III. Client Terms") {
+        lin.href = PILPdfUrl2;
+      } else if(title === "Welcome Offers"){
+        lin.href = PILPdfUrl3;
+      }
+    } else if(campaignId === "HKSOG20VAWV000" || campaignId === "HKSPG17VAWV000" || campaignId === "HKSPB17VAWV000" || campaignId === "HKSOA16VAWP000" || campaignId === "HKSOA16MCWP000") {
+      if(title === "III. Client Terms"){
+        lin.href = CCPdfUrl1;
+      } else if(title === "III. Credit Card Terms"){
+        lin.href = CCPdfUrl2;
+      } else if(title === "VI. Welcome Offers" || title === "IV. Welcome Offers"){
+        lin.href = CCPdfUrl3;
+      } else if(title === "IX.  E-Statement Service" || title === "IX. E-Statement Service"){
+        lin.href = CCPdfUrl4;
+      } else if(title === "X. Points Redemption"){
+        lin.href = CCPdfUrl5;
+      } else if(title === "XI. Credit Card Instalment Plan"){
+        lin.href = CCPdfUrl6;
+      }
+    }
+    const urlParts = lin.href.split("/");
+    const extractedPDFName = urlParts[urlParts.length - 1].split(".")[0];
+    lin.download = extractedPDFName;
+    document.body.appendChild(lin);
+    lin.click();
+    document.body.removeChild(lin);
+  }
+
+  const downloadPDFPreApproval = (link: any) => {
+    const lin = document.createElement('a');
+    lin.href = kfsDocPDFDownload;
+    const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+    if (isSafari) {
+      lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
+    } else {
+      lin.download = pdfName;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
+    }
   };
 
-  return (
-    <>
-      {alertType && alertType === "DECLINERLS" &&
-        <div className="alertModal__container">
-          <div className="banner--declineRLS">
-            <img src={declineRlsIcon} />
-            <p >{language === CONSTANTS.LANG_EN ? CONSTANTS.headerText : language === CONSTANTS.LANG_CN ? CONSTANTS.headerText_CN : CONSTANTS.headerText_HK}</p>
-          </div>
-          <div className="application-contentRLS">
-            <p className="application-f1">{language === CONSTANTS.LANG_EN ? CONSTANTS.nextTextRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.nextTextRLS_CN : CONSTANTS.nextTextRLS_HK}</p>
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextRLS_CN : CONSTANTS.regretTextRLS_HK}</p>
-            <b>{language === CONSTANTS.LANG_EN ? CONSTANTS.enquiryContentRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.enquiryContentRLS_CN : CONSTANTS.enquiryContentRLS_HK}</b>
-            <div className="application-phone">
-                <div className="application-f3Img">
-                    <p><img src={phoneIcon} /></p>
-                </div>
-                <div className="applicationf3Text">
-                    <p className="application-f3"><b>(+852) 2886-8868</b></p>
-                </div>
-            </div>
-        </div>
-          <div className="reference-details">
-            <span>{language === CONSTANTS.LANG_EN ? `${CONSTANTS.refNoText} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.refNoText_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.refNoText_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}</span>
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.futureRefQuote : language === CONSTANTS.LANG_CN ? CONSTANTS.futureRefQuote_CN : CONSTANTS.futureRefQuote_HK}</p>
-          </div>
-          <p className="btn" onClick={goBack}> {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-        </div>
-      }
-      {alertType && alertType === "DECLINE" &&
-        <div className="alertModal__container">
-          <div className="banner--decline">
-            <img src={declineIcon} />
-          </div>
-          <div><p>{language === CONSTANTS.LANG_EN ? CONSTANTS.cardDeclineText : language === CONSTANTS.LANG_CN ? CONSTANTS.cardDeclineText_CN : CONSTANTS.cardDeclineText_HK}</p></div>
-          <div className="Thank-you-for-applyi">
-            {productInfo[0].product_category=="PL" ?
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextPL : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextPL_CN : CONSTANTS.regretTextPL_HK}</p>
-            :
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextCC : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextCC_CN : CONSTANTS.regretTextCC_HK}</p>
-            }
-          </div>
-          <div className="reference-details">
-            <span>{language === CONSTANTS.LANG_EN ? `${CONSTANTS.refNoText} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.refNoText_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.refNoText_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}</span>
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.futureRefQuote : language === CONSTANTS.LANG_CN ? CONSTANTS.futureRefQuote_CN : CONSTANTS.futureRefQuote_HK}</p>
-          </div>
-          <p className="btn" id='gobackBtn' onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-        </div>
-      }
-      {alertType && alertType === "RESUBMIT" &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-          <div className="alertModal__info">
-            <div className="app__ref">
-              {language === CONSTANTS.LANG_EN ? `${CONSTANTS.applicationNo} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.applicationNo_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.applicationNo_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}
-            </div>
-            <div className="alertModal__info__head">
-            </div>
-            <div className="alertModal__info__desc">
-              <p ><span dangerouslySetInnerHTML={getMarkup(message)} />
-              </p>
-              <p
-                className="btn"
-                onClick={goBack}
-              >
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.RETRY : language === CONSTANTS.RETRY_CN ? CONSTANTS.OK_CN : CONSTANTS.RETRY_HK}
-              </p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "OTPNot" &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-          <div className="alertModal__info">
-            <div className="app__ref">
-            </div>
-            <div className="alertModal__info__head">
-            </div>
-            <div className="alertModal__info__desc">
-              <p ><span>{language === CONSTANTS.LANG_EN ? CONSTANTS.otpNotAvailable : language === CONSTANTS.LANG_CN ? CONSTANTS.otpNotAvailable_CN : CONSTANTS.otpNotAvailable_HK}</span>
-              </p>
-              <p
-                className="btn"
-                onClick={goBack}
-              >
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}
-              </p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "ErrorCode" && errorCode &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            {errorCode==="A02" ?
-            <img src={warningIcon} />
-             :
-             errorCode==="A20" || errorCode==="A26" || errorCode=== "IBANK_ERR0R2" ||errorCode === "IBANK_ERR0R4" || errorCode === 'IBANK_ERR0R1' ?
-             <img src={serviceErrorIcon} />
-             :
-             ""
-            }
-          </div>
-          <div className="info__head">
-            {productInfo[0].name!=="ALIPAY" && errorCode==="A02" ?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA02Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA02Header_CN : CONSTANTS.errorCodeA02Header_HK } </p>
-              :
-              productInfo[0].name!=="ALIPAY" &&  productInfo[0].name!=="asiamiles" &&  errorCode==="A03"?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Header_CN : CONSTANTS.errorCodeA03Header_HK } </p>
-              :
-              productInfo[0].name==="asiamiles" &&  errorCode==="A03"?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Header_CN : CONSTANTS.errorCodeA03Header_HK } </p>
-              :
-              ""
-            }
-          </div>
-          <div className="alertModal__info">
-            <div className="alertModal__info__desc">
-            {productInfo[0].name!=="ALIPAY" && errorCode==="A02"?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA02Content : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA02Content_CN : CONSTANTS.errorCodeA02Content_HK } </p>
-              :
-              productInfo[0].name!=="ALIPAY" &&  productInfo[0].name!=="asiamiles" &&  errorCode==="A03"?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Content : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Content_CN : CONSTANTS.errorCodeA03Content_HK } </p>
-              :
-              productInfo[0].name==="asiamiles" &&  errorCode==="A03" ?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03ContentAsiamiles : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03ContentAsiamiles_CN : CONSTANTS.errorCodeA03ContentAsiamiles_HK } </p>
-              :
-              errorCode==="A20" || errorCode==="A26" || errorCode=== "IBANK_ERR0R2" ||errorCode === "IBANK_ERR0R4" || errorCode === 'IBANK_ERR0R1' ?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.serviceErrorCodeContent : language === CONSTANTS.LANG_CN ? CONSTANTS.serviceErrorCodeContent_CN : CONSTANTS.serviceErrorCodeContent_HK } </p>
-              :
-              ""
-            }
-              <p
-                className="btn"
-                onClick={goBack}
-              >
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}
-              </p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "Success" &&
-        <div className="popup-declare">
-          <div className="popup-container1-success">
-            <div className="popup-info__desc" style={{ padding: "5%" }}>
-              <img src={successIcon} />
-              <div className="textImage ">
-                <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.zolozText : language === CONSTANTS.LANG_CN ? CONSTANTS.zolozText_CN : CONSTANTS.zolozText_HK}</p>
-              </div>
-              <p className="decline-btn bg-button" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "invalideimagesize" &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-          <div className="alertModal__info">
-            <div className="app__ref">{language === CONSTANTS.LANG_EN ? CONSTANTS.fileSizeExceed : language === CONSTANTS.LANG_CN ? CONSTANTS.fileSizeExceed_CN : CONSTANTS.fileSizeExceed_HK} </div>
-          </div>
-          <div className="alertModal__info__desc">
-            <p className="btn" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "zoloError" &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-          <div className="alertModal__info">
-            <div className="app__ref">
-              {language === CONSTANTS.LANG_EN ? `${CONSTANTS.zoloErrorMsg}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.zoloErrorMsg_CN}` : `${CONSTANTS.zoloErrorMsg_HK}`}
-              </div>
-          </div>
-          <div className="alertModal__info__desc">
-            <p className="btn" onClick={goBack}>OK</p>
-          </div>
-        </div>
-      }
-    </>
-  )
-}
+  const btnClickScroll = () => {
+    listInnerRef.current?.scrollBy({ top: stageID===0 ? 200 : 5000, behavior: "smooth" });
+  };
 
-export default AlertModel
+  const scrollToBottom = () => {
+        /* istanbul ignore else */
+    if (listInnerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      /* istanbul ignore else */
+      if (isNearBottom) {
+        onScrollEnd(false);
+      }
+    }
+  };
+  return (
+    <div>
+      {showSpinner === true ? (
+        <Spinner></Spinner>
+      ) : (
+        <>
+          <div>
+            <button 
+              onClick={(link) => {
+                downloadPDFPreApproval(link);
+              }}
+              className="view-pdf"
+              // ng-if="source_sys == 'sc.com' || source_sys == 'asiamiles'" //for future reference
+            >
+              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+            </button>
+          </div>
+          <div className="pdf-view">
+            <div
+              style={{ maxHeight: stageID == 0 ? "45vh" : "22vh" }}
+              className="react-pdf__Page__canvas"
+              ref={listInnerRef}
+            >
+              <Pdf fileName={kfsDocPDF} />
+            </div>
+          </div>
+
+          {stageID == 1 && (
+            <div className="pdf-table">
+              <div className="download-section">
+                <span className="download-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadHeader : language === CONSTANTS.LANG_CN? CONSTANTS.DownloadHeader_CN : CONSTANTS.DownloadHeader_HK}</span>
+                <span className="images"></span>
+              </div>
+
+              <div className="tc-container">
+                <table className="tcTable" border={1}>
+                  <tbody>
+                    {pdfLinkTerms?.map((item: any, index: any) => {
+                      return (
+                        <tr key={index}>
+                          <td className="tcTable__title">{item.Title}</td>
+                          <td className="tcTable__read">
+                            <a
+                              href={item.url}
+                              download
+                              target="_blank"
+                            >
+                             {language === CONSTANTS.LANG_EN ? CONSTANTS.ReadBtn : language === CONSTANTS.LANG_CN? CONSTANTS.ReadBtn_CN : CONSTANTS.ReadBtn_HK}
+                            </a>
+                            <span> / </span>
+                            <span className="tcTable__download"
+                              onClick={() => {
+                                downloadPdf(item.Title);
+                              }}
+                            >
+                              
+                              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="remarks-section">
+                <span className="remarks-section__span">
+                  {" "}
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.Remarks : language === CONSTANTS.LANG_CN? CONSTANTS.Remarks_CN : CONSTANTS.Remarks_HK}
+                </span>
+              </div>
+            </div>
+          )}
+          <div className="footer-button-list">
+            {isVisible ? (
+              <>
+                <div className="next-arrow" aria-describedby="submitButton">
+                  <footer
+                    className="footer-next enabled"
+                    onClick={btnClickScroll}
+                  >
+                    <i className="next-btn"></i>
+                  </footer>
+                </div>
+              </>
+            )
+              :
+              <div
+                className="pre-approval-accept accept-btn"
+                id="navigationBtn"
+              >
+                <button
+                  id="pre-approval-confirm-btn1"
+                  className="pre-approval-confirm-btn1"
+                  onClick={nextPage}
+                >
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.acceptButton : language === CONSTANTS.LANG_CN? CONSTANTS.acceptButton_CN : CONSTANTS.acceptButton_HK}
+                </button>
+
+              </div>
+            }
+
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default OnboardingBeforeStart;
