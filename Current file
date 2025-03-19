@@ -1,0 +1,310 @@
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import AlertModel from './AlertModel'; // Adjust the import path as necessary
+import { useSelector } from 'react-redux';
+
+// Mock useSelector
+jest.mock('react-redux', () => ({
+  useSelector: jest.fn(),
+}));
+
+// Mock getUrl and CONSTANTS
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getProductInfo: jest.fn(),
+    getLanguageInfo: jest.fn(),
+  },
+}));
+
+jest.mock('../../../utils/common/constants', () => ({
+  CONSTANTS: {
+    LANG_EN: 'en',
+    LANG_CN: 'cn',
+    LANG_HK: 'hk',
+    headerText: 'Header Text',
+    headerText_CN: 'Header Text CN',
+    headerText_HK: 'Header Text HK',
+    nextTextRLS: 'Next Text RLS',
+    nextTextRLS_CN: 'Next Text RLS CN',
+    nextTextRLS_HK: 'Next Text RLS HK',
+    regretTextRLS: 'Regret Text RLS',
+    regretTextRLS_CN: 'Regret Text RLS CN',
+    regretTextRLS_HK: 'Regret Text RLS HK',
+    enquiryContentRLS: 'Enquiry Content RLS',
+    enquiryContentRLS_CN: 'Enquiry Content RLS CN',
+    enquiryContentRLS_HK: 'Enquiry Content RLS HK',
+    refNoText: 'Ref No Text',
+    refNoText_CN: 'Ref No Text CN',
+    refNoText_HK: 'Ref No Text HK',
+    futureRefQuote: 'Future Ref Quote',
+    futureRefQuote_CN: 'Future Ref Quote CN',
+    futureRefQuote_HK: 'Future Ref Quote HK',
+    OK: 'OK',
+    OK_CN: 'OK CN',
+    OK_HK: 'OK HK',
+    cardDeclineText: 'Card Decline Text',
+    cardDeclineText_CN: 'Card Decline Text CN',
+    cardDeclineText_HK: 'Card Decline Text HK',
+    regretTextPL: 'Regret Text PL',
+    regretTextPL_CN: 'Regret Text PL CN',
+    regretTextPL_HK: 'Regret Text PL HK',
+    regretTextCC: 'Regret Text CC',
+    regretTextCC_CN: 'Regret Text CC CN',
+    regretTextCC_HK: 'Regret Text CC HK',
+    applicationNo: 'Application No',
+    applicationNo_CN: 'Application No CN',
+    applicationNo_HK: 'Application No HK',
+    RETRY: 'Retry',
+    RETRY_CN: 'Retry CN',
+    RETRY_HK: 'Retry HK',
+    otpNotAvailable: 'OTP Not Available',
+    otpNotAvailable_CN: 'OTP Not Available CN',
+    otpNotAvailable_HK: 'OTP Not Available HK',
+    errorCodeA02Header: 'Error Code A02 Header',
+    errorCodeA02Header_CN: 'Error Code A02 Header CN',
+    errorCodeA02Header_HK: 'Error Code A02 Header HK',
+    errorCodeA03Header: 'Error Code A03 Header',
+    errorCodeA03Header_CN: 'Error Code A03 Header CN',
+    errorCodeA03Header_HK: 'Error Code A03 Header HK',
+    errorCodeA02Content: 'Error Code A02 Content',
+    errorCodeA02Content_CN: 'Error Code A02 Content CN',
+    errorCodeA02Content_HK: 'Error Code A02 Content HK',
+    errorCodeA03Content: 'Error Code A03 Content',
+    errorCodeA03Content_CN: 'Error Code A03 Content CN',
+    errorCodeA03Content_HK: 'Error Code A03 Content HK',
+    errorCodeA03ContentAsiamiles: 'Error Code A03 Content Asiamiles',
+    errorCodeA03ContentAsiamiles_CN: 'Error Code A03 Content Asiamiles CN',
+    errorCodeA03ContentAsiamiles_HK: 'Error Code A03 Content Asiamiles HK',
+    serviceErrorCodeContent: 'Service Error Code Content',
+    serviceErrorCodeContent_CN: 'Service Error Code Content CN',
+    serviceErrorCodeContent_HK: 'Service Error Code Content HK',
+    zolozText: 'Zoloz Text',
+    zolozText_CN: 'Zoloz Text CN',
+    zolozText_HK: 'Zoloz Text HK',
+    fileSizeExceed: 'File Size Exceed',
+    fileSizeExceed_CN: 'File Size Exceed CN',
+    fileSizeExceed_HK: 'File Size Exceed HK',
+    zoloErrorMsg: 'Zolo Error Msg',
+    zoloErrorMsg_CN: 'Zolo Error Msg CN',
+    zoloErrorMsg_HK: 'Zolo Error Msg HK',
+  },
+}));
+
+describe('AlertModel', () => {
+  const goBack = jest.fn();
+  const exit = jest.fn();
+  const mockStages = [
+    {
+      stageInfo: {
+        application: {
+          cos_ref_number: 'REF123',
+        },
+      },
+    },
+  ];
+
+  beforeEach(() => {
+    useSelector.mockImplementation((selector) =>
+      selector({
+        stages: {
+          stages: mockStages,
+        },
+      })
+    );
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('Renders DECLINERLS alert type correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="DECLINERLS"
+        message="Test Message"
+        errorCode=""
+      />
+    );
+
+    expect(getByText('Header Text')).toBeInTheDocument();
+    expect(getByText('Next Text RLS')).toBeInTheDocument();
+    expect(getByText('Regret Text RLS')).toBeInTheDocument();
+    expect(getByText('Enquiry Content RLS')).toBeInTheDocument();
+    expect(getByText('(+852) 2886-8868')).toBeInTheDocument();
+    expect(getByText('Ref No Text REF123')).toBeInTheDocument();
+    expect(getByText('Future Ref Quote')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders DECLINE alert type correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="DECLINE"
+        message="Test Message"
+        errorCode=""
+      />
+    );
+
+    expect(getByText('Card Decline Text')).toBeInTheDocument();
+    expect(getByText('Regret Text PL')).toBeInTheDocument();
+    expect(getByText('Ref No Text REF123')).toBeInTheDocument();
+    expect(getByText('Future Ref Quote')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders RESUBMIT alert type correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="RESUBMIT"
+        message="Test Message"
+        errorCode=""
+      />
+    );
+
+    expect(getByText('Application No REF123')).toBeInTheDocument();
+    expect(getByText('Retry')).toBeInTheDocument();
+
+    fireEvent.click(getByText('Retry'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders OTPNot alert type correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="OTPNot"
+        message="Test Message"
+        errorCode=""
+      />
+    );
+
+    expect(getByText('OTP Not Available')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders ErrorCode alert type with A02 error code correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="ErrorCode"
+        message="Test Message"
+        errorCode="A02"
+      />
+    );
+
+    expect(getByText('Error Code A02 Header')).toBeInTheDocument();
+    expect(getByText('Error Code A02 Content')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders ErrorCode alert type with A03 error code correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="ErrorCode"
+        message="Test Message"
+        errorCode="A03"
+      />
+    );
+
+    expect(getByText('Error Code A03 Header')).toBeInTheDocument();
+    expect(getByText('Error Code A03 Content')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders ErrorCode alert type with A20 error code correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="ErrorCode"
+        message="Test Message"
+        errorCode="A20"
+      />
+    );
+
+    expect(getByText('Service Error Code Content')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders Success alert type correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="Success"
+        message="Test Message"
+        errorCode=""
+      />
+    );
+
+    expect(getByText('Zoloz Text')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders invalideimagesize alert type correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="invalideimagesize"
+        message="Test Message"
+        errorCode=""
+      />
+    );
+
+    expect(getByText('File Size Exceed')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+
+  test('Renders zoloError alert type correctly', () => {
+    const { getByText } = render(
+      <AlertModel
+        goBack={goBack}
+        exit={exit}
+        alertType="zoloError"
+        message="Test Message"
+        errorCode=""
+      />
+    );
+
+    expect(getByText('Zolo Error Msg')).toBeInTheDocument();
+    expect(getByText('OK')).toBeInTheDocument();
+
+    fireEvent.click(getByText('OK'));
+    expect(goBack).toHaveBeenCalled();
+  });
+});
