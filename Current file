@@ -1,310 +1,272 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import AlertModel from './AlertModel'; // Adjust the import path as necessary
-import { useSelector } from 'react-redux';
+import { useEffect, useState } from "react";
+import "./document-upload-main-scr.scss";
+import { useDispatch, useSelector } from "react-redux";
+import { preApprovalAction } from "../../../../preApproval/store/preApproval-slice";
+import { postDocSaveData, postFinalAcknowledge, postFulFilmentData, postTMXUserSession } from "../../../../preApproval/services/preApprovalPostServices";
+import DocumentTypeDynamic from "../documentType/document-type-dynamic";
+import { dispatchLoader, lovRequests } from "../../../../../services/common-service";
+import { StoreModel } from "../../../../../utils/model/common-model";
+import { stagesAction } from "../../../../../utils/store/stages-slice";
+import { CONSTANTS } from "../../../../../utils/common/constants";
+import Close from "../../../../../shared/components/close/close";
+import { errorAction } from "../../../../../utils/store/error-slice";
+import { HardStop } from "../../../services/preApprovalUtilsService";
+import Spinner from "../../../../../shared/components/spinner/spinner";
+import { stateUrl } from "../../../../dashboard/fields/stage.utils";
+import { getUrl } from "../../../../../utils/common/change.utils";
 
-// Mock useSelector
-jest.mock('react-redux', () => ({
-  useSelector: jest.fn(),
-}));
+const DucumentUploadMainSCR = () => {
+  // const uplaodDoc = "Please upload the following documents: ";
+  // const provideDoc = "Please provide the following documents";
+  const document_list = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.applicant_documents[0].document_list)
+  const totalDocCount = document_list?.length;
+  // const tooltipText = "The document submitted will not be returned. Standard Chartered Bank (Hong Kong) Limited (the Bank) may request additional documents from you for approval purposes.";
+  // const footerContent1 = "Uploading your documents";
+  // const footerContent2 = "Uploading your HKID image requires a smart phone device. You will be asked to capture the image of your HKID and make selfie images for authentication purpose.";
+  // const footerContent3 = "Other documents can be directly uploaded.  Please note that copies of the documents submitted must be complete, legible and without any masked information.";
+  // const hkCopyRight = "© Standard Chartered Bank (HK) Limited";
+  const [showIncomeProof, setShowIncomeProof] = useState("");
+  const [HKIDQRCodeData, setHKIDQRCodeData] = useState(null);
+  const [showUploadFileSuccess, setShowUploadFileSuccess] = useState(false);
+  const [HKIDVersion, setHKIDVersion] = useState("");
+  const [showContinueBtn, setShowContinueBtn] = useState(false);
+  const [showSpinner, setShowSpinner] = useState(false);
+  const documentData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentData);
+  const newHKIDQRCodeData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.HKIDQRCodeData);
+  useEffect(() => {
+    dispatch(dispatchLoader(false));
+  }, [])
 
-// Mock getUrl and CONSTANTS
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getProductInfo: jest.fn(),
-    getLanguageInfo: jest.fn(),
-  },
-}));
+  const changeIconColorIdentityProof = useSelector((state: any) => state.stages.dynamicDocumentsUpload.changeIconColorIdentityProof);
+  const documentCount = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentCount);
+  const success = useSelector((state: any) => state.stages.dynamicDocumentsUpload.success);
+  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
+  const stageSelector = useSelector((state: StoreModel) => state.stages && state.stages.stages);
+  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
+  const dispatch = useDispatch();
+  const language = getUrl.getLanguageInfo("lang");
+  useEffect(()=>{
+    setShowSpinner(false);
+  },[])
+  
+  const nextStage = async () => {
+    dispatch(dispatchLoader(true));
+    await postTMXUserSession(channel_reference).then(async (res: any) => {
+      if (res.status === 200 && res.data.review_status.toLowerCase() === 'pass') {
+        await postFinalAcknowledge(channel_reference).then(async (res: any) => {
+          if (res.status === 202) {
+            dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
+            await postDocSaveData(documentData, newHKIDQRCodeData).then(async (res: any) => {
+              if (res.status >= 200 && res.status <= 300) {
+                let responseType = res.data.application.response_type.toUpperCase();
+                let responseAction = res.data.application.response_action.toUpperCase();
+                if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
+                  if (stageSelector[0].stageInfo.products[0].product_category === "CC") {
+                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_1));
+                    dispatch(dispatchLoader(false));
+                    setShowSpinner(true);
+                    postFulFilment(res.data);
+                  }
+                  else {
+                    dispatch(preApprovalAction.setCurrentStage("PD-3"));
+                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
+                    let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
+                    stageData.applicants = [res.data.applicants];
+                    stageData.application = res.data.application;
+                    stageData.applicant_documents = res.data.applicant_documents;
+                    dispatch(lovRequests(stageData, CONSTANTS.STAGE_NAMES.LD_1));
+                    dispatch(stagesAction.getStage({
+                      id: CONSTANTS.STAGE_NAMES.LD_1,
+                      formConfig: stageData,
+                    }))
+                    stateUrl(stageSelector[0].stageId);
+                    dispatch(dispatchLoader(false));
+                  }
+                }
+                else {
+                  HardStop(res);
+                }
+              }
+              else {
+                dispatch(dispatchLoader(false));
+                dispatch(
+                  errorAction.getError({
+                    statusCode: "error",
+                    statusText: "no response",
+                  })
+                );
+              }
+            })
+          }
+          else {
+            dispatch(dispatchLoader(false));
+            dispatch(
+              errorAction.getError({
+                statusCode: "error",
+                statusText: "no response",
+              })
+            );
+          }
+        })
+      }
+      else {
+        dispatch(dispatchLoader(false));
+        dispatch(
+          errorAction.getError({
+            statusCode: "error",
+            statusText: "no response",
+          })
+        );
+      }
+    })
+  }
 
-jest.mock('../../../utils/common/constants', () => ({
-  CONSTANTS: {
-    LANG_EN: 'en',
-    LANG_CN: 'cn',
-    LANG_HK: 'hk',
-    headerText: 'Header Text',
-    headerText_CN: 'Header Text CN',
-    headerText_HK: 'Header Text HK',
-    nextTextRLS: 'Next Text RLS',
-    nextTextRLS_CN: 'Next Text RLS CN',
-    nextTextRLS_HK: 'Next Text RLS HK',
-    regretTextRLS: 'Regret Text RLS',
-    regretTextRLS_CN: 'Regret Text RLS CN',
-    regretTextRLS_HK: 'Regret Text RLS HK',
-    enquiryContentRLS: 'Enquiry Content RLS',
-    enquiryContentRLS_CN: 'Enquiry Content RLS CN',
-    enquiryContentRLS_HK: 'Enquiry Content RLS HK',
-    refNoText: 'Ref No Text',
-    refNoText_CN: 'Ref No Text CN',
-    refNoText_HK: 'Ref No Text HK',
-    futureRefQuote: 'Future Ref Quote',
-    futureRefQuote_CN: 'Future Ref Quote CN',
-    futureRefQuote_HK: 'Future Ref Quote HK',
-    OK: 'OK',
-    OK_CN: 'OK CN',
-    OK_HK: 'OK HK',
-    cardDeclineText: 'Card Decline Text',
-    cardDeclineText_CN: 'Card Decline Text CN',
-    cardDeclineText_HK: 'Card Decline Text HK',
-    regretTextPL: 'Regret Text PL',
-    regretTextPL_CN: 'Regret Text PL CN',
-    regretTextPL_HK: 'Regret Text PL HK',
-    regretTextCC: 'Regret Text CC',
-    regretTextCC_CN: 'Regret Text CC CN',
-    regretTextCC_HK: 'Regret Text CC HK',
-    applicationNo: 'Application No',
-    applicationNo_CN: 'Application No CN',
-    applicationNo_HK: 'Application No HK',
-    RETRY: 'Retry',
-    RETRY_CN: 'Retry CN',
-    RETRY_HK: 'Retry HK',
-    otpNotAvailable: 'OTP Not Available',
-    otpNotAvailable_CN: 'OTP Not Available CN',
-    otpNotAvailable_HK: 'OTP Not Available HK',
-    errorCodeA02Header: 'Error Code A02 Header',
-    errorCodeA02Header_CN: 'Error Code A02 Header CN',
-    errorCodeA02Header_HK: 'Error Code A02 Header HK',
-    errorCodeA03Header: 'Error Code A03 Header',
-    errorCodeA03Header_CN: 'Error Code A03 Header CN',
-    errorCodeA03Header_HK: 'Error Code A03 Header HK',
-    errorCodeA02Content: 'Error Code A02 Content',
-    errorCodeA02Content_CN: 'Error Code A02 Content CN',
-    errorCodeA02Content_HK: 'Error Code A02 Content HK',
-    errorCodeA03Content: 'Error Code A03 Content',
-    errorCodeA03Content_CN: 'Error Code A03 Content CN',
-    errorCodeA03Content_HK: 'Error Code A03 Content HK',
-    errorCodeA03ContentAsiamiles: 'Error Code A03 Content Asiamiles',
-    errorCodeA03ContentAsiamiles_CN: 'Error Code A03 Content Asiamiles CN',
-    errorCodeA03ContentAsiamiles_HK: 'Error Code A03 Content Asiamiles HK',
-    serviceErrorCodeContent: 'Service Error Code Content',
-    serviceErrorCodeContent_CN: 'Service Error Code Content CN',
-    serviceErrorCodeContent_HK: 'Service Error Code Content HK',
-    zolozText: 'Zoloz Text',
-    zolozText_CN: 'Zoloz Text CN',
-    zolozText_HK: 'Zoloz Text HK',
-    fileSizeExceed: 'File Size Exceed',
-    fileSizeExceed_CN: 'File Size Exceed CN',
-    fileSizeExceed_HK: 'File Size Exceed HK',
-    zoloErrorMsg: 'Zolo Error Msg',
-    zoloErrorMsg_CN: 'Zolo Error Msg CN',
-    zoloErrorMsg_HK: 'Zolo Error Msg HK',
-  },
-}));
+  const postFulFilment = async (res: any) => {
+    stateUrl(stageSelector[0].stageId);
+    postFulFilmentData(res).then(async (fulres: any) => {
+      if (fulres.status >= 200 && fulres.status < 300) {
+        dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
+        let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
+        stageData.applicants = [fulres.data.applicants];
+        stageData.application = fulres.data.application;
+        dispatch(
+          stagesAction.getStage({
+            id: CONSTANTS.STAGE_NAMES.FFD_2,
+            formConfig: stageData,
+          })
+        );
+        let responseType = fulres.data.application.response_type.toUpperCase();
+        let responseAction = fulres.data.application.response_action.toUpperCase();
+        if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
+          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
+          postFulFilmentData(fulres.data).then(async (res: any) => {
+            if (res.status >= 200 && res.status < 300) {
+              let responseType = res.data.application.response_type.toUpperCase();
+              let responseAction = res.data.application.response_action.toUpperCase();
+              if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
+                let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
+                stageData.applicants = [res.data.applicants];
+                stageData.application = res.data.application;
+                dispatch(
+                  stagesAction.getStage({
+                    id: CONSTANTS.STAGE_NAMES.FFD_2,
+                    formConfig: stageData,
+                  })
+                );
+                dispatch(preApprovalAction.setCurrentStage("FFD"));
+              }
+              else {
+                setShowSpinner(false);
+                dispatch(HardStop(res));
+              }
+            }
+            else {
+              dispatch(dispatchLoader(false));
+              dispatch(
+                errorAction.getError({
+                  statusCode: "error",
+                  statusText: "no response",
+                })
+              );
+            }
+          })
+        }
+        else {
+          dispatch(HardStop(fulres));
+          setShowSpinner(false);
+        }
+      }
+      else {
+        dispatch(dispatchLoader(false));
+        dispatch(
+          errorAction.getError({
+            statusCode: "error",
+            statusText: "no response",
+          })
+        );
+      }
+    });
+  }
 
-describe('AlertModel', () => {
-  const goBack = jest.fn();
-  const exit = jest.fn();
-  const mockStages = [
-    {
-      stageInfo: {
-        application: {
-          cos_ref_number: 'REF123',
-        },
-      },
-    },
-  ];
+  let stageId = stageSelector[0].stageId;
+  return (
+    <>
+      {showSpinner && (stageId === "ld-1" || stageId === "ffd-1" || stageId === "ffd-2") ? (
+        <Spinner loaderType="lastStep" />
+      )
+        :
+        <>
+          <div className={HKIDVersion || showIncomeProof ? "" : "document-view"}>
+            <>
+              <div>
+                {fileSectionData === null &&
+                  <>
+                    <div className="sc-icons">
+                      <span className="banner-icon banner-icon-mobile"></span>
+                      <div className="card-titleHead">
+                        <div className="card-titleDoc">{language === CONSTANTS.LANG_EN ? CONSTANTS.provideDoc : language === CONSTANTS.LANG_CN?CONSTANTS.provideDoc_CN : CONSTANTS.provideDoc_HK}</div>
+                        <div className="hk-headerclose-btnH">
+                          <Close authType="resume" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="row doc-details" id="row-doc-details">
+                      <p className="col-md-10 col-sm-10 col-xs-10 col-lg-10 doc-field-Label">
+                        {language === CONSTANTS.LANG_EN ? CONSTANTS.uploadDoc : language === CONSTANTS.LANG_CN?CONSTANTS.uploadDoc_CN : CONSTANTS.uploadDoc_HK}
+                      </p>
+                      <p className="col-md-2 col-sm-2 col-xs-2 col-lg-2">
+                        {" "}
+                        <span className="count-doc">
+                          {documentCount}/{totalDocCount}
+                        </span>
+                      </p>
+                    </div>
+                  </>
+                }
+                <DocumentTypeDynamic
+                  showContinueBtn={showContinueBtn}
+                  setShowContinueBtn={setShowContinueBtn}
+                  setShowUploadFileSuccess={setShowUploadFileSuccess}
+                  setHKIDVersion={setHKIDVersion}
+                  HKIDVersion={HKIDVersion}
+                  showUploadFileSuccess={showUploadFileSuccess}
+                  setHKIDQRCodeData={setHKIDQRCodeData}
+                />
+                {fileSectionData === null &&
+                  <>
+                    <div className="noteTipDiv">
+                      <p className="noteTip">{language === CONSTANTS.LANG_EN ? CONSTANTS.tooltipText : language === CONSTANTS.LANG_CN?CONSTANTS.tooltipText_CN : CONSTANTS.tooltipText_HK}</p>
+                    </div>
+                    <div className="document-footer-main-document">
+                      <div
+                        className="footer-banner">
+                        <div className="footer-content">
+                          <p className="footer-content1">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent1 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent1_CN : CONSTANTS.footerContent1_HK}</p>
+                          <p className="footer-content2">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent2 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent2_CN : CONSTANTS.footerContent2_HK}</p>
+                          <p className="footer-content3">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent3 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent3_CN : CONSTANTS.footerContent3_HK}</p>
+                        </div>
+                        <span className="images"></span>
+                      </div>
+                      <div className="hk-copy-rights">
+                        <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
+                      </div>
+                    </div>
+                  </>
+                }
+              </div>
+            </>
+          </div>
+          {fileSectionData === null && success && <>
+            <div className="footer footer-set">
+              <button role="button" type="submit" className={documentCount !== totalDocCount ? `continue form-invalid` : `continue form-valid`} onClick={nextStage} disabled={documentCount !== totalDocCount}>
+              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
+              </button>
+            </div>
+          </>}
+        </>
+      }
+    </>
+  );
+};
 
-  beforeEach(() => {
-    useSelector.mockImplementation((selector) =>
-      selector({
-        stages: {
-          stages: mockStages,
-        },
-      })
-    );
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('Renders DECLINERLS alert type correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="DECLINERLS"
-        message="Test Message"
-        errorCode=""
-      />
-    );
-
-    expect(getByText('Header Text')).toBeInTheDocument();
-    expect(getByText('Next Text RLS')).toBeInTheDocument();
-    expect(getByText('Regret Text RLS')).toBeInTheDocument();
-    expect(getByText('Enquiry Content RLS')).toBeInTheDocument();
-    expect(getByText('(+852) 2886-8868')).toBeInTheDocument();
-    expect(getByText('Ref No Text REF123')).toBeInTheDocument();
-    expect(getByText('Future Ref Quote')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders DECLINE alert type correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="DECLINE"
-        message="Test Message"
-        errorCode=""
-      />
-    );
-
-    expect(getByText('Card Decline Text')).toBeInTheDocument();
-    expect(getByText('Regret Text PL')).toBeInTheDocument();
-    expect(getByText('Ref No Text REF123')).toBeInTheDocument();
-    expect(getByText('Future Ref Quote')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders RESUBMIT alert type correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="RESUBMIT"
-        message="Test Message"
-        errorCode=""
-      />
-    );
-
-    expect(getByText('Application No REF123')).toBeInTheDocument();
-    expect(getByText('Retry')).toBeInTheDocument();
-
-    fireEvent.click(getByText('Retry'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders OTPNot alert type correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="OTPNot"
-        message="Test Message"
-        errorCode=""
-      />
-    );
-
-    expect(getByText('OTP Not Available')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders ErrorCode alert type with A02 error code correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="ErrorCode"
-        message="Test Message"
-        errorCode="A02"
-      />
-    );
-
-    expect(getByText('Error Code A02 Header')).toBeInTheDocument();
-    expect(getByText('Error Code A02 Content')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders ErrorCode alert type with A03 error code correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="ErrorCode"
-        message="Test Message"
-        errorCode="A03"
-      />
-    );
-
-    expect(getByText('Error Code A03 Header')).toBeInTheDocument();
-    expect(getByText('Error Code A03 Content')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders ErrorCode alert type with A20 error code correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="ErrorCode"
-        message="Test Message"
-        errorCode="A20"
-      />
-    );
-
-    expect(getByText('Service Error Code Content')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders Success alert type correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="Success"
-        message="Test Message"
-        errorCode=""
-      />
-    );
-
-    expect(getByText('Zoloz Text')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders invalideimagesize alert type correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="invalideimagesize"
-        message="Test Message"
-        errorCode=""
-      />
-    );
-
-    expect(getByText('File Size Exceed')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-
-  test('Renders zoloError alert type correctly', () => {
-    const { getByText } = render(
-      <AlertModel
-        goBack={goBack}
-        exit={exit}
-        alertType="zoloError"
-        message="Test Message"
-        errorCode=""
-      />
-    );
-
-    expect(getByText('Zolo Error Msg')).toBeInTheDocument();
-    expect(getByText('OK')).toBeInTheDocument();
-
-    fireEvent.click(getByText('OK'));
-    expect(goBack).toHaveBeenCalled();
-  });
-});
+export default DucumentUploadMainSCR;
