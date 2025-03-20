@@ -1,91 +1,138 @@
-import "./header-ref.scss"
-import { getUrl } from "../../../utils/common/change.utils";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { useSelector } from "react-redux";
-import { StoreModel } from "../../../utils/model/common-model";
-import { useState } from "react";
-import PopupModel from "../popup-model/popup-model";
-import HeaderModel from "./header-modal";
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import HeaderRef from './HeaderRef';
 
-const HeaderRef: React.FC<any> = ({
-  applicationNo,
+const mockStore = configureStore([]);
 
-}) => {
-  const [openpopup, setOpenpop] = useState(false);
-  const language = getUrl.getLanguageInfo("lang");
-  const ref_number = "HK24101700230315"
+describe('HeaderRef Component', () => {
+  let store;
 
-  const downloadPdfData = useSelector((state: StoreModel) => state.preApproval?.kfsDocumentPdf);
-  const stageIdSelector = useSelector((state: StoreModel) => state.stages.stages[0]?.stageId);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  beforeEach(() => {
+    store = mockStore({
+      preApproval: {
+        kfsDocumentPdf: 'http://example.com/document.pdf',
+      },
+      stages: {
+        stages: [
+          {
+            stageId: 'STAGE_1',
+            stageInfo: {
+              products: [
+                {
+                  campaign: 'HKBDC23PESTP10',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+  });
 
-  const kfcStatement = () => {
-    if(language === CONSTANTS.LANG_CN) {
-      return "資料概要"
-    } else {
-      return "Key Facts Statement"
-    }
-  }
-  const downloadPDF = () => {
-    const fileName: any = downloadPdfData.split('/').pop();
-    
-    
-    const replaceFilename = stageSelector[0].stageInfo?.products[0].campaign === 'HKBDC23PESTP10' ? fileName.replace(fileName, 'DC_KFS_Desktop_0421_E.pdf') // DC PDF
-    : (stageSelector[0].stageInfo?.products[0].campaign === 'HKPIL23PLSTP10'? fileName.replace(fileName, 'PIL_KFS_Desktop_0421_E.pdf'): // PIL PDF
-     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOG20VAWV000'? fileName.replace(fileName, 'SCB_SMART_KFS_Desktop_0421_E.pdf') : // Smart card PDF
-     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSPB17VAWV000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSPG17VAWV000') ? fileName.replace(fileName, 'SCB_SC_KFS_Desktop_0421_E.pdf'): // simply cash pdf
-     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16VAWP000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16MCWP000') ? fileName.replace(fileName, 'SCB_PLAT_KFS_Desktop_0421_E.pdf'): // core platinum pdf
-     "")
-    )
-    )
-    )
-    const lin = document.createElement('a');
-    lin.href = downloadPdfData;
-    lin.download = replaceFilename;
-    lin.click();
-  };
+  test('renders the component with default props', () => {
+    render(
+      <Provider store={store}>
+        <HeaderRef />
+      </Provider>
+    );
 
-  const viewPDF = () => {
-    setOpenpop(true);
+    expect(screen.getByText(/Ref No:/)).toBeInTheDocument();
+  });
 
-  };
-  const closepdf = () => {
-    setOpenpop(false);
-  }
+  test('renders the reference number correctly', () => {
+    render(
+      <Provider store={store}>
+        <HeaderRef applicationNo="123456" />
+      </Provider>
+    );
 
-  return (
-    <>
-      <div className="header-ref">
-        <span className="banner-icon"></span>
-        <div className="header-ref-set">
-          <p className="ref-no">
-            {language === CONSTANTS.LANG_CN ? "參考編號:" : "Ref No:"} {applicationNo ? applicationNo : ref_number}
-          </p>
-          {(stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_2 &&stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_4 && stageIdSelector !== CONSTANTS.STAGE_NAMES.DOC_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_2) &&
-            <p className="kfs-headerbg" >
-              <label className="kfs-header">{language === CONSTANTS.LANG_CN ? "產品資料概要(包括收費及費用)" : "KFS (including Fees and Charges)"}</label>
-              <div className="btn-div">
-                <span className="kfsHeadtn" onClick={viewPDF}>{language === CONSTANTS.LANG_CN ? "參閱" : "Read"}</span>
-                <span className="kfsHeadtn" onClick={downloadPDF}>{language === CONSTANTS.LANG_CN ? "下載" : "Download"}</span>
-              </div>
-            </p>
-          }
-        </div>
-      </div>
+    expect(screen.getByText(/Ref No: 123456/)).toBeInTheDocument();
+  });
 
-      {(openpopup) && (
-        <PopupModel displayPopup={openpopup}>
-          {openpopup &&
-          <div className="reviewReadTop">
-            <HeaderModel fileName={downloadPdfData} closepdf={closepdf} title={kfcStatement()}/>
-          </div>
-          }
-        </PopupModel>
-      )}
-    </>
-  );
-};
+  test('renders the KFS section based on the stageIdSelector', () => {
+    render(
+      <Provider store={store}>
+        <HeaderRef />
+      </Provider>
+    );
 
+    expect(screen.getByText(/KFS \(including Fees and Charges\)/)).toBeInTheDocument();
+  });
 
+  test('handles the download PDF functionality', () => {
+    render(
+      <Provider store={store}>
+        <HeaderRef />
+      </Provider>
+    );
 
-export default HeaderRef
+    const downloadButton = screen.getByText(/Download/);
+    fireEvent.click(downloadButton);
+
+    // Add assertions to verify the download functionality
+  });
+
+  test('handles the view PDF functionality', () => {
+    render(
+      <Provider store={store}>
+        <HeaderRef />
+      </Provider>
+    );
+
+    const viewButton = screen.getByText(/Read/);
+    fireEvent.click(viewButton);
+
+    expect(screen.getByText(/Key Facts Statement/)).toBeInTheDocument();
+  });
+
+  test('closes the PDF popup', () => {
+    render(
+      <Provider store={store}>
+        <HeaderRef />
+      </Provider>
+    );
+
+    const viewButton = screen.getByText(/Read/);
+    fireEvent.click(viewButton);
+
+    const closeButton = screen.getByRole('button', { name: /close/ });
+    fireEvent.click(closeButton);
+
+    expect(screen.queryByText(/Key Facts Statement/)).not.toBeInTheDocument();
+  });
+
+  test('handles different campaign names for PDF filename replacement', () => {
+    const storeWithDifferentCampaign = mockStore({
+      preApproval: {
+        kfsDocumentPdf: 'http://example.com/document.pdf',
+      },
+      stages: {
+        stages: [
+          {
+            stageId: 'STAGE_1',
+            stageInfo: {
+              products: [
+                {
+                  campaign: 'HKPIL23PLSTP10',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    render(
+      <Provider store={storeWithDifferentCampaign}>
+        <HeaderRef />
+      </Provider>
+    );
+
+    const downloadButton = screen.getByText(/Download/);
+    fireEvent.click(downloadButton);
+
+    // Add assertions to verify the filename replacement
+  });
+});
