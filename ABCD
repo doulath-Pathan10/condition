@@ -1,138 +1,115 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import HeaderRef from './HeaderRef';
+import "./header-modal.scss"
+import Pdf from "../pdf/pdf";
+import { useState, useEffect } from "react";
+import { KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../../modules/preApproval/services/constants";
+import { getUrl } from "../../../utils/common/change.utils";
+import { getData, getPDFData } from "../../../modules/preApproval/services/preApprovalServices";
+import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
+import { dispatchLoader } from "../../../services/common-service";
+import { useSelector, useDispatch } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
 
-const mockStore = configureStore([]);
 
-describe('HeaderRef Component', () => {
-  let store;
+const HeaderModel: React.FC<any> = ({
+        fileName,
+        closepdf,
+        title,
+        footer   
+          }) => {
+            const language = getUrl.getLanguageInfo("lang"); 
+            const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+            const [pdfName, setPdfName] = useState('');
+            const [kfsDocPDF, setkfsDocPDF] = useState(""); 
+            const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+            const [showSpinner, setShowSpinner] = useState(true);
+            const dispatch = useDispatch();
+            const formConfigmetaData = useSelector(
+              (state: StoreModel) => state?.preApproval.formConfigmetaData
+            );
+            
+            useEffect(() => {
+              let KFS;
+              if(language==='zh'){
+                KFS=KFS_DOC_URL_Chinees
+              }else{
+                KFS=KFS_DOC_URL
+              }
 
-  beforeEach(() => {
-    store = mockStore({
-      preApproval: {
-        kfsDocumentPdf: 'http://example.com/document.pdf',
-      },
-      stages: {
-        stages: [
-          {
-            stageId: 'STAGE_1',
-            stageInfo: {
-              products: [
-                {
-                  campaign: 'HKBDC23PESTP10',
-                },
-              ],
-            },
-          },
-        ],
-      },
-    });
-  });
+              getData(KFS)?.then((response: any) => {
+                const campaignID = formConfigmetaData?.products[0].campaign;
+                let pdfURLNew = "";
+                  const userAgent = navigator.userAgent.toLowerCase();
+                  const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+                  const isSmallScreen = window.innerWidth < 768;
+                  const isMobile = isMobileUA && isSmallScreen;
+                  const pdfURL = isMobile? response.data.productsMob[campaignID] : response.data.products[campaignID];
+                  const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+                  const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+                  if (window.location.host === "localhost:3000") {
+                    pdfURLNew = pdfURL[0].pdfURL.replace(
+                      "https://pt.sc.com/",
+                      "http://localhost:3000/"
+                    );
+                    setPdfName(getPDFName);
+                  } else {
+                    pdfURLNew = pdfURL[0].pdfURL;
+                  }
+                  setkfsDocPDF(pdfURLNew);
+                  getPDFData(pdfURLNew).then((response: any) => {
+                    const pdfurl: any = {};
+                    pdfurl.pdf = response;
+                    pdfurl.pdfurl = pdfURLNew;
+                    setkfsDocPDFDownload(response);
+                    dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+                    setShowSpinner(false);
+                    dispatch(dispatchLoader(false));
+                  });
+                  const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+                  setPdfLinkTerms(allPDFLinks);
+          })
+            },[])
+    return(
+        <>
+        
+        <div className="popup-declare">
+        <button type="button" className="close pdfClose" onClick={closepdf}></button>
+            <div className="popup-container1-declare">
+              <div className="popup-info-declare">
+                <div className="popup-info__desc">
+                  <div className="popup-title">{title}</div>
+                  <div className="popup_width"><Pdf fileName={fileName} /></div>
+                  {footer && 
+                  <div className="popUp_footer">
+                    <div className="hintIcon">
+                      <p>{footer}</p>
+                      <div className="images">
+                        <div></div>
+                      </div>
+                    </div>
+                    <div className="popup_title_link">
+                    {pdfLinkTerms?.map((item: any, index: any) => {
+                      return (
+                            <a
+                              href={item.url}
+                              download
+                              target="_blank">
+                             {item.Title}
+                            </a>
+                      );
+                    })}
+                    </div>
 
-  test('renders the component with default props', () => {
-    render(
-      <Provider store={store}>
-        <HeaderRef />
-      </Provider>
-    );
+                  </div>
+                  }
+                </div>
+              </div>
+          </div>
+      </div>
 
-    expect(screen.getByText(/Ref No:/)).toBeInTheDocument();
-  });
+      </>
+          
+    )
 
-  test('renders the reference number correctly', () => {
-    render(
-      <Provider store={store}>
-        <HeaderRef applicationNo="123456" />
-      </Provider>
-    );
+}
 
-    expect(screen.getByText(/Ref No: 123456/)).toBeInTheDocument();
-  });
-
-  test('renders the KFS section based on the stageIdSelector', () => {
-    render(
-      <Provider store={store}>
-        <HeaderRef />
-      </Provider>
-    );
-
-    expect(screen.getByText(/KFS \(including Fees and Charges\)/)).toBeInTheDocument();
-  });
-
-  test('handles the download PDF functionality', () => {
-    render(
-      <Provider store={store}>
-        <HeaderRef />
-      </Provider>
-    );
-
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-
-    // Add assertions to verify the download functionality
-  });
-
-  test('handles the view PDF functionality', () => {
-    render(
-      <Provider store={store}>
-        <HeaderRef />
-      </Provider>
-    );
-
-    const viewButton = screen.getByText(/Read/);
-    fireEvent.click(viewButton);
-
-    expect(screen.getByText(/Key Facts Statement/)).toBeInTheDocument();
-  });
-
-  test('closes the PDF popup', () => {
-    render(
-      <Provider store={store}>
-        <HeaderRef />
-      </Provider>
-    );
-
-    const viewButton = screen.getByText(/Read/);
-    fireEvent.click(viewButton);
-
-    const closeButton = screen.getByRole('button', { name: /close/ });
-    fireEvent.click(closeButton);
-
-    expect(screen.queryByText(/Key Facts Statement/)).not.toBeInTheDocument();
-  });
-
-  test('handles different campaign names for PDF filename replacement', () => {
-    const storeWithDifferentCampaign = mockStore({
-      preApproval: {
-        kfsDocumentPdf: 'http://example.com/document.pdf',
-      },
-      stages: {
-        stages: [
-          {
-            stageId: 'STAGE_1',
-            stageInfo: {
-              products: [
-                {
-                  campaign: 'HKPIL23PLSTP10',
-                },
-              ],
-            },
-          },
-        ],
-      },
-    });
-
-    render(
-      <Provider store={storeWithDifferentCampaign}>
-        <HeaderRef />
-      </Provider>
-    );
-
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-
-    // Add assertions to verify the filename replacement
-  });
-});
+export default HeaderModel
