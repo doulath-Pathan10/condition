@@ -1,93 +1,91 @@
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import { Pdf } from './Pdf';
-import { Document, Page } from 'react-pdf';
-import { useSelector } from 'react-redux';
+import "./header-ref.scss"
+import { getUrl } from "../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { useSelector } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
+import { useState } from "react";
+import PopupModel from "../popup-model/popup-model";
+import HeaderModel from "./header-modal";
 
-// Mock the react-pdf components
-jest.mock('react-pdf', () => ({
-  Document: jest.fn(({ children, file, onLoadSuccess }) => {
-    // Simulate document load success
-    setTimeout(() => onLoadSuccess({ numPages: 3 }), 100);
-    return <div>{children}</div>;
-  }),
-  Page: jest.fn(() => <div>Page</div>),
-}));
+const HeaderRef: React.FC<any> = ({
+  applicationNo,
 
-// Mock the useSelector hook
-jest.mock('react-redux', () => ({
-  useSelector: jest.fn(),
-}));
+}) => {
+  const [openpopup, setOpenpop] = useState(false);
+  const language = getUrl.getLanguageInfo("lang");
+  const ref_number = "HK24101700230315"
 
-describe('Pdf Component', () => {
-  const mockFileName = 'test.pdf';
-  const mockStages = [{ stageId: 'rp' }];
+  const downloadPdfData = useSelector((state: StoreModel) => state.preApproval?.kfsDocumentPdf);
+  const stageIdSelector = useSelector((state: StoreModel) => state.stages.stages[0]?.stageId);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
 
-  beforeEach(() => {
-    // Mock useSelector to return the stages
-    useSelector.mockImplementation((selector) =>
-      selector({
-        stages: {
-          stages: mockStages,
-        },
-      })
-    );
-  });
+  const kfcStatement = () => {
+    if(language === CONSTANTS.LANG_CN) {
+      return "資料概要"
+    } else {
+      return "Key Facts Statement"
+    }
+  }
+  const downloadPDF = () => {
+    const fileName: any = downloadPdfData.split('/').pop();
+    
+    
+    const replaceFilename = stageSelector[0].stageInfo?.products[0].campaign === 'HKBDC23PESTP10' ? fileName.replace(fileName, 'DC_KFS_Desktop_0421_E.pdf') // DC PDF
+    : (stageSelector[0].stageInfo?.products[0].campaign === 'HKPIL23PLSTP10'? fileName.replace(fileName, 'PIL_KFS_Desktop_0421_E.pdf'): // PIL PDF
+     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOG20VAWV000'? fileName.replace(fileName, 'SCB_SMART_KFS_Desktop_0421_E.pdf') : // Smart card PDF
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSPB17VAWV000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSPG17VAWV000') ? fileName.replace(fileName, 'SCB_SC_KFS_Desktop_0421_E.pdf'): // simply cash pdf
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16VAWP000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16MCWP000') ? fileName.replace(fileName, 'SCB_PLAT_KFS_Desktop_0421_E.pdf'): // core platinum pdf
+     "")
+    )
+    )
+    )
+    const lin = document.createElement('a');
+    lin.href = downloadPdfData;
+    lin.download = replaceFilename;
+    lin.click();
+  };
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  const viewPDF = () => {
+    setOpenpop(true);
 
-  it('renders the PDF component correctly', () => {
-    render(<Pdf fileName={mockFileName} />);
-    expect(screen.getByText('Page')).toBeInTheDocument();
-  });
+  };
+  const closepdf = () => {
+    setOpenpop(false);
+  }
 
-  it('handles document load success and sets the number of pages', async () => {
-    render(<Pdf fileName={mockFileName} />);
-    await waitFor(() => expect(Document).toHaveBeenCalled());
-    expect(Page).toHaveBeenCalledTimes(3); // Assuming 3 pages
-  });
+  return (
+    <>
+      <div className="header-ref">
+        <span className="banner-icon"></span>
+        <div className="header-ref-set">
+          <p className="ref-no">
+            {language === CONSTANTS.LANG_CN ? "參考編號:" : "Ref No:"} {applicationNo ? applicationNo : ref_number}
+          </p>
+          {(stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_2 &&stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_4 && stageIdSelector !== CONSTANTS.STAGE_NAMES.DOC_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_2) &&
+            <p className="kfs-headerbg" >
+              <label className="kfs-header">{language === CONSTANTS.LANG_CN ? "產品資料概要(包括收費及費用)" : "KFS (including Fees and Charges)"}</label>
+              <div className="btn-div">
+                <span className="kfsHeadtn" onClick={viewPDF}>{language === CONSTANTS.LANG_CN ? "參閱" : "Read"}</span>
+                <span className="kfsHeadtn" onClick={downloadPDF}>{language === CONSTANTS.LANG_CN ? "下載" : "Download"}</span>
+              </div>
+            </p>
+          }
+        </div>
+      </div>
 
-  it('adjusts container width based on device type', () => {
-    // Mock different device types
-    Object.defineProperty(window, 'innerWidth', { value: 500 });
-    Object.defineProperty(navigator, 'userAgent', { value: 'iphone' });
+      {(openpopup) && (
+        <PopupModel displayPopup={openpopup}>
+          {openpopup &&
+          <div className="reviewReadTop">
+            <HeaderModel fileName={downloadPdfData} closepdf={closepdf} title={kfcStatement()}/>
+          </div>
+          }
+        </PopupModel>
+      )}
+    </>
+  );
+};
 
-    render(<Pdf fileName={mockFileName} />);
-    expect(screen.getByText('Page')).toBeInTheDocument();
-  });
 
-  it('handles window resize events', () => {
-    render(<Pdf fileName={mockFileName} />);
-    Object.defineProperty(window, 'innerWidth', { value: 600 });
-    window.dispatchEvent(new Event('resize'));
-    expect(screen.getByText('Page')).toBeInTheDocument();
-  });
 
-  it('renders the correct number of pages', async () => {
-    render(<Pdf fileName={mockFileName} />);
-    await waitFor(() => expect(Document).toHaveBeenCalled());
-    expect(Page).toHaveBeenCalledTimes(3); // Assuming 3 pages
-  });
-
-  it('handles different device types (mobile, tablet, desktop)', () => {
-    // Test mobile
-    Object.defineProperty(window, 'innerWidth', { value: 400 });
-    Object.defineProperty(navigator, 'userAgent', { value: 'iphone' });
-    render(<Pdf fileName={mockFileName} />);
-    expect(screen.getByText('Page')).toBeInTheDocument();
-
-    // Test tablet
-    Object.defineProperty(window, 'innerWidth', { value: 800 });
-    Object.defineProperty(navigator, 'userAgent', { value: 'ipad' });
-    render(<Pdf fileName={mockFileName} />);
-    expect(screen.getByText('Page')).toBeInTheDocument();
-
-    // Test desktop
-    Object.defineProperty(window, 'innerWidth', { value: 1200 });
-    Object.defineProperty(navigator, 'userAgent', { value: 'windows' });
-    render(<Pdf fileName={mockFileName} />);
-    expect(screen.getByText('Page')).toBeInTheDocument();
-  });
-});
+export default HeaderRef
