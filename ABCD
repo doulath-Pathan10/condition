@@ -1,1 +1,75 @@
+import { useState, useCallback, useEffect } from 'react';
+import "./pdf.scss";
+import { Document, Page, pdfjs } from 'react-pdf';
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import { PdfModel, StoreModel } from '../../../utils/model/common-model';
 
+
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+import { useSelector } from 'react-redux';
+
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
+
+export const Pdf = (props: PdfModel) => {
+
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const maxWidth = stageSelector[0].stageId==='rp'? 3000 : 800;
+  const getDeviceType = (): number => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isMobile = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+    const isTablet = /ipad|tablet|andriod(?!.*mobile)/i.test(userAgent) || (navigator.maxTouchPoints > 1 && window.innerHeight < 1024);
+/*istanbul ignore else*/
+    if (isMobile) {
+      return window.innerWidth - 60;
+    } else if (isTablet) {
+      return Math.min(window.innerWidth, 768) + 100;
+    } else {
+      return Math.min(window.innerWidth, 1200);
+    }
+  };
+
+  const [numPages, setNumPages] = useState(0);
+  const [containerWidth, setContainerWidth] = useState<number>(() => getDeviceType());
+
+  function onDocumentLoadSuccess(props: any) {
+    setNumPages(props.numPages);
+  }
+
+  useEffect(() => {
+    const handleResize = () => {
+      const newWidth = getDeviceType();
+      setContainerWidth(newWidth);
+    }
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize)
+    }
+  })
+  // useResizeObserver(containerRef, resizeObserverOptions, onResize);
+
+  return (
+    <>
+    <div >
+      <Document
+        renderMode="svg"
+        file={props.fileName}
+        onLoadSuccess={onDocumentLoadSuccess}
+      >
+        {Array.from(new Array(numPages), (el, index) => (
+          <Page
+            scale={1}
+            renderTextLayer={false}
+            key={`page_${index + 1}`}
+            pageNumber={index + 1}
+            className='pdf-display'
+            width={containerWidth ? Math.min(containerWidth, maxWidth) : maxWidth}
+          />
+        ))}
+      </Document>
+    </div>
+    </>
+  )
+}
+export default Pdf;
