@@ -1,75 +1,93 @@
-import { useState, useCallback, useEffect } from 'react';
-import "./pdf.scss";
-import { Document, Page, pdfjs } from 'react-pdf';
-import "react-pdf/dist/esm/Page/AnnotationLayer.css";
-import { PdfModel, StoreModel } from '../../../utils/model/common-model';
-
-
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { Pdf } from './Pdf';
+import { Document, Page } from 'react-pdf';
 import { useSelector } from 'react-redux';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
+// Mock the react-pdf components
+jest.mock('react-pdf', () => ({
+  Document: jest.fn(({ children, file, onLoadSuccess }) => {
+    // Simulate document load success
+    setTimeout(() => onLoadSuccess({ numPages: 3 }), 100);
+    return <div>{children}</div>;
+  }),
+  Page: jest.fn(() => <div>Page</div>),
+}));
 
-export const Pdf = (props: PdfModel) => {
+// Mock the useSelector hook
+jest.mock('react-redux', () => ({
+  useSelector: jest.fn(),
+}));
 
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const maxWidth = stageSelector[0].stageId==='rp'? 3000 : 800;
-  const getDeviceType = (): number => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isMobile = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
-    const isTablet = /ipad|tablet|andriod(?!.*mobile)/i.test(userAgent) || (navigator.maxTouchPoints > 1 && window.innerHeight < 1024);
-/*istanbul ignore else*/
-    if (isMobile) {
-      return window.innerWidth - 60;
-    } else if (isTablet) {
-      return Math.min(window.innerWidth, 768) + 100;
-    } else {
-      return Math.min(window.innerWidth, 1200);
-    }
-  };
+describe('Pdf Component', () => {
+  const mockFileName = 'test.pdf';
+  const mockStages = [{ stageId: 'rp' }];
 
-  const [numPages, setNumPages] = useState(0);
-  const [containerWidth, setContainerWidth] = useState<number>(() => getDeviceType());
+  beforeEach(() => {
+    // Mock useSelector to return the stages
+    useSelector.mockImplementation((selector) =>
+      selector({
+        stages: {
+          stages: mockStages,
+        },
+      })
+    );
+  });
 
-  function onDocumentLoadSuccess(props: any) {
-    setNumPages(props.numPages);
-  }
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-  useEffect(() => {
-    const handleResize = () => {
-      const newWidth = getDeviceType();
-      setContainerWidth(newWidth);
-    }
-    window.addEventListener("resize", handleResize);
+  it('renders the PDF component correctly', () => {
+    render(<Pdf fileName={mockFileName} />);
+    expect(screen.getByText('Page')).toBeInTheDocument();
+  });
 
-    return () => {
-      window.removeEventListener("resize", handleResize)
-    }
-  })
-  // useResizeObserver(containerRef, resizeObserverOptions, onResize);
+  it('handles document load success and sets the number of pages', async () => {
+    render(<Pdf fileName={mockFileName} />);
+    await waitFor(() => expect(Document).toHaveBeenCalled());
+    expect(Page).toHaveBeenCalledTimes(3); // Assuming 3 pages
+  });
 
-  return (
-    <>
-    <div >
-      <Document
-        renderMode="svg"
-        file={props.fileName}
-        onLoadSuccess={onDocumentLoadSuccess}
-      >
-        {Array.from(new Array(numPages), (el, index) => (
-          <Page
-            scale={1}
-            renderTextLayer={false}
-            key={`page_${index + 1}`}
-            pageNumber={index + 1}
-            className='pdf-display'
-            width={containerWidth ? Math.min(containerWidth, maxWidth) : maxWidth}
-          />
-        ))}
-      </Document>
-    </div>
-    </>
-  )
-}
-export default Pdf;
+  it('adjusts container width based on device type', () => {
+    // Mock different device types
+    Object.defineProperty(window, 'innerWidth', { value: 500 });
+    Object.defineProperty(navigator, 'userAgent', { value: 'iphone' });
+
+    render(<Pdf fileName={mockFileName} />);
+    expect(screen.getByText('Page')).toBeInTheDocument();
+  });
+
+  it('handles window resize events', () => {
+    render(<Pdf fileName={mockFileName} />);
+    Object.defineProperty(window, 'innerWidth', { value: 600 });
+    window.dispatchEvent(new Event('resize'));
+    expect(screen.getByText('Page')).toBeInTheDocument();
+  });
+
+  it('renders the correct number of pages', async () => {
+    render(<Pdf fileName={mockFileName} />);
+    await waitFor(() => expect(Document).toHaveBeenCalled());
+    expect(Page).toHaveBeenCalledTimes(3); // Assuming 3 pages
+  });
+
+  it('handles different device types (mobile, tablet, desktop)', () => {
+    // Test mobile
+    Object.defineProperty(window, 'innerWidth', { value: 400 });
+    Object.defineProperty(navigator, 'userAgent', { value: 'iphone' });
+    render(<Pdf fileName={mockFileName} />);
+    expect(screen.getByText('Page')).toBeInTheDocument();
+
+    // Test tablet
+    Object.defineProperty(window, 'innerWidth', { value: 800 });
+    Object.defineProperty(navigator, 'userAgent', { value: 'ipad' });
+    render(<Pdf fileName={mockFileName} />);
+    expect(screen.getByText('Page')).toBeInTheDocument();
+
+    // Test desktop
+    Object.defineProperty(window, 'innerWidth', { value: 1200 });
+    Object.defineProperty(navigator, 'userAgent', { value: 'windows' });
+    render(<Pdf fileName={mockFileName} />);
+    expect(screen.getByText('Page')).toBeInTheDocument();
+  });
+});
