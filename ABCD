@@ -1,115 +1,222 @@
-import "./header-modal.scss"
-import Pdf from "../pdf/pdf";
-import { useState, useEffect } from "react";
-import { KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../../modules/preApproval/services/constants";
-import { getUrl } from "../../../utils/common/change.utils";
-import { getData, getPDFData } from "../../../modules/preApproval/services/preApprovalServices";
-import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
-import { dispatchLoader } from "../../../services/common-service";
-import { useSelector, useDispatch } from "react-redux";
-import { StoreModel } from "../../../utils/model/common-model";
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import HeaderModel from './HeaderModel';
+import { useSelector, useDispatch } from 'react-redux';
 
+// Mock the necessary modules
+jest.mock('react-redux', () => ({
+  useSelector: jest.fn(),
+  useDispatch: jest.fn(),
+}));
 
-const HeaderModel: React.FC<any> = ({
-        fileName,
-        closepdf,
-        title,
-        footer   
-          }) => {
-            const language = getUrl.getLanguageInfo("lang"); 
-            const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
-            const [pdfName, setPdfName] = useState('');
-            const [kfsDocPDF, setkfsDocPDF] = useState(""); 
-            const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
-            const [showSpinner, setShowSpinner] = useState(true);
-            const dispatch = useDispatch();
-            const formConfigmetaData = useSelector(
-              (state: StoreModel) => state?.preApproval.formConfigmetaData
-            );
-            
-            useEffect(() => {
-              let KFS;
-              if(language==='zh'){
-                KFS=KFS_DOC_URL_Chinees
-              }else{
-                KFS=KFS_DOC_URL
-              }
+jest.mock('../../../modules/preApproval/services/preApprovalServices', () => ({
+  getData: jest.fn(),
+  getPDFData: jest.fn(),
+}));
 
-              getData(KFS)?.then((response: any) => {
-                const campaignID = formConfigmetaData?.products[0].campaign;
-                let pdfURLNew = "";
-                  const userAgent = navigator.userAgent.toLowerCase();
-                  const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
-                  const isSmallScreen = window.innerWidth < 768;
-                  const isMobile = isMobileUA && isSmallScreen;
-                  const pdfURL = isMobile? response.data.productsMob[campaignID] : response.data.products[campaignID];
-                  const pdfMap = pdfURL.map((item: any) => item.pdfURL)
-                  const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-                  if (window.location.host === "localhost:3000") {
-                    pdfURLNew = pdfURL[0].pdfURL.replace(
-                      "https://pt.sc.com/",
-                      "http://localhost:3000/"
-                    );
-                    setPdfName(getPDFName);
-                  } else {
-                    pdfURLNew = pdfURL[0].pdfURL;
-                  }
-                  setkfsDocPDF(pdfURLNew);
-                  getPDFData(pdfURLNew).then((response: any) => {
-                    const pdfurl: any = {};
-                    pdfurl.pdf = response;
-                    pdfurl.pdfurl = pdfURLNew;
-                    setkfsDocPDFDownload(response);
-                    dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
-                    setShowSpinner(false);
-                    dispatch(dispatchLoader(false));
-                  });
-                  const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
-                  setPdfLinkTerms(allPDFLinks);
-          })
-            },[])
-    return(
-        <>
-        
-        <div className="popup-declare">
-        <button type="button" className="close pdfClose" onClick={closepdf}></button>
-            <div className="popup-container1-declare">
-              <div className="popup-info-declare">
-                <div className="popup-info__desc">
-                  <div className="popup-title">{title}</div>
-                  <div className="popup_width"><Pdf fileName={fileName} /></div>
-                  {footer && 
-                  <div className="popUp_footer">
-                    <div className="hintIcon">
-                      <p>{footer}</p>
-                      <div className="images">
-                        <div></div>
-                      </div>
-                    </div>
-                    <div className="popup_title_link">
-                    {pdfLinkTerms?.map((item: any, index: any) => {
-                      return (
-                            <a
-                              href={item.url}
-                              download
-                              target="_blank">
-                             {item.Title}
-                            </a>
-                      );
-                    })}
-                    </div>
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn(),
+  },
+}));
 
-                  </div>
-                  }
-                </div>
-              </div>
-          </div>
-      </div>
+jest.mock('../../../services/common-service', () => ({
+  dispatchLoader: jest.fn(),
+}));
 
-      </>
-          
-    )
+jest.mock('../../../modules/preApproval/store/preApproval-slice', () => ({
+  preApprovalAction: {
+    setKfsDocumentPdf: jest.fn(),
+  },
+}));
 
-}
+describe('HeaderModel', () => {
+  const mockDispatch = jest.fn();
+  const mockUseSelector = useSelector as jest.Mock;
+  const mockGetData = require('../../../modules/preApproval/services/preApprovalServices').getData as jest.Mock;
+  const mockGetPDFData = require('../../../modules/preApproval/services/preApprovalServices').getPDFData as jest.Mock;
+  const mockGetLanguageInfo = require('../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock;
+  const mockDispatchLoader = require('../../../services/common-service').dispatchLoader as jest.Mock;
+  const mockSetKfsDocumentPdf = require('../../../modules/preApproval/store/preApproval-slice').preApprovalAction.setKfsDocumentPdf as jest.Mock;
 
-export default HeaderModel
+  const mockFormConfigmetaData = {
+    products: [{ campaign: 'campaign1' }],
+  };
+
+  const mockPdfLinks = [
+    { url: 'http://example.com/pdf1', Title: 'PDF 1' },
+    { url: 'http://example.com/pdf2', Title: 'PDF 2' },
+  ];
+
+  const mockResponse = {
+    data: {
+      products: {
+        campaign1: [{ pdfURL: 'http://example.com/pdf' }],
+      },
+      productsMob: {
+        campaign1: [{ pdfURL: 'http://example.com/pdf-mobile' }],
+      },
+      tncLinkCampaignCode: {
+        campaign1: [{ pdfLinks: mockPdfLinks }],
+      },
+    },
+  };
+
+  beforeEach(() => {
+    mockUseSelector.mockImplementation((selector) =>
+      selector({
+        preApproval: {
+          formConfigmetaData: mockFormConfigmetaData,
+        },
+      })
+    );
+
+    useDispatch.mockReturnValue(mockDispatch);
+    mockGetLanguageInfo.mockReturnValue('en');
+    mockGetData.mockResolvedValue(mockResponse);
+    mockGetPDFData.mockResolvedValue('mockPDFData');
+    mockDispatchLoader.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders the component correctly', async () => {
+    render(
+      <HeaderModel
+        fileName="test.pdf"
+        closepdf={jest.fn()}
+        title="Test Title"
+        footer="Test Footer"
+      />
+    );
+
+    expect(screen.getByText('Test Title')).toBeInTheDocument();
+    expect(screen.getByText('Test Footer')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockGetData).toHaveBeenCalled();
+      expect(mockGetPDFData).toHaveBeenCalled();
+    });
+  });
+
+  it('handles language-specific PDF URLs', async () => {
+    mockGetLanguageInfo.mockReturnValue('zh');
+
+    render(
+      <HeaderModel
+        fileName="test.pdf"
+        closepdf={jest.fn()}
+        title="Test Title"
+        footer="Test Footer"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockGetData).toHaveBeenCalled();
+    });
+  });
+
+  it('handles mobile and desktop PDF URLs', async () => {
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 500 });
+    Object.defineProperty(navigator, 'userAgent', { writable: true, configurable: true, value: 'iphone' });
+
+    render(
+      <HeaderModel
+        fileName="test.pdf"
+        closepdf={jest.fn()}
+        title="Test Title"
+        footer="Test Footer"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockGetData).toHaveBeenCalled();
+    });
+  });
+
+  it('handles localhost URL replacement', async () => {
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { host: 'localhost:3000' },
+    });
+
+    render(
+      <HeaderModel
+        fileName="test.pdf"
+        closepdf={jest.fn()}
+        title="Test Title"
+        footer="Test Footer"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockGetData).toHaveBeenCalled();
+    });
+  });
+
+  it('handles PDF data fetching', async () => {
+    render(
+      <HeaderModel
+        fileName="test.pdf"
+        closepdf={jest.fn()}
+        title="Test Title"
+        footer="Test Footer"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockGetPDFData).toHaveBeenCalled();
+      expect(mockSetKfsDocumentPdf).toHaveBeenCalledWith('mockPDFData');
+    });
+  });
+
+  it('handles PDF link terms', async () => {
+    render(
+      <HeaderModel
+        fileName="test.pdf"
+        closepdf={jest.fn()}
+        title="Test Title"
+        footer="Test Footer"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('PDF 1')).toBeInTheDocument();
+      expect(screen.getByText('PDF 2')).toBeInTheDocument();
+    });
+  });
+
+  it('handles the close button click', async () => {
+    const mockClosePdf = jest.fn();
+
+    render(
+      <HeaderModel
+        fileName="test.pdf"
+        closepdf={mockClosePdf}
+        title="Test Title"
+        footer="Test Footer"
+      />
+    );
+
+    userEvent.click(screen.getByRole('button', { name: /close/i }));
+    expect(mockClosePdf).toHaveBeenCalled();
+  });
+
+  it('handles the spinner visibility', async () => {
+    render(
+      <HeaderModel
+        fileName="test.pdf"
+        closepdf={jest.fn()}
+        title="Test Title"
+        footer="Test Footer"
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockDispatchLoader).toHaveBeenCalledWith(false);
+    });
+  });
+});
