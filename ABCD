@@ -1,519 +1,315 @@
-import { useEffect, useState } from "react";
+import "./onboarding-before-start.scss";
+import { useState, useEffect, useRef } from "react";
+import Pdf from "../../../../shared/components/pdf/pdf";
+import { getData, getPDFData } from "../../services/preApprovalServices";
+import { CATEGORIES, KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../services/constants";
 import { useDispatch, useSelector } from "react-redux";
-import validateService from "../../../services/validation-service";
-import { fieldError, isFieldUpdate, fieldIdAppend, getUrl } from "../../../utils/common/change.utils";
-import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
-import "./dates.scss";
-import errorMsg from "../../../assets/_json/error.json";
-import { userAgeAction } from "../../../utils/store/age-slice";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { lastAction } from "../../../utils/store/last-accessed-slice";
-import { fieldErrorAction } from "../../../utils/store/field-error-slice";
-import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
-// import 'font-awesome/css/font-awesome.min.css';
+import { StoreModel } from "../../../../utils/model/common-model";
+import Spinner from "../../../../shared/components/spinner/spinner";
+import { preApprovalAction } from "../../store/preApproval-slice";
+import { dispatchLoader } from "../../../../services/common-service";
+import { getUrl } from "../../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../../utils/common/constants";
+import PILPdfUrl1 from "../../../../assets/pdf-file/PIL/hk-personal-loan-terms-pil-aug09.pdf";
+import PILPdfUrl2 from "../../../../assets/pdf-file/PIL/hk-gn175.pdf";
+import PILPdfUrl3 from "../../../../assets/pdf-file/PIL/hk-loans-personal-instalment-loan-eng.pdf";
+import CCPdfUrl1 from "../../../../assets/pdf-file/CC/hk-gn175.pdf";
+import CCPdfUrl2 from "../../../../assets/pdf-file/CC/hk-gn177.pdf";
+import CCPdfUrl3 from "../../../../assets/pdf-file/CC/hk-cc-tncs-downloadnow.pdf";
+import CCPdfUrl4 from "../../../../assets/pdf-file/CC/e-statement-en.pdf";
+import CCPdfUrl5 from "../../../../assets/pdf-file/CC/hk-rewards-tncs-en.pdf";
+import CCPdfUrl6 from "../../../../assets/pdf-file/CC/hk-tnc-credit-card-instalment-plan-en.pdf";
 
-export const Dates = (props: KeyWithAnyModel) => {
-  const [date, setDate] = useState({ DD: "", MM: "", YYYY: "" });
-  const [dateVal, setDateVal] = useState("");
+const OnboardingBeforeStart: React.FC<any> = ({
+  isVisible,
+  onScrollEnd,
+  stageID,
+  nextPage
+}) => {
+  const listInnerRef = useRef<HTMLDivElement>(null);
+  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+  const [kfsDocPDF, setkfsDocPDF] = useState("");
+  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+  const [pdfName, setPdfName] = useState('')
+  const [showSpinner, setShowSpinner] = useState(true);
   const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const [tickMark, setTickMark] = useState(false);
-  const [error, setError] = useState('');
+  const campaignId = stageSelector[0].stageInfo.products[0].campaign;
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
   const dispatch = useDispatch();
-  const fieldErrorSelector = useSelector(
-    (state: StoreModel) => state.fielderror.error
-  );
-  const applicantsSelector = useSelector(
-    (state: StoreModel) => state.stages.userInput.applicants[0]
-  );
-  const inputSelector = useSelector(
-    (state: StoreModel) => state.stages.userInput
-  );
-  const language = getUrl.getLanguageInfo("lang")
+  const language = getUrl.getLanguageInfo("lang");  
+  useEffect(() => {
+    setShowSpinner(true);
+    dispatch(dispatchLoader(true));
+    let KFS;
+    if(language==='zh'){
+      KFS=KFS_DOC_URL_Chinees
+    }else{
+      KFS=KFS_DOC_URL
+    }
 
-  const workType=applicantsSelector.work_type;
+    getData(KFS)?.then((response: any) => {
+      const campaignID = formConfigmetaData?.products[0].campaign;
+      let pdfURLNew = "";
+      if (stageID === 0) {
+        const pdfURL = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.productsMob[campaignID] : response.data.products[campaignID];
+        const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        if (window.location.host === "localhost:3000") {
+          pdfURLNew = pdfURL[0].pdfURL.replace(
+            "https://pt.sc.com/",
+            "http://localhost:3000/"
+
+          );
+        } else {
+          pdfURLNew = pdfURL[0].pdfURL;
+        }
+        setPdfName(getPDFName);
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          const pdfurl: any = {};
+          pdfurl.pdf = response;
+          pdfurl.pdfurl = pdfURLNew;
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+      }
+      else if (stageID === 1) {
+        const pdfURLCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.CampaignTnCMob[campaignID] : response.data.CampaignTnC[campaignID];
+        const pdfMap = pdfURLCheck.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        if (window.location.host === "localhost:3000") {
+          pdfURLNew =pdfURLCheck[0]?.pdfURL.replace("https://pt.sc.com/", "http://localhost:3000/");
+        } else {
+          pdfURLNew = pdfURLCheck[0]?.pdfURL;
+        }
+        setPdfName(getPDFName);
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setTandCDocumentPdf(pdfURLNew));
+          dispatch(preApprovalAction.setDownloadPDFData(response));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+      }
+      const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+      setPdfLinkTerms(allPDFLinks);
+    });
+  }, [stageID]);
 
   useEffect(() => {
-    if (error === "") {
-      dispatch(ContinueBtnAction.getContinueEnableState(true));
+    const listInnerElement = listInnerRef.current;
+        /* istanbul ignore else */
+    if (listInnerElement) {
+      listInnerElement.addEventListener("scroll", scrollToBottom);
+      // Clean-up
+      return () => {
+        listInnerElement.removeEventListener("scroll", scrollToBottom);
+      };
+    }
+    window.history.replaceState("", "", "/hk/before-start")
+  });
+
+ 
+  const downloadPdf = (title: any) => {
+    const lin = document.createElement('a');
+    if(campaignId === "HKPIL23PLSTP10" || campaignId === "HKBDC23PESTP10") {
+      if(title === "II. Personal Loan Terms") {
+        lin.href = PILPdfUrl1;
+      } else if(title === "III. Client Terms") {
+        lin.href = PILPdfUrl2;
+      } else if(title === "Welcome Offers"){
+        lin.href = PILPdfUrl3;
+      }
+    } else if(campaignId === "HKSOG20VAWV000" || campaignId === "HKSPG17VAWV000" || campaignId === "HKSPB17VAWV000" || campaignId === "HKSOA16VAWP000" || campaignId === "HKSOA16MCWP000") {
+      if(title === "III. Client Terms"){
+        lin.href = CCPdfUrl1;
+      } else if(title === "III. Credit Card Terms"){
+        lin.href = CCPdfUrl2;
+      } else if(title === "VI. Welcome Offers" || title === "IV. Welcome Offers"){
+        lin.href = CCPdfUrl3;
+      } else if(title === "IX.  E-Statement Service" || title === "IX. E-Statement Service"){
+        lin.href = CCPdfUrl4;
+      } else if(title === "X. Points Redemption"){
+        lin.href = CCPdfUrl5;
+      } else if(title === "XI. Credit Card Instalment Plan"){
+        lin.href = CCPdfUrl6;
+      }
+    }
+    const urlParts = lin.href.split("/");
+    const extractedPDFName = urlParts[urlParts.length - 1].split(".")[0];
+    lin.download = extractedPDFName;
+    document.body.appendChild(lin);
+    lin.click();
+    document.body.removeChild(lin);
+  }
+
+  const downloadPDFPreApproval = (link: any) => {
+    const lin = document.createElement('a');
+    lin.href = kfsDocPDFDownload;
+    const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+    if (isSafari) {
+      lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
     } else {
-      dispatch(ContinueBtnAction.getContinueEnableState(false));
+      lin.download = pdfName;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps  
-  }, [error, dispatch])
+  };
 
-  useEffect(() => {
-    let storeDate = null;
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
-      storeDate = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name+"_a_1"];
-    }
-    if(inputSelector.applicants[0][props.data.logical_field_name]) {
-      storeDate= inputSelector.applicants[0][props.data.logical_field_name]
-    }
-    if (storeDate) {
-      let splitDate = storeDate.split("-");
-      setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const btnClickScroll = () => {
+    listInnerRef.current?.scrollBy({ top: stageID===0 ? 200 : 5000, behavior: "smooth" });
+  };
 
-  let currentDate: Date = new Date();
-  let currentDay = String(currentDate.getDate()).padStart(2, '0');
-  let currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
-  let currentYear = currentDate.getFullYear();
-  const formatFutureDate :any= currentYear - (stageSelector[0].stageInfo.products[0].product_category !== "PL" ? 18 : 20) + "-" + currentMonth + "-" + currentDay
-  let calculatePastYears;
-  if(props.data.logical_field_name === "date_of_birth"){
-    const calculatePastYears1 = currentDate.setFullYear(currentDate.getFullYear() -100);
-    currentDate.setDate(currentDate.getDate()+1)
-    calculatePastYears = currentDate.toISOString().split("T")[0]
-    // = currentYear - (stageSelector[0].stageInfo.products[0].product_category !== "PL" ? 18 : 20)
-  } 
-  if(props.data.logical_field_name === "expiry_date"){
-    const calculatePastYears1 = currentDate.setFullYear(currentDate.getFullYear());
-    currentDate.setDate(currentDate.getDate()+1)
-    calculatePastYears = currentDate.toISOString().split("T")[0]
+  const scrollToBottom = () => {
+        /* istanbul ignore else */
+    if (listInnerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      /* istanbul ignore else */
+      if (isNearBottom) {
+        onScrollEnd(false);
+      }
+    }
+  };
+  var className= "";
+  var isIPHONE = (navigator.userAgent.match('iPad') != null || navigator.userAgent.match('iPhone') != null || navigator.userAgent.match('iPod') != null);
+  var isANDROID = (navigator.userAgent.match('Android') != null);
+  if (isIPHONE) {
+    var isSafari = !!navigator.userAgent.match(/Version\/[\d\.]+.*Safari/);
+    if (isSafari) { 
+      // $('body').addClass("iphoneDeviceSafari"); 
+      className="iphoneDeviceSafari"
+    }
+    else { 
+      // $('body').addClass("iphoneDevice"); 
+      className="iphoneDevice"
+    }
+  } else if (isANDROID) {
+    // $('body').addClass("andriodDevice");
+    className="andriodDevice"
+  } else {
+    // $rootScope.DesktopDevice = true;
+    // $('body').addClass("desktopDevice");
+    className="desktopDevice"
   }
-  const changeHandler = (
-    data: React.ChangeEvent<HTMLInputElement>,
-    type: string
-  ) => {
-    setError('');
-    let nextfield = null;
-    const { maxLength, value } = data.target;
-    if (value.length >= maxLength) {
-      if (type === 'MM') {
-        if (Number(data.target.value) <= 12) {
-          nextfield = document.querySelector(
-            `input[name=${props.data.logical_field_name}_yyyy]`
-          ) as HTMLInputElement | null;
-        }
-      } else if (type === 'DD') {
-        nextfield = document.querySelector(
-          `input[name=${props.data.logical_field_name}_mm]`
-        ) as HTMLInputElement | null;
-      }
-    }
-    if (nextfield !== null) {
-      nextfield.focus();
-    }
-    const fieldName = props.data.logical_field_name;
-    if (type === 'YYYY') {
-
-      date["YYYY"] = data.target.value;
-    } else if (type === 'MM') {
-      date["MM"] = data.target.value;
-    } else if (type === 'DD') {
-      date["DD"] = data.target.value;
-    }
-    else {
-      if (value !== '') {
-        date["YYYY"] = data.target.value.split("-")[0];
-        date["MM"] = data.target.value.split("-")[1];
-        date["DD"] = data.target.value.split("-")[2];
-      }
-      else {
-        date["YYYY"] = '';
-        date["MM"] = '';
-        date["DD"] = '';
-      }
-    }
-
-    const userValue = date["YYYY"] + "-" + date["MM"] + "-" + date["DD"];
-    let splitDate = userValue.split("-");
-    setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
-    setDateVal(userValue);
-    if (Number(date["MM"]) > 12) {
-      setTickMark(false)
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        })
-      );
-      return
-    }
-    let year = Number(date["YYYY"]);
-    let isLeap = ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
-
-    let currentDate :any = new Date();
-    let expiryCheckInputVal = date["DD"] + "-" +  date["MM"]  + "-" +  date["YYYY"] ;
-    let currentDay = currentDate.getDate();
-    let currentMonth = currentDate.getMonth() +1;
-    let currentYear = currentDate.getFullYear();
-    let expirydateCheck = currentDay + "-" + currentMonth + "-" + currentYear
-    const dateInputValue = new Date(expiryCheckInputVal.split("-").reverse().join("-"));
-    const CurrentExpiryDate = new Date(expirydateCheck.split("-").reverse().join("-"));
-    
-    if (isLeap && Number(date["DD"]) > 29 && date["MM"] === '2') {
-      setTickMark(false)
-      setError('Date is not valid');
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        })
-      );
-      return
-    }
-    if (!isLeap && Number(date["DD"]) > 28 && date["MM"] === '2') {
-      setTickMark(false)
-      setError('Date is not valid');
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        })
-      );
-      return
-    }
-    else if(date['DD'].length === 0 || date['MM'].length === 0 || data.target.value==='0' ||data.target.value==='00'|| date['MM'] ==='00'|| date['YYYY'].length === 0 ||date['YYYY'].length < 4 ){
-      setTickMark(false)
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-    }
-    
-    else if( props.data.logical_field_name==='expiry_date' && CurrentExpiryDate > dateInputValue){
-      setTickMark(false)
-      setError(`${props.data.rwb_label_name} ${language === CONSTANTS.LANG_EN ? errorMsg.expiry_future_date : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}`)
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        }));
-    }
-    else {
-      setTickMark(true)
-      setError('');
-      dispatch(
-        fieldErrorAction.removeToggleFieldError(
-          props.data.logical_field_name,
-        ));
-    }
-
-    props.handleCallback(props.data, userValue);
-    props.handleFieldDispatch?.(props?.data?.logical_field_name, userValue);
-    if (date["DD"] !== "" || date["MM"] !== "" || date["YYYY"] !== "") {
-      if (date["YYYY"].length > 3 && date["DD"].length > 1 && date["MM"].length > 1) {
-        if (validateService.isValidDate(userValue)) {
-
-          /* Conditions for expiry date*/
-          if (props.data.logical_field_name === 'expiry_date') {
-            let isGreaterThanThirtyDays = validateService.calculateMonth(userValue);
-            if (!isGreaterThanThirtyDays) {
-              if (applicantsSelector.id_type_cb === "Exit-Entry Permit")
-                setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK}`);
-              else if (applicantsSelector.id_type_cb === "Passport")
-                setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK}`);
-            } else
-              dispatch(isFieldUpdate(props, userValue, fieldName));
-          }
-
-          /**Validation for date of birth */
-          else if (props.data.logical_field_name === 'date_of_birth') {
-            let age = validateService.calculateAge(userValue);
-            if (age > 99) {
-              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-            }else if (age < 20 && stageSelector[0].stageInfo.products[0].product_category === "PL") {//min age for PL is 20 
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.plDateOfBirthMin : language === CONSTANTS.LANG_CN ? errorMsg.plDateOfBirthMin_CN : errorMsg.plDateOfBirthMin_HK}`);
-            }else if (age < 18 && stageSelector[0].stageInfo.products[0].product_category !== "PL") {
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.dateOfBirthMin : language === CONSTANTS.LANG_CN ? errorMsg.dateOfBirthMin_CN : errorMsg.dateOfBirthMin_HK}`);
-            }else {
-              dispatch(userAgeAction.addUserAge({ userAge: age }))
-              dispatch(isFieldUpdate(props, userValue, fieldName));
-              dispatch(
-                fieldErrorAction.removeToggleFieldError(
-                  props.data.logical_field_name,
-                ));
-            }
-          }
-          else if(props.data.logical_field_name === 'business_est_date'){
-            let age = validateService.calculateAge(userValue);
-            if(age < 0) {
-              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-            }
-          }
-        }
-        else {
-          if (props.data.logical_field_name === 'expiry_date') {
-            setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-
-          } else {
-            setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-          }
-        }
-      } 
-      // else {
-      //   if (props.data.logical_field_name === 'expiry_date') {
-      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-
-      //   } else {
-      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      //   }
-      // }
-    }
-    else if (props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") {
-      if (props.data.logical_field_name === 'expiry_date') {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-
-      } else {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      }
-    }
-  };
-
-  const bindHandler = (data: any, type: string) => {
-    if ((type === "DD" || type === "MM") && data.target.value && parseInt(data.target.value) > 0 && (data.target.value).length < 2) {
-      date[type] = `0${data.target.value}`;
-      data.target.value = date[type];
-      changeHandler(data, type);
-    }
-  };
-
-  useEffect(() => {
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
-      const storeDate =
-        stageSelector[0].stageInfo.applicants[0][
-        props.data.logical_field_name
-        ];
-      if (storeDate) {
-        let splitDate = storeDate.split("-");
-        setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
-      }
-    }
-  }, [stageSelector, props.data && props.data.logical_field_name]);
-
-  useEffect(() => {
-    if (props.data && props.data.logical_field_name === 'expiry_date') {
-      if (applicantsSelector.expiry_date) {
-        setDate({ DD: "", MM: "", YYYY: "" });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicantsSelector.id_type_cb])
-
-  useEffect(() => {
-    //setErrors(fieldError(fieldErrorSelector, props));
-    if (fieldError(fieldErrorSelector, props)) {
-      if (props.data.logical_field_name === 'expiry_date') {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-
-      }
-      //  else {
-      //   setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      // }
-    } 
-    // else {
-    //   setError('');
-    // }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldErrorSelector]);
-
-  const allowOnlyCharacter = (event: React.KeyboardEvent<HTMLInputElement>, fieldName: string) => {
-    validateService.allowOnlyCharacter(event, fieldName);
-  };
-
-  useEffect(() => {
-    if (error === (language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK))
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK}`);
-    else if (error === (language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK))
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK}`);
-    if (props.data && props.data.logical_field_name === 'expiry_date') {
-      if (applicantsSelector.expiry_date) {
-        setDate({ DD: "", MM: "", YYYY: "" });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicantsSelector.id_type_cb])
-
-  const focusHandler = (
-    fieldName: string,
-    event: React.FocusEvent<HTMLInputElement>
-  ) => {
-    dispatch(lastAction.getField(fieldName));
-  };
-
-  const keyDownHandler = (fieldName: string, event: React.KeyboardEvent<HTMLInputElement>) => {
-    if(event?.key === 'Tab'){
-      if((props.data.logical_field_name === 'date_of_birth' || props.data.logical_field_name === 'business_est_date') && (date.DD === '' || date.MM === '' || date.YYYY === '')){
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      }
-    }
-  }
-
   return (
-    <>
-      {(stageSelector[0].stageId === 'ad-2' &&
-        workType === 'E002' || workType === 'E001' || workType === 'E103' || workType === 'E104') &&
-        props && props.data &&
-        <div className="date">
-          <label htmlFor={props.data.logical_field_name} className="text-label tick-enabled">
-            {!error && tickMark &&
-              <div className="tick-class"></div>
-            }
-            <span> {props.data.rwb_label_name}</span>
-          </label>
-          <div className="date__inputs" id={fieldIdAppend(props)}>
-            <input
-              placeholder="DD"
-              minLength={1}
-              maxLength={2}
-              type="tel"
-              value={date.DD}
-              onChange={(event) => changeHandler(event, "DD")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onBlur={(event) => bindHandler(event, "DD")}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_dd'}
-              id={props.data.logical_field_name + '_dd'}
-              onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            <input
-              placeholder="MM"
-              minLength={1}
-              maxLength={2}
-              type="tel"
-              value={date.MM}
-              onChange={(event) => changeHandler(event, "MM")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onBlur={(event) => bindHandler(event, "MM")}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_mm'}
-              id={props.data.logical_field_name + '_mm'}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            <input
-              // title="year-input"
-              placeholder="YYYY"
-              minLength={4}
-              maxLength={4}
-              type="tel"
-              value={date.YYYY}
-              onChange={(event) => changeHandler(event, "YYYY")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_yyyy'}
-              id={props.data.logical_field_name + '_yyyy'}
-              autoComplete="off"
-            />
+    <div>
+      {showSpinner === true ? (
+        <Spinner></Spinner>
+      ) : (
+        <>
+          <div>
+            <button 
+              onClick={(link) => {
+                downloadPDFPreApproval(link);
+              }}
+              className="view-pdf"
+              // ng-if="source_sys == 'sc.com' || source_sys == 'asiamiles'" //for future reference
+            >
+              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+            </button>
           </div>
-        </div>
-      }
-      {(workType !== 'S103' && stageSelector[0].stageId === 'pd-1')&&
-        props && props.data &&
-        <div className="date">
-          <label htmlFor={props.data.logical_field_name} className="text-label tick-enabled">
-            {!error && tickMark &&
-              <div className="tick-class"></div>
-            }
-            <span> {props.data.rwb_label_name}</span>
-          </label>
-          <div className="date__inputs" id={fieldIdAppend(props)}>
-            <input
-              placeholder="DD"
-              minLength={1}
-              maxLength={2}
-              type="tel"
-              value={date.DD}
-              onChange={(event) => changeHandler(event, "DD")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onBlur={(event) => bindHandler(event, "DD")}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_dd'}
-              id={props.data.logical_field_name + '_dd'}
-              onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            <input
-              placeholder="MM"
-              minLength={1}
-              maxLength={2}
-              type="tel"
-              value={date.MM}
-              onChange={(event) => changeHandler(event, "MM")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onBlur={(event) => bindHandler(event, "MM")}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_mm'}
-              id={props.data.logical_field_name + '_mm'}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            <input
-              // title="year-input"
-              placeholder="YYYY"
-              minLength={4}
-              maxLength={4}
-              type="tel"
-              value={date.YYYY}
-              onChange={(event) => changeHandler(event, "YYYY")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_yyyy'}
-              id={props.data.logical_field_name + '_yyyy'}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            {(props.data.logical_field_name === "date_of_birth" || props.data.logical_field_name === "expiry_date") &&
-              <input
-                className="date_icon"
-                type="date"
-                value={dateVal}
-                max= {props.data.logical_field_name==='date_of_birth'&& formatFutureDate} //future date 
-                min={calculatePastYears as any} //past date
-                onChange={(event) => changeHandler(event, "date")}
-              />
-            }
+          <div className="pdf-view">
+            <div
+              // style={{ maxHeight: stageID == 0 ? "45vh" : "22vh" }}
+              className={stageID == 0 ? "react-pdf__Page__canvas pdf__kfs__page" : "react-pdf__Page__canvas pdf__tnc__page"}
+              ref={listInnerRef}
+            >
+              <Pdf fileName={kfsDocPDF} />
+            </div>
           </div>
-        </div>
-        }
 
-      {error && <div className="error-msg">{error}</div>}
-    </>
+          {stageID == 1 && (
+            <div className="pdf-table">
+              <div className="download-section">
+                <span className="download-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadHeader : language === CONSTANTS.LANG_CN? CONSTANTS.DownloadHeader_CN : CONSTANTS.DownloadHeader_HK}</span>
+                <span className="images"></span>
+              </div>
+
+              <div className="tc-container">
+                <table className="tcTable" border={1}>
+                  <tbody>
+                    {pdfLinkTerms?.map((item: any, index: any) => {
+                      return (
+                        <tr key={index}>
+                          <td className="tcTable__title">{item.Title}</td>
+                          <td className="tcTable__read">
+                            <a
+                              href={item.url}
+                              download
+                              target="_blank"
+                            >
+                             {language === CONSTANTS.LANG_EN ? CONSTANTS.ReadBtn : language === CONSTANTS.LANG_CN? CONSTANTS.ReadBtn_CN : CONSTANTS.ReadBtn_HK}
+                            </a>
+                            <span> / </span>
+                            <span className="tcTable__download"
+                              onClick={() => {
+                                downloadPdf(item.Title);
+                              }}
+                            >
+                              
+                              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="remarks-section">
+                <span className="remarks-section__span">
+                  {" "}
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.Remarks : language === CONSTANTS.LANG_CN? CONSTANTS.Remarks_CN : CONSTANTS.Remarks_HK}
+                </span>
+              </div>
+            </div>
+          )}
+          <div className="footer-button-list">
+            {isVisible ? (
+              <>
+                <div className="next-arrow" aria-describedby="submitButton">
+                  <footer
+                    className="footer-next enabled"
+                    onClick={btnClickScroll}
+                  >
+                    <i className="next-btn"></i>
+                  </footer>
+                </div>
+              </>
+            )
+              :
+              <div
+                className="pre-approval-accept accept-btn"
+                id="navigationBtn"
+              >
+                <button
+                  id="pre-approval-confirm-btn1"
+                  className="pre-approval-confirm-btn1"
+                  onClick={nextPage}
+                >
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.acceptButton : language === CONSTANTS.LANG_CN? CONSTANTS.acceptButton_CN : CONSTANTS.acceptButton_HK}
+                </button>
+
+              </div>
+            }
+
+          </div>
+        </>
+      )}
+    </div>
   );
 };
 
-export default Dates;
+export default OnboardingBeforeStart;
