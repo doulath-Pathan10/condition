@@ -1,645 +1,224 @@
-import "./loan-disbursement.scss";
-import budgetIcon from "../../../../assets/_images/budget.png";
-import { useEffect, useState } from "react";
-import { StoreModel } from "../../../../utils/model/common-model";
-import { useDispatch, useSelector } from "react-redux";
-import { preApprovalAction } from "../../store/preApproval-slice";
-import { getOffer2, getOfferCalulated } from "../../services/preApprovalServices";
-import { postPdfPreview } from "../../services/preApprovalPostServices";
-import { stagesAction } from "../../../../utils/store/stages-slice";
-import { CONSTANTS } from "../../../../utils/common/constants";
-import { dispatchError, dispatchLoader } from "../../../../services/common-service";
-import { getUrl } from "../../../../utils/common/change.utils";
-import { AxiosError } from "axios";
-import { errorAction } from "../../../../utils/store/error-slice";
-import { stateUrl } from "../../../dashboard/fields/stage.utils";
-import { lovDescAction } from "../../../../utils/store/lov-desc-slice";
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import LoanDisbursement from './LoanDisbursement';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import thunk from 'redux-thunk';
 
-const useDebouncedValue = (inputValue: any, delay: any) => {
-  const [debouncedValue, setDebouncedValue] = useState(inputValue);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(inputValue);
-    }, delay);
+const middlewares = [thunk];
+const mockStore = configureStore(middlewares);
 
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [inputValue, delay]);
-
-  return debouncedValue;
-};
-
-const LoanDisbursement = () => {
-  const dispatch = useDispatch();
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo);
-  const [loaded, setLoaded] = useState(false);
-  const [spinnerEnabled, setSpinnerEnabled] = useState(false);
-  const [defaultValue, setDefaultValue] = useState(stageSelector.products?.[0].offer_details?.[0]?.approved_amount);
-  const [defaultMonth, setDefaultMonth] = useState(stageSelector.products?.offer_details?.[0]?.approved_tenor.toString());
-  const [aprValue, setAprValue] = useState("");
-  const [flateRateValue, setFlateRateValue] = useState("");
-  const [repaymentAmount, setRepaymentAmount] = useState("");
-  const [finalApprovedAmount, setFinalApprovedAmount] = useState("");
-  const debouncedSearchTerm = useDebouncedValue(defaultValue, 500);
-  const downShell = useSelector((state: StoreModel) => state.stages.userInput.downshell);
-  const language = getUrl.getLanguageInfo("lang");
-  const offerDetails = stageSelector.products?.[0];
-  const loanTenor:any = [
-    {
-      "CODE_DESC": language === 'en' ? "12 Months" : '12期',
-      "CODE_VALUE": "12"
-    },
-    {
-      "CODE_DESC": language === 'en' ? "24 Months" : '24期',
-      "CODE_VALUE": "24"
-    },
-    {
-      "CODE_DESC": language === 'en' ? "36 Months" : '36期',
-      "CODE_VALUE": "36"
-    },
-    {
-      "CODE_DESC": language === 'en' ? "48 Months" : '48期',
-      "CODE_VALUE": "48"
-    },
-    {
-      "CODE_DESC": language === 'en' ? "60 Months" : '60期',
-      "CODE_VALUE": "60"
-    },
-    {
-      "CODE_DESC": language === 'en' ? "72 Months" : '72期',
-      "CODE_VALUE": "72"
-    },
-    {
-      "CODE_DESC": language === 'en' ? "84 Months" : '84期',
-      "CODE_VALUE": "84"
-    }
-  ];
-  var contentData: any = {}
-  if (language === 'zh-HK' || language === 'zh') {
-    contentData["headerContent"] = '	恭喜';
-    contentData["subHeader"] = '你的初步審批已經完成。請確認貸款方案以繼續申請程序：'
-    contentData["preliminaryContent"] = '初步批核貸款金額';
-    contentData["preliminaryContent2"] = '初步批核最高貸款額';
-    contentData["tenorLabel"] = '還款期數(月)/每月供款';
-    contentData["loanAmount"] = '申請金額';
-    contentData["monthlyRepayment"] = '每月還款金額';
-    contentData["monthlyFlatRate"] = '	每月平息';
-    contentData["period"] = '還款期(月) ';
-    contentData["months"] = '期'
-    contentData["APR"] = '實際年利率';
-    contentData["betterOffer"] = '初步批核最高貸款金額';
-    contentData["confirmProceed"] = '確認到下一步';
-    contentData["tips"] = '最終獲批之貸款額將取決於最後評估. 並可能與上述初步批核貸款額有所出入.';
-    contentData["remark"] = '您可以轉移您的信用卡額度以享受下列貸款金額。我們的客戶服務主任將會於兩個工作天内聯絡閣下以完成您的申請。'
-    contentData["earlyfeesSection"] = '提前還款/提前清償/贖回的收費: 當閣下提前償還全數貸款時，將收取欠款結餘的2.5%。';
-    contentData["maximumEligibleAmount"] = '最高可享貸款額HK$ ';
-    contentData["remarksTitle"] = '註:';
-    contentData["minAmtErrorMsg"] = '申請貸款額為HK$';
-  }
-  else {
-    contentData["headerContent"] = 'Congratulations!';
-    contentData["subHeader"] = 'Your preliminary assessment is completed. Please confirm the loan offer to continue the application processing:'
-    contentData["preliminaryContent"] = 'Preliminary approved loan amount';
-    contentData["preliminaryContent2"] = 'Preliminary Maximum Approved Loan Amount';
-    contentData["tenorLabel"] = 'Tenor & Monthly Repayment';
-    contentData["loanAmount"] = 'Loan Amount';
-    contentData["monthlyRepayment"] = 'Monthly Repayment';
-    contentData["monthlyFlatRate"] = 'Monthly Flat Rate';
-    contentData["period"] = 'Loan Tenor ';
-    contentData["months"] = 'months'
-    contentData["APR"] = 'Annualized Percentage Rate (APR)';
-    contentData["betterOffer"] = 'Preliminary maximum approved loan amount';
-    contentData["confirmProceed"] = 'Confirm to Proceed';
-    contentData["tips"] = 'The above offers are preliminary result. The final result may vary after further assessment.';
-    contentData["remark"] = 'You may enjoy the loan amount below by transferring your credit card limit. We will contact you within 2 working days to complete your application.'
-    contentData["earlyfeesSection"] = 'Prepayment / Early Settlement / Redemption Fee: 2.5% of the outstanding balance if you repay the loan in full early.';
-    contentData["maximumEligibleAmount"] = 'The maximum eligible amount is HK$';
-    contentData["remarksTitle"] = 'Remarks:';
-    contentData["minAmtErrorMsg"] = 'Your  requested amount is HK$';
-  }
-
-  useEffect(() => {
-    dispatch(dispatchLoader(true));
-    let offers = stageSelector.products?.[0];
-    setDefaultValue(offers?.offer_details?.[0]?.approved_amount)
-    setDefaultMonth(offers?.offer_details?.[0]?.approved_tenor.toString())
-    setAprValue(offers?.offer_details?.[0]?.apr)
-    setFlateRateValue(offers?.offer_details?.[0]?.flatRate)
-    setRepaymentAmount(offers?.offer_details?.[0]?.repaymentAmount)
-    if ((offerDetails.offer_details[0].offer_status === "1004" || offerDetails.offer_details[0].offer_status === "1002") && stageSelector.products[0].product_category === 'PL' && offerDetails.offer_details[0].bestOffer === 'Y') {
-      setDefaultValue(offers?.offer_details?.[1]?.approved_amount)
-      setDefaultMonth(offers?.offer_details?.[1]?.approved_tenor.toString())
-    }
-    else if((offerDetails.offer_details[0].offer_status === "1001" || offerDetails.offer_details[0].offer_status === "1003") && stageSelector.products[0].product_category === 'PL' && offerDetails.offer_details[0].bestOffer === 'N') {
-      setFinalApprovedAmount(offers?.offer_details?.[0]?.approved_amount);
-    }
-    else {
-      setFinalApprovedAmount(offers?.offer_details?.[1]?.approved_amount);
-    }
-    dispatch(dispatchLoader(false));
-  }, [])
-
-  useEffect(() => {
-    /*istanbul ignore else*/
-    if (loaded) {
-      calculateOffer();
-      setSpinnerEnabled(true)
-    }
-  }, [defaultMonth])
-
-  useEffect(() => {
-    /*istanbul ignore else*/
-    if (loaded) {
-      calculateOffer();
-      setSpinnerEnabled(true)
-    }
-  }, [debouncedSearchTerm]);
-  
-  const nextStage = async () => {
-    let offers = stageSelector.products?.[0];
-    dispatch(dispatchLoader(true));
-    var payload: any = JSON.parse(JSON.stringify(stageSelector));
-    payload.applicants= JSON.parse(JSON.stringify(stageSelector.applicants[0]));
-    payload.application.acquisition_channel = "SC";
-    let acdService: boolean = false;
-    if (payload?.applicants?.requested_loan_amount_a_1 !== defaultValue.toString() || payload?.applicants?.requested_loan_tenor_a_1 !== defaultMonth.toString()) {
-      dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.ACD_3));
-      acdService = true
-    }
-    else {
-      dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.ACD_4));
-      payload.applicants["offer_a_1"] = "R";
-    }
-    if((payload.application.downshell || downShell) && offers.offer_details[1].approved_amount){
-      payload.applicants.requested_loan_amount_a_1 = offers?.offer_details?.[1]?.approved_amount;
-      payload.applicants.tenor_a_1 = offers?.offer_details?.[1]?.approved_tenor.toString();
-      payload.applicants.requested_loan_tenor_a_1 = offers?.offer_details?.[1]?.approved_tenor.toString();
-      payload.applicants.offer_a_1 = 'B';
-      triggerAIP4Call(payload);
-    }
-    else if(offers?.offer_details?.[1] && offers.offer_details[1].approved_amount === defaultValue  && offers.offer_details[1].approved_tenor.toString() === payload.applicants.requested_loan_tenor_a_1){
-      payload.applicants.offer_a_1 = 'B';
-      triggerAIP4Call(payload);
-    }
-    else if (offers.offer_details[1] && ((defaultValue && offers.offer_details[1].approved_tenor.toString() === defaultMonth)
-      && (defaultValue && offers.offer_details[1].approved_amount === defaultValue))) {
-      payload.applicants.offer_a_1 = 'R';
-      triggerAIP4Call(payload);
-    } 
-    else if (defaultValue === payload.applicants.requested_loan_amount_a_1 && defaultMonth === payload.applicants.requested_loan_tenor_a_1) {
-      payload.applicants.offer_a_1 = 'R';
-      triggerAIP4Call(payload);
-    } 
-    else if (defaultValue && offers.offer_details[0].approved_amount !== defaultValue || (defaultValue && offers.offer_details[0].approved_tenor.toString() !== defaultMonth)){
-      payload.applicants.offer_a_1 = 'R';
-      payload.applicants.requested_loan_amount_a_1 = defaultValue.toString();
-      payload.applicants.tenor_a_1 = defaultMonth.toString();
-      payload.applicants.requested_loan_tenor_a_1 = defaultMonth.toString();
-      triggerAIP3Call(payload);
-    }
-    else if((offers?.offer_details?.[1] && defaultValue !== offers.offer_details[1].approved_amount) || (offers?.offer_details?.[1] && offers.offer_details[0].approved_tenor.toString() !== offers.offer_details[1].approved_tenor)){
-      payload.applicants.offer_a_1 = 'R';
-      payload.applicants.requested_loan_amount_a_1 = defaultValue.toString();
-      payload.applicants.tenor_a_1 = defaultMonth.toString();
-      payload.applicants.requested_loan_tenor_a_1 = defaultMonth.toString();
-      triggerAIP3Call(payload);
-    }
-    else {
-      payload.applicants.offer_a_1 = 'B';
-      triggerAIP4Call(payload);
-    }
-  }
-
-  const triggerAIP3Call = async(payload:any) => {
-    await getOffer2(payload)?.then(async (offerRes: any) => {
-      /*istanbul ignore else*/
-      if (offerRes.status === 200) {
-        let responseType = offerRes.data.application.response_type.toUpperCase();
-        let responseAction = offerRes.data.application.response_action.toUpperCase();
-        let statusText = '';
-        let statusCode = '';
-        /*istanbul ignore else*/
-        if (responseAction === 'SUCCESS' || responseType === 'INFO' || (responseType === 'SOFT' && responseAction === 'CONTINUE')) {
-          for (var i = 0; i < offerRes.data.products[0].offer_details.length; i++) {
-            if (offerRes.data.products[0].offer_details[i].service_type === "ACD3") {
-              if (offerRes.data.products[0].offer_details[i].offer_status === "1001" || offerRes.data.products[0].offer_details[i].offer_status === "1003") {
-                dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.ACD_4));
-                let newOfferData = JSON.parse(JSON.stringify(offerRes.data));
-                newOfferData.applicants["adsuccess"] = "true";
-                newOfferData.applicants["client_pl_consent4_a_1"] = null;
-                newOfferData.applicants["nationality_note_a_1"] = null;
-                triggerAIP4Call(newOfferData)
-              } else if (offerRes.data.products[0].offer_details[i].offer_status === "1002") {
-                dispatch(dispatchLoader(false));
-                statusText = offerRes.data.products[0].offer_details[i].reason_code_descriptions[0].reason_description;
-                statusCode = offerRes.data.products[0].offer_details[i].reason_code_descriptions[0].reason_code;
-                dispatch(errorAction.getExceptionList([{ statusCode: statusCode, statusText: statusText, responseAction: "DECLINE", responseType }]))
-              } else if (offerRes.data.products[0].offer_details[i].offer_status === "1004") {
-                dispatch(dispatchLoader(false));
-                dispatch(preApprovalAction.setCurrentStage("FFD"));//redirect to submission-page
-              }
-              else {
-                triggerAIP4Call(payload)
-              }
-            }
-          }
-        }
-        var errorResp = offerRes.data.application.error;
-        /*istanbul ignore else*/
-        if (errorResp.application_error.length > 0 || errorResp.applicant_error.length > 0 || errorResp.product_error.length > 0) {
-          /*istanbul ignore else*/
-          if (errorResp.application_error.length > 0 && errorResp.application_error[0].error_description && errorResp.application_error[0]["error_description"] !== null) {
-            statusText = errorResp.application_error[0]["error_description"]
-            statusCode = errorResp.application_error[0]["rtobCode"]
-          }
-          /*istanbul ignore else*/
-          if (errorResp.applicant_error.length > 0 && errorResp.applicant_error[0].error_description && errorResp.applicant_error[0]["error_description"] !== null) {
-            statusText = errorResp.applicant_error[0]["error_description"]
-            statusCode = errorResp.applicant_error[0]["rtobCode"]
-          }
-          /*istanbul ignore else*/
-          if (errorResp.product_error.length > 0 && errorResp.product_error[0].error_description && errorResp.product_error[0]["error_description"] !== null) {
-            statusText = errorResp.product_error[0]["error_description"]
-            statusCode = errorResp.product_error[0]["rtobCode"]
-          }
-        }
-        /*istanbul ignore else*/
-        if (responseType === 'HARD' && (responseAction === 'STOP' || responseAction === 'RESUBMIT')) {
-          /*istanbul ignore else*/
-          if (responseAction === 'STOP') {
-            responseAction = "DECLINE";
-          }
-          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.RP));
-          dispatch(errorAction.getExceptionList([{ statusCode: statusCode, statusText: statusText, responseAction, responseType }]))
-        }
-        /*istanbul ignore else*/
-        if (responseType === 'HARD' && responseAction === 'CORRECT RESUBMIT') {
-          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.RP));
-        }
+describe('LoanDisbursement Component', () => {
+  const mockStageSelector = {
+    stages: [{
+      stageInfo: {
+        products: [{
+          product_category: 'PL',
+          product_type: '1258',
+          offer_details: [{
+            approved_amount: 50000,
+            approved_tenor: 24,
+            apr: '2.5',
+            flatRate: '1.5',
+            repaymentAmount: '2300',
+            offer_status: '1001',
+            bestOffer: 'N',
+            approved_amount_currency: 'HKD'
+          }, {
+            approved_amount: 100000,
+            approved_tenor: 36,
+            apr: '3.5',
+            flatRate: '2.5',
+            repaymentAmount: '3300',
+            offer_status: '1001',
+            bestOffer: 'Y',
+            approved_amount_currency: 'HKD'
+          }]
+        }],
+        applicants: [{}],
+        application: {}
       }
-      else {
-        dispatch(dispatchLoader(false));
-        dispatch(
-          errorAction.getError({
-            statusCode: "error",
-            statusText: "no response",
-          })
-        );
-      }
-    })
-  }
-
-  const triggerAIP4Call = async(payload:any) => {
-    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.ACD_4));
-    await getOffer2(payload).then(async (offerRes: any) => {
-      /*istanbul ignore else*/
-      if (offerRes.status === 200) {
-        let responseType = offerRes.data.application.response_type.toUpperCase();
-        let responseAction = offerRes.data.application.response_action.toUpperCase();
-        let statusText = '';
-        let statusCode = '';
-        var errorResp = offerRes.data.application.error;
-        /*istanbul ignore else*/
-        if (errorResp.application_error.length > 0 || errorResp.applicant_error.length > 0 || errorResp.product_error.length > 0) {
-          /*istanbul ignore else*/
-          if (errorResp.application_error.length > 0 && errorResp.application_error[0].error_description && errorResp.application_error[0]["error_description"] !== null) {
-            statusText = errorResp.application_error[0]["error_description"]
-            statusCode = errorResp.application_error[0]["rtobCode"]
-          }
-          /*istanbul ignore else*/
-          if (errorResp.applicant_error.length > 0 && errorResp.applicant_error[0].error_description && errorResp.applicant_error[0]["error_description"] !== null) {
-            statusText = errorResp.applicant_error[0]["error_description"]
-            statusCode = errorResp.applicant_error[0]["rtobCode"]
-          }
-          /*istanbul ignore else*/
-          if (errorResp.product_error.length > 0 && errorResp.product_error[0].error_description && errorResp.product_error[0]["error_description"] !== null) {
-            statusText = errorResp.product_error[0]["error_description"]
-            statusCode = errorResp.product_error[0]["rtobCode"]
-          }
-        }
-        /*istanbul ignore else*/
-        if (responseAction === 'SUCCESS' || responseType === 'INFO' || (responseType === 'SOFT' && responseAction === 'CONTINUE')) {
-          let channel_reference = offerRes.data.application.channel_reference
-          stateUrl(CONSTANTS.STAGE_NAMES.DOC_3);
-          postPdfPreview(channel_reference).then(async(res:any)=>{
-            if(res.status === 200){
-              let aof_doc_id:any= "";
-              let aof_commited:any= "N";
-              let pdfData= res.data;
-              if(pdfData.statusCode === "OK") {
-                aof_doc_id = pdfData.docId;
-                aof_commited = "Y";
-              }
-              let offerResponse:any= JSON.parse(JSON.stringify(offerRes.data.applicants));
-              offerResponse["aof_doc_id"]= aof_doc_id;
-              offerResponse["aof_commited"]= aof_commited;
-              let stageData = Object.assign({}, offerRes.data);
-              delete stageData.applicants;
-              delete stageData.fieldmetadata;
-              stageData.fieldMetaData = offerRes.data.fieldmetadata;
-              stageData.applicant_documents = offerRes.data.applicant_documents;
-              stageData.applicants = [offerResponse];
-              let offer_status = offerRes.data.products[0].offer_details.length === 2 ? offerRes.data.products[0].offer_details[1].offer_status : offerRes.data.products[0].offer_details.length > 3 ? offerRes.data.products[0].offer_details[3].offer_status : offerRes.data.products[0].offer_details[2].offer_status;
-              /*istanbul ignore else*/
-              if ((offer_status === "1001" || offer_status === "1003") ) {
-                dispatch(
-                  stagesAction.getStage({
-                    id: CONSTANTS.STAGE_NAMES.DOC_3,
-                    formConfig: stageData,
-                  })
-                );
-                dispatch(preApprovalAction.setCurrentStage("DC"));
-                dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.DOC_3));
-                dispatch(dispatchLoader(false));
-              }
-              else if ((offer_status === "1004" || offer_status === "1002") ) {
-                dispatch(dispatchLoader(false));
-                let statusText = offerRes.data.products[0].offer_details[1].reason_code_descriptions[0].reason_description;
-                let statusCode = offerRes.data.products[0].offer_details[1].reason_code_descriptions[0].reason_code;
-                let responseAction= "DECLINE";
-                let responseType= "";
-                dispatch(
-                  errorAction.getExceptionList([
-                    {
-                      statusCode: statusCode,
-                      statusText: statusText,
-                      responseAction,
-                      responseType,
-                    },
-                  ])
-                );
-              }
-              else {
-                dispatch(dispatchLoader(false));
-                dispatch(preApprovalAction.setCurrentStage("FFD"));
-              }
-            }
-            else {
-              dispatch(dispatchLoader(false));
-              dispatch(
-                errorAction.getError({
-                  statusCode: "error",
-                  statusText: "no response",
-                })
-              );
-            }
-          });
-        }
-        /*istanbul ignore else*/
-        if (responseType === 'HARD' && (responseAction === 'STOP' || responseAction === 'RESUBMIT')) {
-          /*istanbul ignore else*/
-          if (responseAction === 'STOP') {
-            responseAction = "DECLINE";
-          }
-          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.RP));
-          dispatch(errorAction.getExceptionList([{ statusCode: statusCode, statusText: statusText, responseAction, responseType }]))
-        }
-        /*istanbul ignore else*/
-        if (responseType === 'HARD' && responseAction === 'CORRECT RESUBMIT') {
-          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.RP));
-        }
-      }
-      else {
-        dispatch(dispatchLoader(false));
-        dispatch(
-          errorAction.getError({
-            statusCode: "error",
-            statusText: "no response",
-          })
-        );
-      }
-    })
-  }
-
-  const changeHandler = (e: any) => {
-    setLoaded(true)
-    setDefaultValue(e.target.value.toString())
-    dispatch(stagesAction.modifyData({ 'label': "requested_loan_amount", 'value': e.target.value }));
-  }
-
-  const changeMonths = (value: any) => {
-    setLoaded(true)
-    setDefaultMonth(value);
-    dispatch(stagesAction.modifyData({ 'label': "requested_loan_tenor", 'value': value }));
-    dispatch(
-      lovDescAction.addLovData({
-        fieldData: {
-          fieldName: "requested_loan_tenor",
-          code_desc: value+" Months",
-          code_value: value
-        }
-      })
-    );
-  }
-
-  const calculateOffer = () => {
-    let data: any = {
-      "requested_tenure": defaultMonth,
-      "requested_amount": defaultValue
+    }],
+    userInput: {
+      downshell: false
     }
-    if(defaultMonth && defaultValue) {
-      getOfferCalulated(data)?.then((res: any) => {
-        /*istanbul ignore else*/
-        if (res.status >= 200 && res.status <= 300) {
-          if ((res.data.response_indicator && res.data.response_indicator.toUpperCase() !== "HARD") && (res.data.response_action && res.data.response_action.toUpperCase() !== "STOP")) {
-            setAprValue(res.data.apr);
-            setFlateRateValue(res.data.monthly_flat_rate);
-            setRepaymentAmount(res.data.repayment_amount);
-            setSpinnerEnabled(false);
-          }
-          else {
-            setAprValue(res.data.apr);
-            setFlateRateValue(res.data.monthly_flat_rate);
-            setRepaymentAmount(res.data.repayment_amount);
-            setSpinnerEnabled(false)
-          }
-        }
-        else {
-          alert('error')
-          dispatch(dispatchLoader(false));
-          dispatch(
-            errorAction.getError({
-              statusCode: "error",
-              statusText: "no response",
-            })
-          );
-        }
-      }).catch((error: AxiosError) => {
-        dispatchError(error)
-      })
-    }
-    else {
-      setSpinnerEnabled(false);
-    }
-  }
+  };
 
-  const filteredOptions:any = loanTenor.filter((item:any) => {
-    if(stageSelector.products[0].product_type === '1258' || stageSelector.products[0].product_type === '1314') {
-      return(item.CODE_VALUE !== '72' && item.CODE_VALUE !== '84');
-    }
+  const store = mockStore({
+    stages: mockStageSelector,
+    lovDesc: {}
   });
 
-  return (
-    <>
-      <div className="main-wrapper" style={{ justifyContent: 'center', overflowY: 'scroll', maxHeight: '70vh' }}>
-        <div className="aipScreenPL">
-          <form name="formName[stageName]">
-            <div className="header1">
-              <div className="grid1">
-                <div className="row column01" style={{ paddingTop: 0 }}>
-                  <div className="headerPL">
-                    <div className='imagePL'>
-                      <img src={budgetIcon} />
-                      <h3 style={{ fontSize: '25px' }}>{contentData.headerContent}</h3>
-                      <p style={{ fontSize: '18px' }}>{contentData.subHeader}</p>
-                    </div>
-                  </div>
-                  {((offerDetails.offer_details[0].offer_status === "1004" || offerDetails.offer_details[0].offer_status === "1002") && stageSelector.products[0].product_category === 'PL' && offerDetails.offer_details[0].bestOffer === 'Y') ?
-                    <div ng-show="showpreliminaryContent" className="col-lg-12 col-sm-12 col-md-12 column22">
-                      <div className="media">
-                        <div className="media-body">
-                          <div className="opt_offer">
-                            <p className="offer_status">
-                              <label>{contentData.preliminaryContent}</label>
-                            </p>
-                          </div>
-                          <div className="Loan_Amount_section">
-                            <p className="loanAmount" style={{ fontSize: "28px" }}>
-                              {offerDetails.offer_details[1].approved_amount_currency}
-                              {offerDetails.offer_details[1].approved_amount}</p>
-                            <p>{contentData.period}<strong className="amt-months">: {offerDetails.offer_details[1].approved_tenor}
-                              {contentData.months}</strong></p>
-                            <hr />
-                            <div className="repayment_details">
-                              <p className="repayment_title">{contentData.monthlyRepayment}</p>
-                              <span className="rit">HKD {offerDetails.offer_details[1].repaymentAmount}</span>
-                            </div>
-                            <div className="repayment_details">
-                              <p className="repayment_title">{contentData.monthlyFlatRate}</p>
-                              <span className="rit">{offerDetails.offer_details[1].flatRate}%</span>
-                            </div>
-                            <div className="repayment_details">
-                              <p className="repayment_title">{contentData.APR}</p>
-                              <span className="rit">{offerDetails.offer_details[1].apr}%</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    :
-                      (offerDetails.offer_details[0].offer_status === "1001") && stageSelector.products[0].product_category === 'PL' && offerDetails.offer_details[0].bestOffer === 'N' ? 
-                        <div ng-show="showpreliminaryContent" className="col-lg-12 col-sm-12 col-md-12 column22">
-                          <div className="media">
-                            <div className="media-body">
-                              <div className="opt_offer">
-                                <p className="offer_status">
-                                  <label>{contentData.preliminaryContent}</label>
-                                </p>
-                              </div>
-                              <div className="Loan_Amount_section">
-                                <p className="loanAmount" style={{ fontSize: "28px" }}>
-                                  {offerDetails.offer_details?.[1] ? offerDetails.offer_details[1].approved_amount_currency : offerDetails.offer_details[0].approved_amount_currency}
-                                  {offerDetails.offer_details?.[1]  ? offerDetails.offer_details[1].approved_amount : offerDetails.offer_details[0].approved_amount}</p>
-                                <p>{contentData.period}<strong className="amt-months">: {offerDetails.offer_details?.[1]  ? offerDetails.offer_details[1].approved_tenor : offerDetails.offer_details[0].approved_tenor}
-                                  {contentData.months}</strong></p>
-                                <hr />
-                                <div className="repayment_details">
-                                  <p className="repayment_title">{contentData.monthlyRepayment}</p>
-                                  <span className="rit">HKD {offerDetails.offer_details?.[1]  ? offerDetails.offer_details[1].repaymentAmount : offerDetails.offer_details[0].repaymentAmount}</span>
-                                </div>
-                                <div className="repayment_details">
-                                  <p className="repayment_title">{contentData.monthlyFlatRate}</p>
-                                  <span className="rit">{offerDetails.offer_details?.[1]  ? offerDetails.offer_details[1].flatRate : offerDetails.offer_details[0].flatRate}%</span>
-                                </div>
-                                <div className="repayment_details">
-                                  <p className="repayment_title">{contentData.APR}</p>
-                                  <span className="rit">{offerDetails.offer_details?.[1]  ? offerDetails.offer_details[1].apr : offerDetails.offer_details[0].apr}%</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      :
-                        <div className="offer-section">
-                          <div className="media" ng-show="!bestOfferSplash">
-                            <div className="media-body">
-                              <div className="BestOffer_Section">
-                                <div className="Loan_Amount_edit">
-                                  <div className="loanAmount">
-                                    <div data-testid="result_HKd" className="loan_amt_hkd_text">HKD</div>
-                                    <div data-testid="amount_change" className="amount_change">{defaultValue}</div>
-                                  </div>
-                                  <div className="rtob-form-component-hk componentHKPriceSlider">
-                                    <div className="slidecontainer">
-                                      <input type="range"
-                                        min={offerDetails?.offer_details[0]?.approved_amount}
-                                        max={offerDetails?.offer_details[1]?.approved_amount}
-                                        step="1000"
-                                        className="slider" id="myRangeSlider"
-                                        onChange={changeHandler}
-                                      />
-                                    </div>
-                                  </div>
-                                  <p className="eligible-amount">{contentData.maximumEligibleAmount}{finalApprovedAmount}</p>
-                                </div>
-                                <div className="tenor-title">{contentData.tenorLabel}</div>
-                                <div className="select_tenuor scroll">
-                                  <div className="amount_tenor">
-                                    <div ng-repeat="val in TenorMonthlist">
-                                      {filteredOptions.length > 0 && filteredOptions.sort((a: any, b: any) => Number(b.CODE_VALUE) - Number(a.CODE_VALUE)).map((value:any, ind:any) => {
-                                        return (
-                                          <div role="button" key={ind} className={defaultMonth === value.CODE_VALUE ? "tenorButton selected" : "tenorButton"} onClick={() => changeMonths(value.CODE_VALUE)}>{value.CODE_DESC}</div>
-                                        )
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                                {spinnerEnabled ?
-                                  <div className="repayment_card">
-                                    <div data-testid="spinner__container" className="spinner__container">
-                                      <div className="spinner__icon"></div>
-                                    </div>
-                                  </div>
-                                  :
-                                  <div className="repayment_card" style={{ backgroundColor: 'white' }}>
-                                    <div className="result_HKd">HKD <span className="hkd_result_amount"
-                                      style={{ fontWeight: 'bold' }}> {repaymentAmount} </span> x {defaultMonth} {contentData.months} </div>
-                                    <hr className="hkd_line" style={{ borderBlockColor: '#EEEE' }} />
-                                    <div className="repayment_details">
-                                      <p className="repayment_title">{contentData.APR}</p>
-                                      <p className="apr_percentage">{aprValue}%</p>
-                                    </div>
-                                    <div className="repayment_details">
-                                      <p className="repayment_title">{contentData.monthlyFlatRate}</p>
-                                      <p className="monthly_falat_rate">{flateRateValue}%</p>
-                                    </div>
-                                  </div>
-                                }
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                  }
-                  <div className="remarks">
-                    <h4>{contentData.remarksTitle}</h4>
-                    <ol>
-                      <li>{contentData.earlyfeesSection}</li>
-                      <li>{contentData.tips}</li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-      <div className="footer">
-        <button data-testid="continue-form-valid" type="submit" className={`continue form-valid`} onClick={nextStage}>
-        {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
-        </button>
-      </div>
-    </>
-  )
-}
-export default LoanDisbursement
+  beforeEach(() => {
+    jest.clearAllMocks();
+    window.history.pushState({}, '', '?lang=en');
+  });
+
+  const renderComponent = () => {
+    return render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+  };
+
+  test('renders the component with English content', () => {
+    renderComponent();
+    
+    expect(screen.getByText('Congratulations!')).toBeInTheDocument();
+    expect(screen.getByText(/Your preliminary assessment is completed/)).toBeInTheDocument();
+    expect(screen.getByText('Loan Amount')).toBeInTheDocument();
+    expect(screen.getByText('Tenor & Monthly Repayment')).toBeInTheDocument();
+  });
+
+  test('displays initial loan amount and tenor', () => {
+    renderComponent();
+    
+    expect(screen.getByDisplayValue('50000')).toBeInTheDocument();
+    expect(screen.getByText('24 Months')).toBeInTheDocument();
+  });
+
+  test('renders loan amount slider with correct min and max values', () => {
+    renderComponent();
+    
+    const slider = screen.getByRole('slider');
+    expect(slider).toHaveAttribute('min', '50000');
+    expect(slider).toHaveAttribute('max', '100000');
+    expect(slider).toHaveAttribute('step', '1000');
+  });
+
+  test('changes loan amount when slider is moved', async () => {
+    renderComponent();
+    
+    const slider = screen.getByRole('slider');
+    fireEvent.change(slider, { target: { value: '75000' } });
+    
+    await waitFor(() => {
+      expect(screen.getByText('75000')).toBeInTheDocument();
+    });
+  });
+
+  test('changes tenor when a different option is clicked', async () => {
+    renderComponent();
+    
+    const thirtySixMonths = screen.getByText('36 Months');
+    fireEvent.click(thirtySixMonths);
+    
+    await waitFor(() => {
+      expect(thirtySixMonths).toHaveClass('selected');
+    });
+  });
+
+  test('displays repayment information after tenor change', async () => {
+    renderComponent();
+    
+    const thirtySixMonths = screen.getByText('36 Months');
+    fireEvent.click(thirtySixMonths);
+    
+    await waitFor(() => {
+      expect(screen.getByText(/x 36 months/)).toBeInTheDocument();
+    });
+  });
+
+  test('shows spinner while calculating offer', async () => {
+    renderComponent();
+    
+    const thirtySixMonths = screen.getByText('36 Months');
+    fireEvent.click(thirtySixMonths);
+    
+    expect(screen.getByTestId('spinner__container')).toBeInTheDocument();
+  });
+
+  test('renders correct content for best offer scenario', () => {
+    const bestOfferStore = mockStore({
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{
+              product_category: 'PL',
+              offer_details: [{
+                approved_amount: 50000,
+                approved_tenor: 24,
+                apr: '2.5',
+                flatRate: '1.5',
+                repaymentAmount: '2300',
+                offer_status: '1004',
+                bestOffer: 'Y',
+                approved_amount_currency: 'HKD'
+              }, {
+                approved_amount: 100000,
+                approved_tenor: 36,
+                apr: '3.5',
+                flatRate: '2.5',
+                repaymentAmount: '3300',
+                offer_status: '1001',
+                bestOffer: 'N',
+                approved_amount_currency: 'HKD'
+              }]
+            }],
+            applicants: [{}],
+            application: {}
+          }
+        }],
+        userInput: {
+          downshell: false
+        }
+      },
+      lovDesc: {}
+    });
+
+    render(
+      <Provider store={bestOfferStore}>
+        <LoanDisbursement />
+      </Provider>
+    );
+    
+    expect(screen.getByText('Preliminary approved loan amount')).toBeInTheDocument();
+    expect(screen.getByText('HKD 100000')).toBeInTheDocument();
+  });
+
+  test('renders correct tenor options based on product type', () => {
+    renderComponent();
+    
+    // For product type 1258, should filter out 72 and 84 months
+    expect(screen.queryByText('72 Months')).not.toBeInTheDocument();
+    expect(screen.queryByText('84 Months')).not.toBeInTheDocument();
+    expect(screen.getByText('60 Months')).toBeInTheDocument();
+  });
+
+  test('displays remarks section correctly', () => {
+    renderComponent();
+    
+    expect(screen.getByText('Remarks:')).toBeInTheDocument();
+    expect(screen.getByText(/Prepayment \/ Early Settlement \/ Redemption Fee/)).toBeInTheDocument();
+    expect(screen.getByText(/The above offers are preliminary result/)).toBeInTheDocument();
+  });
+
+  test('renders continue button with correct text', () => {
+    renderComponent();
+    
+    expect(screen.getByRole('button', { name: /Continue/i })).toBeInTheDocument();
+  });
+
+  test('handles next stage button click', async () => {
+    renderComponent();
+    
+    const continueButton = screen.getByRole('button', { name: /Continue/i });
+    fireEvent.click(continueButton);
+    
+    // You would typically check for dispatched actions here
+    await waitFor(() => {
+      const actions = store.getActions();
+      expect(actions.some(action => action.type === 'stages/updateStageId')).toBeTruthy();
+    });
+  });
+
+  test('renders in Chinese when language is zh', () => {
+    window.history.pushState({}, '', '?lang=zh');
+    
+    renderComponent();
+    
+    expect(screen.getByText('恭喜')).toBeInTheDocument();
+    expect(screen.getByText(/你的初步審批已經完成/)).toBeInTheDocument();
+  });
+});
