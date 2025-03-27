@@ -1,283 +1,115 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import Text from './Text';
+import "./header-modal.scss"
+import Pdf from "../pdf/pdf";
+import { useState, useEffect } from "react";
+import { KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../../modules/preApproval/services/constants";
+import { getUrl } from "../../../utils/common/change.utils";
+import { getData, getPDFData } from "../../../modules/preApproval/services/preApprovalServices";
+import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
+import { dispatchLoader } from "../../../services/common-service";
+import { useSelector, useDispatch } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
 
-const mockStore = configureStore([]);
 
-// Mock the getIbnkCheckUsername function
-jest.mock('../../../modules/preApproval/services/preApprovalServices', () => ({
-  getIbnkCheckUsername: jest.fn().mockResolvedValue({
-    data: {
-      error_code: '',
-      ibank_registrations: { status: 0 }
-    }
-  })
-}));
+const HeaderModel: React.FC<any> = ({
+        fileName,
+        closepdf,
+        title,
+        footer   
+          }) => {
+            const language = getUrl.getLanguageInfo("lang"); 
+            const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+            const [pdfName, setPdfName] = useState('');
+            const [kfsDocPDF, setkfsDocPDF] = useState(""); 
+            const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+            const [showSpinner, setShowSpinner] = useState(true);
+            const dispatch = useDispatch();
+            const formConfigmetaData = useSelector(
+              (state: StoreModel) => state?.preApproval.formConfigmetaData
+            );
+            
+            useEffect(() => {
+              let KFS;
+              if(language==='zh'){
+                KFS=KFS_DOC_URL_Chinees
+              }else{
+                KFS=KFS_DOC_URL
+              }
 
-describe('Text Component', () => {
-  let store;
-  let props;
+              getData(KFS)?.then((response: any) => {
+                const campaignID = formConfigmetaData?.products[0].campaign;
+                let pdfURLNew = "";
+                  const userAgent = navigator.userAgent.toLowerCase();
+                  const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+                  const isSmallScreen = window.innerWidth < 768;
+                  const isMobile = isMobileUA && isSmallScreen;
+                  const pdfURL = isMobile? response.data.productsMob[campaignID] : response.data.products[campaignID];
+                  const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+                  const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+                  if (window.location.host === "localhost:3000") {
+                    pdfURLNew = pdfURL[0].pdfURL.replace(
+                      "https://pt.sc.com/",
+                      "http://localhost:3000/"
+                    );
+                    setPdfName(getPDFName);
+                  } else {
+                    pdfURLNew = pdfURL[0].pdfURL;
+                  }
+                  setkfsDocPDF(pdfURLNew);
+                  getPDFData(pdfURLNew).then((response: any) => {
+                    const pdfurl: any = {};
+                    pdfurl.pdf = response;
+                    pdfurl.pdfurl = pdfURLNew;
+                    setkfsDocPDFDownload(response);
+                    dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+                    setShowSpinner(false);
+                    dispatch(dispatchLoader(false));
+                  });
+                  const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+                  setPdfLinkTerms(allPDFLinks);
+          })
+            },[])
+    return(
+        <>
+        
+        <div className="popup-declare">
+        <button type="button" className="close pdfClose" onClick={closepdf}></button>
+            <div className="popup-container1-declare">
+              <div className="popup-info-declare">
+                <div className="popup-info__desc">
+                  <div className="popup-title">{title}</div>
+                  <div className="popup_width"><Pdf fileName={fileName} /></div>
+                  {footer && 
+                  <div className="popUp_footer">
+                    <div className="hintIcon">
+                      <p>{footer}</p>
+                      <div className="images">
+                        <div></div>
+                      </div>
+                    </div>
+                    <div className="popup_title_link">
+                    {pdfLinkTerms?.map((item: any, index: any) => {
+                      return (
+                            <a
+                              href={item.url}
+                              download
+                              target="_blank">
+                             {item.Title}
+                            </a>
+                      );
+                    })}
+                    </div>
 
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [{ stageId: 'bd-1', stageInfo: { products: [{ product_category: 'PL' }] }],
-        userInput: {
-          applicants: [{
-            related_party: 'N',
-            other_loans: '',
-            res_floor: '',
-            res_room_flat: '',
-            res_block: '',
-            off_floor: '',
-            off_room_flat: '',
-            off_block: '',
-            country_of_tax_residence: '',
-            country_of_tax_residence_1: '',
-            country_of_tax_residence_2: '',
-            country_of_tax_residence_3: '',
-            country_of_tax_residence_4: '',
-          }]
-        },
-        pinyinToggle: false
-      },
-      fielderror: { error: [] },
-      continuevalidation: { continueEnable: false },
-      lastaccessed: { field: '' },
-      error: { exceptions: [] }
-    });
+                  </div>
+                  }
+                </div>
+              </div>
+          </div>
+      </div>
 
-    props = {
-      data: {
-        logical_field_name: 'test_field',
-        rwb_label_name: 'Test Field',
-        component_type: 'text',
-        type: 'text',
-        min_length: 3,
-        length: 10,
-        mandatory: 'Yes',
-        ui_defaulted_value: '',
-        editable: false,
-        info_tooltips: 'No'
-      },
-      handleCallback: jest.fn(),
-      handleFieldDispatch: jest.fn()
-    };
-  });
+      </>
+          
+    )
 
-  const renderComponent = () => {
-    return render(
-      <Provider store={store}>
-        <Text {...props} />
-      </Provider>
-    );
-  };
+}
 
-  test('renders without crashing', () => {
-    renderComponent();
-    expect(screen.getByLabelText('Test Field')).toBeInTheDocument();
-  });
-
-  test('displays correct label', () => {
-    renderComponent();
-    expect(screen.getByText('Test Field')).toBeInTheDocument();
-  });
-
-  test('renders input with correct attributes', () => {
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    expect(input).toHaveAttribute('type', 'text');
-    expect(input).toHaveAttribute('minlength', '3');
-    expect(input).toHaveAttribute('maxlength', '10');
-  });
-
-  test('handles input change and calls callback', () => {
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: 'test' } });
-    expect(props.handleCallback).toHaveBeenCalled();
-    expect(props.handleFieldDispatch).toHaveBeenCalled();
-  });
-
-  test('shows error when mandatory field is empty', () => {
-    props.data.mandatory = 'Yes';
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: '' } });
-    expect(screen.getByText(/Test Field.*required/)).toBeInTheDocument();
-  });
-
-  test('shows error when input is too short', () => {
-    props.data.min_length = 5;
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: 'abc' } });
-    expect(screen.getByText(/minimum.*5 characters/)).toBeInTheDocument();
-  });
-
-  test('validates email format', () => {
-    props.data.logical_field_name = 'email';
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: 'invalid-email' } });
-    expect(screen.getByText(/invalid.*email/)).toBeInTheDocument();
-  });
-
-  test('validates Chinese name format', () => {
-    props.data.logical_field_name = 'full_name_chinese';
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: 'invalid123' } });
-    expect(screen.getByText(/invalid.*Chinese name/)).toBeInTheDocument();
-  });
-
-  test('validates China ID number format', () => {
-    props.data.logical_field_name = 'china_id_number';
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: '123' } });
-    expect(screen.getByText(/invalid.*China ID/)).toBeInTheDocument();
-  });
-
-  test('disables input when textDisabled is true', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        userInput: {
-          applicants: [{
-            ...store.getState().stages.userInput.applicants[0],
-            country_of_tax_residence: 'CN'
-          }]
-        }
-      }
-    });
-    props.data.logical_field_name = 'tax_id_no';
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    expect(input).toBeDisabled();
-  });
-
-  test('shows tick mark when valid input is provided', () => {
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: 'valid' } });
-    expect(document.querySelector('.tick-class')).toBeInTheDocument();
-  });
-
-  test('does not render for AD-6 stage when relationshipWithBank is N', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        stages: [{ stageId: 'ad-6' }],
-        userInput: {
-          applicants: [{
-            ...store.getState().stages.userInput.applicants[0],
-            related_party: 'N'
-          }]
-        }
-      }
-    });
-    renderComponent();
-    expect(screen.queryByLabelText('Test Field')).not.toBeInTheDocument();
-  });
-
-  test('validates promo code format for PL product', () => {
-    props.data.logical_field_name = 'mgm_referral_code';
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: 'INVALID123' } });
-    expect(screen.getByText(/invalid promo code/)).toBeInTheDocument();
-  });
-
-  test('validates username availability', async () => {
-    props.data.logical_field_name = 'user_id';
-    props.data.min_length = 6;
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    
-    // Test invalid length
-    fireEvent.change(input, { target: { value: 'abc' } });
-    expect(screen.getByText(/minimum.*6 characters/)).toBeInTheDocument();
-    
-    // Test spaces
-    fireEvent.change(input, { target: { value: 'abc def' } });
-    expect(screen.getByText(/no spaces allowed/)).toBeInTheDocument();
-  });
-
-  test('validates address fields', () => {
-    props.data.logical_field_name = 'res_name_of_street_1';
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: 'Invalid@Street' } });
-    expect(screen.getByText(/invalid.*address/)).toBeInTheDocument();
-  });
-
-  test('handles tax ID fields for different countries', () => {
-    // Test China tax ID
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        userInput: {
-          applicants: [{
-            ...store.getState().stages.userInput.applicants[0],
-            country_of_tax_residence: 'CN',
-            china_id_number: '12345678901234567X'
-          }]
-        }
-      }
-    });
-    props.data.logical_field_name = 'tax_id_no';
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    expect(input).toHaveValue('12345678901234567X');
-    expect(input).toBeDisabled();
-    
-    // Test Hong Kong tax ID
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        userInput: {
-          applicants: [{
-            ...store.getState().stages.userInput.applicants[0],
-            country_of_tax_residence: 'HK'
-          }]
-        }
-      }
-    });
-    renderComponent();
-    expect(input).not.toBeDisabled();
-  });
-
-  test('trims whitespace from input values', () => {
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    fireEvent.change(input, { target: { value: '  test  ' } });
-    fireEvent.blur(input);
-    expect(props.handleCallback).toHaveBeenCalledWith(
-      expect.anything(),
-      'test'
-    );
-  });
-
-  test('checks username availability via API', async () => {
-    props.data.logical_field_name = 'user_id';
-    props.data.min_length = 6;
-    renderComponent();
-    const input = screen.getByLabelText('Test Field');
-    
-    fireEvent.change(input, { target: { value: 'available' } });
-    fireEvent.blur(input);
-    
-    // Wait for async validation to complete
-    await screen.findByTestId('input_field');
-    
-    expect(document.querySelector('.tick-class')).toBeInTheDocument();
-    expect(screen.queryByText(/username taken/)).not.toBeInTheDocument();
-  });
-});
+export default HeaderModel
