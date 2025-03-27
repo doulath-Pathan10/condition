@@ -1,191 +1,34 @@
-import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import HeaderModal from './HeaderModal';
-import { getData, getPDFData } from '../../../modules/preApproval/services/preApprovalServices';
-import { preApprovalAction } from '../../../modules/preApproval/store/preApproval-slice';
-import { dispatchLoader } from '../../../services/common-service';
+import { render, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import { DocumentUploadMainSCR } from './document-upload-main-scr';
+import { useSelector } from 'react-redux';
 
-// Mock the dependencies
-jest.mock('../../../modules/preApproval/services/preApprovalServices');
-jest.mock('../../../modules/preApproval/store/preApproval-slice');
-jest.mock('../../../services/common-service');
-jest.mock('../../../utils/common/change.utils');
+const mockStore = configureStore([]);
 
-const mockGetUrl = {
-  getLanguageInfo: jest.fn().mockReturnValue('en')
-};
+describe('DocumentUploadMainSCR Component', () => {
+  let store;
 
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: mockGetUrl
-}));
-
-const mockProps = {
-  fileName: 'test.pdf',
-  closepdf: jest.fn(),
-  title: 'Test Title',
-  footer: 'Test Footer'
-};
-
-const mockResponse = {
-  data: {
-    products: {
-      'campaign1': [{ pdfURL: 'https://example.com/test.pdf' }]
-    },
-    productsMob: {
-      'campaign1': [{ pdfURL: 'https://example.com/mobile/test.pdf' }]
-    },
-    tncLinkCampaignCode: {
-      'campaign1': [{
-        pdfLinks: [
-          { url: 'https://example.com/terms.pdf', Title: 'Terms and Conditions' },
-          { url: 'https://example.com/privacy.pdf', Title: 'Privacy Policy' }
-        ]
-      }]
-    }
-  }
-};
-
-describe('HeaderModal Component', () => {
   beforeEach(() => {
-    (getData as jest.Mock).mockResolvedValue(mockResponse);
-    (getPDFData as jest.Mock).mockResolvedValue('mock-pdf-data');
+    store = mockStore({
+      stages: {
+        dynamicDocumentsUpload: {
+          documentData: {}, // Ensure this is defined
+          HKIDQRCodeData: {},
+        },
+      },
+    });
+
+    store.dispatch = jest.fn();
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  test('renders component without crashing', () => {
+    render(
+      <Provider store={store}>
+        <DocumentUploadMainSCR />
+      </Provider>
+    );
 
-  test('renders without crashing', async () => {
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Test Title')).toBeInTheDocument();
-    });
-  });
-
-  test('displays the correct title', async () => {
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Test Title')).toBeInTheDocument();
-    });
-  });
-
-  test('calls closepdf when close button is clicked', async () => {
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      const closeButton = screen.getByRole('button', { name: /close/i });
-      fireEvent.click(closeButton);
-      expect(mockProps.closepdf).toHaveBeenCalled();
-    });
-  });
-
-  test('displays footer content when provided', async () => {
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Test Footer')).toBeInTheDocument();
-    });
-  });
-
-  test('does not display footer when not provided', async () => {
-    const propsWithoutFooter = { ...mockProps, footer: undefined };
-    render(<HeaderModal {...propsWithoutFooter} />);
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Test Footer')).not.toBeInTheDocument();
-    });
-  });
-
-  test('fetches and displays PDF links', async () => {
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Terms and Conditions')).toBeInTheDocument();
-      expect(screen.getByText('Privacy Policy')).toBeInTheDocument();
-    });
-  });
-
-  test('handles mobile PDF URL correctly', async () => {
-    // Mock mobile detection
-    Object.defineProperty(window, 'innerWidth', { value: 500 });
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15'
-    });
-    
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalled();
-      // Verify mobile URL is used
-      expect(getPDFData).toHaveBeenCalledWith('https://example.com/mobile/test.pdf');
-    });
-  });
-
-  test('handles desktop PDF URL correctly', async () => {
-    // Mock desktop detection
-    Object.defineProperty(window, 'innerWidth', { value: 1024 });
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    });
-    
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalled();
-      // Verify desktop URL is used
-      expect(getPDFData).toHaveBeenCalledWith('https://example.com/test.pdf');
-    });
-  });
-
-  test('handles Chinese language version', async () => {
-    mockGetUrl.getLanguageInfo.mockReturnValueOnce('zh');
-    
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalledWith(expect.stringContaining('Chinees'));
-    });
-  });
-
-  test('dispatches loader actions correctly', async () => {
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(dispatchLoader).toHaveBeenCalledWith(true);
-      expect(dispatchLoader).toHaveBeenCalledWith(false);
-    });
-  });
-
-  test('dispatches PDF data to redux store', async () => {
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(preApprovalAction.setKfsDocumentPdf).toHaveBeenCalledWith('mock-pdf-data');
-    });
-  });
-
-  test('handles localhost URL replacement', async () => {
-    const originalLocation = window.location;
-    delete window.location;
-    window.location = { host: 'localhost:3000' } as any;
-    
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      expect(getPDFData).toHaveBeenCalledWith(expect.stringContaining('localhost:3000'));
-    });
-    
-    window.location = originalLocation;
-  });
-
-  test('displays PDF component with correct props', async () => {
-    render(<HeaderModal {...mockProps} />);
-    
-    await waitFor(() => {
-      // Assuming Pdf component has some testable output or attributes
-      expect(screen.getByTestId('pdf-component')).toBeInTheDocument();
-    });
+    expect(screen.getByTestId('your-element')).toBeInTheDocument();
   });
 });
