@@ -1,121 +1,216 @@
-import "./header-modal.scss"
-import Pdf from "../pdf/pdf";
-import { useState, useEffect } from "react";
-import { KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../../modules/preApproval/services/constants";
-import { getUrl } from "../../../utils/common/change.utils";
-import { getData, getPDFData } from "../../../modules/preApproval/services/preApprovalServices";
-import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
-import { dispatchLoader } from "../../../services/common-service";
-import { useSelector, useDispatch } from "react-redux";
-import { StoreModel } from "../../../utils/model/common-model";
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import HeaderModel from './HeaderModel';
+import { Provider } from 'react-redux';
+import configureMockStore from 'redux-mock-store';
+import { getData, getPDFData } from '../../../modules/preApproval/services/preApprovalServices';
+import { preApprovalAction } from '../../../modules/preApproval/store/preApproval-slice';
 
+// Mock the external dependencies
+jest.mock('../../../modules/preApproval/services/preApprovalServices', () => ({
+  getData: jest.fn(),
+  getPDFData: jest.fn(),
+}));
 
-const HeaderModel: React.FC<any> = ({
-  fileName,
-  closepdf,
-  title,
-  footer
-}) => {
-  const language = getUrl.getLanguageInfo("lang");
-  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
-  const [pdfName, setPdfName] = useState('');
-  const [kfsDocPDF, setkfsDocPDF] = useState("");
-  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
-  const [showSpinner, setShowSpinner] = useState(true);
-  const dispatch = useDispatch();
-  const formConfigmetaData = useSelector(
-    (state: StoreModel) => state?.preApproval.formConfigmetaData
-  );
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn(),
+  },
+}));
 
-  useEffect(() => {
-    let KFS;
-    if (language === 'zh') {
-      KFS = KFS_DOC_URL_Chinees
-    } else {
-      KFS = KFS_DOC_URL
-    }
+jest.mock('../../../modules/preApproval/store/preApproval-slice', () => ({
+  preApprovalAction: {
+    setKfsDocumentPdf: jest.fn(),
+  },
+}));
 
-    getData(KFS)?.then((response: any) => {
-      const campaignID = formConfigmetaData?.products[0].campaign;
-      let pdfURLNew = "";
-      const userAgent = navigator.userAgent.toLowerCase();
-      const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
-      const isSmallScreen = window.innerWidth < 768;
-      const isMobile = isMobileUA && isSmallScreen;
-      const pdfURL = isMobile ? response.data.productsMob[campaignID] : response.data.products[campaignID];
-      const pdfMap = pdfURL.map((item: any) => item.pdfURL)
-      const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-      if (window.location.host === "localhost:3000") {
-        pdfURLNew = pdfURL[0].pdfURL.replace(
-          "https://pt.sc.com/",
-          "http://localhost:3000/"
-        );
-        setPdfName(getPDFName);
-      } else {
-        pdfURLNew = pdfURL[0].pdfURL;
+jest.mock('../../../services/common-service', () => ({
+  dispatchLoader: jest.fn(),
+}));
+
+const mockStore = configureMockStore();
+
+describe('HeaderModel Component', () => {
+  const mockProps = {
+    fileName: 'test.pdf',
+    closepdf: jest.fn(),
+    title: 'Test Title',
+    footer: 'Test Footer',
+  };
+
+  const mockResponse = {
+    data: {
+      products: {
+        'CAMPAIGN_1': [{ pdfURL: 'https://example.com/kfs.pdf' }],
+      },
+      productsMob: {
+        'CAMPAIGN_1': [{ pdfURL: 'https://example.com/mobile/kfs.pdf' }],
+      },
+      tncLinkCampaignCode: {
+        'CAMPAIGN_1': [{
+          pdfLinks: [
+            { url: 'https://example.com/terms.pdf', Title: 'Terms and Conditions' }
+          ]
+        }],
+        isCasa: [{
+          pdfLinks: [
+            { url: 'https://example.com/casa.pdf', Title: 'CASA Terms' }
+          ]
+        }]
       }
-      setkfsDocPDF(pdfURLNew);
-      getPDFData(pdfURLNew).then((response: any) => {
-        const pdfurl: any = {};
-        pdfurl.pdf = response;
-        pdfurl.pdfurl = pdfURLNew;
-        setkfsDocPDFDownload(response);
-        dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
-        setShowSpinner(false);
-        dispatch(dispatchLoader(false));
-      });
-      const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
-      setPdfLinkTerms(allPDFLinks);
-      //should add conditionally
-      // const PDFLinksIntegratedDeposit = response.data.tncLinkCampaignCode.isCasa[0].pdfLinks;
-      // setPdfLinkTerms(PDFLinksIntegratedDeposit)
-    })
-  }, [])
-  console.log(pdfLinkTerms, 'pdfLinkTerms')
-  return (
-    <>
+    }
+  };
 
-      <div className="popup-declare">
-        <button type="button" className="close pdfClose" onClick={closepdf}></button>
-        <div className="popup-container1-declare">
-          <div className="popup-info-declare">
-            <div className="popup-info__desc">
-              <div className="popup-title">{title}</div>
-              <div className="popup_width"><Pdf fileName={fileName} /></div>
-              {footer &&
-                <div className="popUp_footer">
-                  <div className="hintIcon">
-                    <p>{footer}</p>
-                    <div className="images">
-                      <div></div>
-                    </div>
-                  </div>
-                  <div className="popup_title_link">
-                    {pdfLinkTerms?.map((item: any, index: any) => {
-                      return (
-                        <a
-                          href={item.url}
-                          download
-                          target="_blank">
-                          {item.Title}
-                        </a>
-                      );
-                    })}
-                  </div>
+  const mockFormConfigMetaData = {
+    products: [{
+      campaign: 'CAMPAIGN_1'
+    }]
+  };
 
-                </div>
-              }
-            </div>
-          </div>
-        </div>
-      </div>
+  beforeEach(() => {
+    // Reset all mocks before each test
+    jest.clearAllMocks();
+    
+    // Mock getData to return our mock response
+    (getData as jest.Mock).mockResolvedValue(mockResponse);
+    (getPDFData as jest.Mock).mockResolvedValue('mock-pdf-data');
+  });
 
-    </>
+  const setup = (props = {}, state = {}) => {
+    const store = mockStore({
+      preApproval: {
+        formConfigmetaData: mockFormConfigMetaData,
+        ...state.preApproval
+      },
+      ...state
+    });
 
-  )
+    return render(
+      <Provider store={store}>
+        <HeaderModel {...mockProps} {...props} />
+      </Provider>
+    );
+  };
 
-}
+  test('renders with basic props', () => {
+    setup();
+    expect(screen.getByText('Test Title')).toBeInTheDocument();
+    expect(screen.getByRole('button')).toBeInTheDocument();
+  });
 
-export default HeaderModel
+  test('calls closepdf when close button is clicked', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button'));
+    expect(mockProps.closepdf).toHaveBeenCalled();
+  });
 
-Please write an test cases using react and jest
+  test('displays footer content when provided', () => {
+    setup({ footer: 'Test Footer Text' });
+    expect(screen.getByText('Test Footer Text')).toBeInTheDocument();
+  });
+
+  test('fetches PDF data on mount', async () => {
+    setup();
+    
+    await waitFor(() => {
+      expect(getData).toHaveBeenCalled();
+      expect(getPDFData).toHaveBeenCalled();
+      expect(preApprovalAction.setKfsDocumentPdf).toHaveBeenCalledWith('mock-pdf-data');
+    });
+  });
+
+  test('handles mobile PDF URL correctly', async () => {
+    // Mock mobile user agent and small screen
+    Object.defineProperty(window, 'innerWidth', { value: 500 });
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15'
+    });
+
+    setup();
+
+    await waitFor(() => {
+      expect(getData).toHaveBeenCalled();
+      // Verify mobile URL is used
+      expect(getPDFData).toHaveBeenCalledWith(expect.stringContaining('mobile/kfs.pdf'));
+    });
+  });
+
+  test('handles desktop PDF URL correctly', async () => {
+    // Mock desktop user agent and large screen
+    Object.defineProperty(window, 'innerWidth', { value: 1024 });
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    });
+
+    setup();
+
+    await waitFor(() => {
+      expect(getData).toHaveBeenCalled();
+      // Verify desktop URL is used
+      expect(getPDFData).toHaveBeenCalledWith(expect.stringContaining('kfs.pdf'));
+    });
+  });
+
+  test('uses Chinese PDF URL when language is zh', async () => {
+    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
+    
+    setup();
+
+    await waitFor(() => {
+      expect(getData).toHaveBeenCalledWith(expect.stringContaining('Chinese'));
+    });
+  });
+
+  test('uses English PDF URL when language is en', async () => {
+    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
+    
+    setup();
+
+    await waitFor(() => {
+      expect(getData).toHaveBeenCalledWith(expect.stringContaining('English'));
+    });
+  });
+
+  test('displays terms and conditions links', async () => {
+    setup({ footer: true });
+
+    await waitFor(() => {
+      expect(screen.getByText('Terms and Conditions')).toBeInTheDocument();
+      expect(screen.getByText('Terms and Conditions').closest('a')).toHaveAttribute('href', 'https://example.com/terms.pdf');
+    });
+  });
+
+  test('handles localhost URL replacement', async () => {
+    const originalLocation = window.location;
+    delete window.location;
+    window.location = { host: 'localhost:3000' } as unknown as Location;
+
+    setup();
+
+    await waitFor(() => {
+      expect(getPDFData).toHaveBeenCalledWith(expect.stringContaining('http://localhost:3000/'));
+    });
+
+    window.location = originalLocation;
+  });
+
+  test('sets PDF name correctly', async () => {
+    setup();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('pdf-component')).toHaveAttribute('data-filename', 'kfs.pdf');
+    });
+  });
+
+  test('shows and hides spinner during loading', async () => {
+    setup();
+
+    // Initially shows spinner
+    expect(screen.getByTestId('spinner')).toBeInTheDocument();
+
+    await waitFor(() => {
+      // Spinner should be hidden after loading
+      expect(screen.queryByTestId('spinner')).not.toBeInTheDocument();
+    });
+  });
+});
