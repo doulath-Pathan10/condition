@@ -1,255 +1,227 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import AlertModel from './AlertModel';
-import { CONSTANTS } from '../../../utils/common/constants';
-import { StoreModel } from '../../../utils/model/common-model';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import validateService from "../../../services/validation-service";
+import { KeyWithAnyModel, LovInputModel, StoreModel } from "../../../utils/model/common-model";
+import { fieldError, fieldIdAppend, getUrl, isFieldUpdate, isFieldValueUpdate } from "../../../utils/common/change.utils";
+import "./phone.scss";
+import errorMsg from "../../../assets/_json/error.json";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
+import { lastAction } from "../../../utils/store/last-accessed-slice";
 
-const mockStore = configureStore([]);
+export const Phone = (props: KeyWithAnyModel) => {
+  const [lovData, setLovData] = useState<any>([]);
+  const [error, setError] = useState('');
+  const lovSelector = useSelector((state: StoreModel) => state.lov);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const fieldErrorSelector = useSelector(
+    (state: StoreModel) => state.fielderror.error
+  );
+  const dispatch = useDispatch();
+  let propsData = props && props.data;
+  const [defaultValue, setDefaultValue] = useState("");
+  const [placeholder, setPlaceHolder] = useState(propsData && props.data.rwb_label_name)
+  const mobileNoRegex = new RegExp(/^(?:[1-9]\d*|0)$/);
+  const language = getUrl.getLanguageInfo("lang")
+  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
+  const resumePage = getUrl.getParameterByName("pageId")
 
-describe('AlertModel Component', () => {
-  const defaultProps = {
-    goBack: jest.fn(),
-    exit: jest.fn(),
-    alertType: '',
-    message: '',
-    errorCode: ''
+  const userInputSelector = useSelector(
+    (state: StoreModel) => state.stages.userInput
+  );
+
+  useEffect(() => {
+    if (props.data) {
+      if (userInputSelector && userInputSelector.applicants[0] && userInputSelector.applicants[0][props.data.logical_field_name]) {
+        const displayValue = userInputSelector.applicants[0][props.data.logical_field_name].split('-')[1];
+        setDefaultValue(displayValue);
+      }
+
+    }
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
+      if (stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"]
+      ) {
+        const displayValue = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"].split('-')[1];
+        setDefaultValue(displayValue);
+      }
+    }
+    if (lovSelector.lov.length > 0) {
+      var mobileNumber = "mobile_number";
+      lovSelector.lov.forEach((ref: LovInputModel) => {
+        if (props.data.logical_field_name.includes(ref.label)) {
+          if (ref.value.length === 0) {
+            setLovData({ CODE_DESC: props.data.ui_defaulted_value, CODE_VALUE: props.data.ui_defaulted_value });
+          }
+          else {
+            setLovData(ref.value);
+          }
+        }
+        else if (mobileNumber.includes(ref.label)) {
+          setLovData(ref.value);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (lovSelector.lov.length > 0) {
+      lovSelector.lov.forEach((ref: LovInputModel) => {
+        if (props.data.logical_field_name.includes(ref.label)) {
+          setLovData(ref.value);
+        }
+      });
+    }
+  }, [lovSelector.lov, props?.data?.logical_field_name]);
+
+  useEffect(() => {
+    if (fieldError(fieldErrorSelector, props)) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`)
+    }
+    // else {
+    //   setError('');
+    // }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldErrorSelector]);
+
+  useEffect(() => {
+    if (error === "") {
+      dispatch(ContinueBtnAction.getContinueEnableState(true));
+    } else {
+      dispatch(ContinueBtnAction.getContinueEnableState(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps  
+  }, [error, dispatch])
+
+  useEffect(() => {
+    if (propsData && props.data.logical_field_name === 'mobile_number_rwb') {
+      setPlaceHolder('eg. 8446 2196 123')
+    }
+    if (propsData && props.data.logical_field_name === "mobile_number") {
+      setPlaceHolder("")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps  
+  }, [])
+  const phoneValidations = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    if ((props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") && event.target.value.length < 1) {
+      if(fieldName === "office_phone_number") {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK} either Home / ${props.data.rwb_label_name}`);
+      }
+      else {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      }
+    } else if (mobileNoRegex && !mobileNoRegex.test(event.target.value)) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.numberOnly : language === CONSTANTS.LANG_CN ? errorMsg.numberOnly_CN : errorMsg.numberOnly_HK}`)
+    } else if (fieldName === "mobile_number" && props.data.min_length && `${event.target.value}`.length < props.data.min_length) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.mobileRequired : language === CONSTANTS.LANG_CN ? errorMsg.mobileRequired_CN : errorMsg.mobileRequired_HK}`)
+    } else if (fieldName === "office_phone_number" && props.data.min_length && `${event.target.value}`.length < props.data.min_length) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.officeNoRequired : language === CONSTANTS.LANG_CN ? errorMsg.officeNoRequired_CN : errorMsg.officeNoRequired_HK}`)
+    } else if (mobileNoRegex && !mobileNoRegex.test(event.target.value)) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`)
+    } else {
+      setError(!event.target.validity.valid ? (`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`) : '');
+    }
+  }
+  const changeHandler = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    setDefaultValue(event.target.value);
+    props.handleCallback(props.data, event.target.value);
+    props.handleFieldDispatch(props.data.logical_field_name, event.target.value);
+    setError('');
+    phoneValidations(fieldName, event);
   };
 
-  const mockState = {
-    stages: {
-      stages: [{
-        stageInfo: {
-          application: {
-              cos_ref_number: 'TEST12345'
-          },
-          products: [{
-              campaign: 'HKSOZ01MCWB000'
-          }]
-        }
-      }]
-    },
-    preApproval: {
-      formConfigmetaData: {}
+  const allowOnlyCharacter = (event: any, fieldName: string) => {
+    validateService.allowOnlyCharacter(event, fieldName);
+  };
+
+  const bindHandler = (fieldName: string, event: any) => {
+    if (event.target.validity.valid) {
+      const fieldValue = fieldName === "mobile_number_rwb" ? '86-' + event.target.value : (fieldName === "mobile_number" || fieldName === "office_phone_number") ? props.data.ui_defaulted_value + '-' + event.target.value : "";
+      dispatch(isFieldUpdate(props, fieldValue, fieldName));
+      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
     }
   };
 
-  const renderComponent = (props = {}, state = mockState) => {
-    const store = mockStore(state);
-    return render(
-      <Provider store={store}>
-        <AlertModel {...defaultProps} {...props} />
-      </Provider>
-    );
-  };
+  const focusHandler = (fieldName: string, event: React.FocusEvent<HTMLInputElement>) => {
+    dispatch(lastAction.getField(fieldName))
+  }
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  const countryCode = (data: string) => {
+    const code = data.indexOf('(+');
+    if (code > 0) {
+      return data.slice(code)
+    }
+    return data;
+  }
 
-  describe('DECLINERLS alert type', () => {
-    it('should render DECLINERLS alert with English content', () => {
-      renderComponent({ alertType: 'DECLINERLS' });
-      
-      expect(screen.getByText(CONSTANTS.headerText)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.nextTextRLS)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.regretTextRLS)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.enquiryContentRLS)).toBeInTheDocument();
-      expect(screen.getByText('(+852) 2886-8868')).toBeInTheDocument();
-      expect(screen.getByText(`${CONSTANTS.refNoText} TEST12345`)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.futureRefQuote)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.OK)).toBeInTheDocument();
-    });
+  const keyDownHandler = (fieldName: string, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if(event?.key === 'Tab'){
+    if((props.data.logical_field_name === 'mobile_number' || props.data.logical_field_name ==='office_phone_number') && defaultValue===''){
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+    }
+  }
+}
 
-    it('should call goBack when OK button is clicked', () => {
-      renderComponent({ alertType: 'DECLINERLS' });
-      fireEvent.click(screen.getByText(CONSTANTS.OK));
-      expect(defaultProps.goBack).toHaveBeenCalled();
-    });
-  });
-
-  describe('DECLINE alert type', () => {
-    it('should render DECLINE alert for PL product', () => {
-      const state = {
-        ...mockState,
-        stages: {
-          stages: [{
-            stageInfo: {
-              application: {
-                  cos_ref_number: 'TEST12345'
-              },
-              products: [{
-                  campaign: 'HKSOZ01MCWB000',
-                  product_category: 'PL'
-              }]
+useEffect(() => {
+  if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0] && (resumeAllowed === "Y" || resumePage === "resume")) {
+    if (props.data.logical_field_name === 'office_phone_number') {
+      const displayValue = stageSelector[0]?.stageInfo?.applicants[0][props.data.logical_field_name + "_a_1"];
+      const displayValueTrim = displayValue?.replace(/^852-/, "");
+      setDefaultValue(displayValueTrim);
+    }
+  }
+}, []);
+  // const noPlaceholder = props.data.logical_field_name === "mobile_number"
+  return (
+    <>{propsData &&
+      <div className="phone">
+        <label htmlFor={props.data.logical_field_name}>
+          {(defaultValue && !error) && <div className="tick-class"></div>}
+          <span style={(defaultValue && !error) ? { marginLeft: "2em" } : { marginLeft: '0' }}> {props.data.rwb_label_name}</span>
+        </label>
+        <div className={`phone__container ${props.data.editable ? 'disabled' : ''}`}>
+          <select disabled={true} value={props.data.ui_defaulted_value} >
+            {lovData &&
+              lovData.map((res: any, index: any) => {
+                return (
+                  <option key={index} value={res.CODE_VALUE}>{"+" + res.CODE_VALUE}</option>
+                );
+              })
             }
-          }]
-        }
-      };
-      
-      renderComponent({ alertType: 'DECLINE' }, state);
-      
-      expect(screen.getByText(CONSTANTS.cardDeclineText)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.regretTextPL)).toBeInTheDocument();
-    });
-
-    it('should render DECLINE alert for CC product', () => {
-      const state = {
-        ...mockState,
-        stages: {
-          stages: [{
-            stageInfo: {
-              application: {
-                  cos_ref_number: 'TEST12345'
-              },
-              products: [{
-                  campaign: 'HKSOZ01MCWB000',
-                  product_category: 'CC'
-              }]
+          </select>
+          <input
+            type={props.data.type}
+            // type="text"
+            name={props.data.logical_field_name}
+            id={fieldIdAppend(props)}
+            placeholder={props.data.logical_field_name === 'office_phone_number' ? '' : placeholder}
+            value={defaultValue}
+            minLength={props.data.min_length}
+            maxLength={props.data.length}
+            pattern={props.data.regex}
+            onChange={changeHandler.bind(this, props.data.logical_field_name)}
+            onKeyPress={(event) =>
+              allowOnlyCharacter(event, props.data.logical_field_name)
             }
-          }]
-        }
-      };
-      
-      renderComponent({ alertType: 'DECLINE' }, state);
-      
-      expect(screen.getByText(CONSTANTS.cardDeclineText)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.regretTextCC)).toBeInTheDocument();
-    });
-  });
+            onBlur={bindHandler.bind(this, props.data.logical_field_name)}
+            onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+            // required={
+            //   (props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") ? true : false
+            // }
+            disabled={props.data.editable}
+            className={error ? 'input-error' : 'input-no-error'}
+            onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
+            autoComplete="off"
+          />
+        </div>
+      </div>}
+      {error && (
+        <div className="error-msg">
+          {error}
+        </div>
+      )}
+    </>
+  );
+};
 
-  describe('RESUBMIT alert type', () => {
-    it('should render RESUBMIT alert with message', () => {
-      const testMessage = '<p>Test message</p>';
-      renderComponent({ 
-        alertType: 'RESUBMIT',
-        message: testMessage
-      });
-      
-      expect(screen.getByText('Test message')).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.RETRY)).toBeInTheDocument();
-    });
-  });
-
-  describe('OTPNot alert type', () => {
-    it('should render OTPNot alert', () => {
-      renderComponent({ alertType: 'OTPNot' });
-      
-      expect(screen.getByText(CONSTANTS.otpNotAvailable)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.OK)).toBeInTheDocument();
-    });
-  });
-
-  describe('ErrorCode alert type', () => {
-    it('should render A02 error code alert', () => {
-      const state = {
-        ...mockState,
-        stages: {
-          stages: [{
-            stageInfo: {
-              application: {
-                  cos_ref_number: 'TEST12345'
-              },
-              products: [{
-                  campaign: 'HKSOZ01MCWB000',
-                  name: 'TestProduct'
-              }]
-            }
-          }]
-        }
-      };
-      
-      renderComponent({ 
-        alertType: 'ErrorCode',
-        errorCode: 'A02'
-      }, state);
-      
-      expect(screen.getByText(CONSTANTS.errorCodeA02Header)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.errorCodeA02Content)).toBeInTheDocument();
-    });
-
-    it('should render service error icon for A20 error code', () => {
-      renderComponent({ 
-        alertType: 'ErrorCode',
-        errorCode: 'A20'
-      });
-      
-      expect(screen.getByAltText('service error')).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.serviceErrorCodeContent)).toBeInTheDocument();
-    });
-  });
-
-  describe('Success alert type', () => {
-    it('should render Success alert', () => {
-      renderComponent({ alertType: 'Success' });
-      
-      expect(screen.getByText(CONSTANTS.zolozText)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.OK)).toBeInTheDocument();
-    });
-  });
-
-  describe('invalideimagesize alert type', () => {
-    it('should render invalideimagesize alert', () => {
-      renderComponent({ alertType: 'invalideimagesize' });
-      
-      expect(screen.getByText(CONSTANTS.fileSizeExceed)).toBeInTheDocument();
-      expect(screen.getByText(CONSTANTS.OK)).toBeInTheDocument();
-    });
-  });
-
-  describe('zoloError alert type', () => {
-    it('should render zoloError alert', () => {
-      renderComponent({ alertType: 'zoloError' });
-      
-      expect(screen.getByText(CONSTANTS.zoloErrorMsg)).toBeInTheDocument();
-      expect(screen.getByText('OK')).toBeInTheDocument();
-    });
-  });
-
-  describe('PriorityOrPrivate alert type', () => {
-    it('should render priority banking content for HKSOZ01MCWB000 campaign', () => {
-      renderComponent({ alertType: 'PriorityOrPrivate' });
-      
-      // Assuming CONSTANTS.priorityBanking contains some expected text
-      expect(screen.getByText(/priority banking/i)).toBeInTheDocument();
-    });
-
-    it('should render private banking content for HKSOZ02MCWB000 campaign', () => {
-      const state = {
-        ...mockState,
-        stages: {
-          stages: [{
-            stageInfo: {
-              application: {
-                  cos_ref_number: 'TEST12345'
-              },
-              products: [{
-                  campaign: 'HKSOZ02MCWB000'
-              }]
-            }
-          }]
-        }
-      };
-      
-      renderComponent({ alertType: 'PriorityOrPrivate' }, state);
-      
-      // Assuming CONSTANTS.privateBanking contains some expected text
-      expect(screen.getByText(/private banking/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('PriorityOrPrivateReview alert type', () => {
-    it('should render private banking review content', () => {
-      renderComponent({ alertType: 'PriorityOrPrivateReview' });
-      
-      // Assuming CONSTANTS.privateBankingReview contains some expected text
-      expect(screen.getByText(/review/i)).toBeInTheDocument();
-    });
-  });
-
-  it('should not render anything when no alertType is provided', () => {
-    const { container } = renderComponent();
-    expect(container.firstChild).toBeNull();
-  });
-});
+export default Phone;
