@@ -1,270 +1,255 @@
-import { getUrl } from "../../../utils/common/change.utils";
-import { CONSTANTS } from "../../../utils/common/constants";
-import "./alert-modal.scss";
-import declineIcon from "../../../modules/preApproval/images/decline.png";
-import warningIcon from "../../../../src/assets/_images/ico_warning_sign_red.svg";
-import serviceErrorIcon from "../../preApproval/images/icon-sc-l-mobile-tech-error-serviceUnavailable.png";
-import successIcon from "../../preApproval/commonComponents/documentUpload/images-du/icon-sc-l-notification-alert-successful-cardBinding.png";
-import declineRlsIcon from "../../../modules/preApproval/images/group-71.png";
-import phoneIcon from '../../../assets/_images/icon-sc-small-icon-sc-s-phone-call.png'
-import DOMPurify from "dompurify";
-import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
-import { useSelector } from "react-redux";
-import { useEffect } from "react";
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import AlertModel from './AlertModel';
+import { CONSTANTS } from '../../../utils/common/constants';
+import { StoreModel } from '../../../utils/model/common-model';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
 
-const AlertModel: React.FC<any> = ({
-  goBack,
-  exit,
-  alertType,
-  message,
-  errorCode
-}) => {
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const applicationRefNo = stageSelector[0].stageInfo?.application.cos_ref_number;
-  const productInfo:KeyWithAnyModel = getUrl.getProductInfo();
-  const formConfigmetaData = useSelector(
-    (state: StoreModel) => state?.preApproval.formConfigmetaData
-  );
-  // const campaignID = formConfigmetaData?.products[0].campaign;
-  const campaignID = stageSelector[0]?.stageInfo?.products[0]?.campaign;
-  const ref_number = "HK24101700230315"
-  const language = getUrl.getLanguageInfo("lang");
+const mockStore = configureStore([]);
 
-  useEffect(() => {
-    const link = document.getElementById('priorityBankingLink') as HTMLAnchorElement;
-    if (link) {
-      link.addEventListener('click', (event) => {
-        event.preventDefault();
-        window.open(link.href, '_blank', 'noopener,noreferrer');
-      });
-    }
-  });
-
-  const getMarkup = (content: any) => {
-    return {
-      __html: DOMPurify.sanitize(content),
-    };
+describe('AlertModel Component', () => {
+  const defaultProps = {
+    goBack: jest.fn(),
+    exit: jest.fn(),
+    alertType: '',
+    message: '',
+    errorCode: ''
   };
 
-  return (
-    <>
-      {alertType && alertType === "DECLINERLS" &&
-        <div className="alertModal__container">
-          <div className="banner--declineRLS">
-            <img src={declineRlsIcon} />
-            <p >{language === CONSTANTS.LANG_EN ? CONSTANTS.headerText : language === CONSTANTS.LANG_CN ? CONSTANTS.headerText_CN : CONSTANTS.headerText_HK}</p>
-          </div>
-          <div className="application-contentRLS">
-            <p className="application-f1">{language === CONSTANTS.LANG_EN ? CONSTANTS.nextTextRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.nextTextRLS_CN : CONSTANTS.nextTextRLS_HK}</p>
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextRLS_CN : CONSTANTS.regretTextRLS_HK}</p>
-            <b>{language === CONSTANTS.LANG_EN ? CONSTANTS.enquiryContentRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.enquiryContentRLS_CN : CONSTANTS.enquiryContentRLS_HK}</b>
-            <div className="application-phone">
-                <div className="application-f3Img">
-                    <p><img src={phoneIcon} /></p>
-                </div>
-                <div className="applicationf3Text">
-                    <p className="application-f3"><b>(+852) 2886-8868</b></p>
-                </div>
-            </div>
-        </div>
-          <div className="reference-details">
-            <span>{language === CONSTANTS.LANG_EN ? `${CONSTANTS.refNoText} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.refNoText_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.refNoText_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}</span>
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.futureRefQuote : language === CONSTANTS.LANG_CN ? CONSTANTS.futureRefQuote_CN : CONSTANTS.futureRefQuote_HK}</p>
-          </div>
-          <p className="btn" onClick={goBack}> {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-        </div>
-      }
-      {alertType && alertType === "DECLINE" &&
-        <div className="alertModal__container">
-          <div className="banner--decline">
-            <img src={declineIcon} />
-          </div>
-          <div><p>{language === CONSTANTS.LANG_EN ? CONSTANTS.cardDeclineText : language === CONSTANTS.LANG_CN ? CONSTANTS.cardDeclineText_CN : CONSTANTS.cardDeclineText_HK}</p></div>
-          <div className="Thank-you-for-applyi">
-            {productInfo[0].product_category=="PL" ?
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextPL : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextPL_CN : CONSTANTS.regretTextPL_HK}</p>
-            :
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextCC : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextCC_CN : CONSTANTS.regretTextCC_HK}</p>
-            }
-          </div>
-          <div className="reference-details">
-            <span>{language === CONSTANTS.LANG_EN ? `${CONSTANTS.refNoText} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.refNoText_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.refNoText_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}</span>
-            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.futureRefQuote : language === CONSTANTS.LANG_CN ? CONSTANTS.futureRefQuote_CN : CONSTANTS.futureRefQuote_HK}</p>
-          </div>
-          <p className="btn" id='gobackBtn' onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-        </div>
-      }
-      {alertType && alertType === "RESUBMIT" &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-          <div className="alertModal__info">
-            <div className="app__ref">
-              {language === CONSTANTS.LANG_EN ? `${CONSTANTS.applicationNo} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.applicationNo_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.applicationNo_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}
-            </div>
-            <div className="alertModal__info__head">
-            </div>
-            <div className="alertModal__info__desc">
-              <p ><span dangerouslySetInnerHTML={getMarkup(message)} />
-              </p>
-              <p
-                className="btn"
-                onClick={goBack}
-              >
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.RETRY : language === CONSTANTS.RETRY_CN ? CONSTANTS.OK_CN : CONSTANTS.RETRY_HK}
-              </p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "OTPNot" &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-          <div className="alertModal__info">
-            <div className="app__ref">
-            </div>
-            <div className="alertModal__info__head">
-            </div>
-            <div className="alertModal__info__desc">
-              <p ><span>{language === CONSTANTS.LANG_EN ? CONSTANTS.otpNotAvailable : language === CONSTANTS.LANG_CN ? CONSTANTS.otpNotAvailable_CN : CONSTANTS.otpNotAvailable_HK}</span>
-              </p>
-              <p
-                className="btn"
-                onClick={goBack}
-              >
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}
-              </p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "ErrorCode" && errorCode &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            {errorCode==="A02" ?
-            <img src={warningIcon} />
-             :
-             errorCode==="A20" || errorCode==="A26" || errorCode=== "IBANK_ERR0R2" ||errorCode === "IBANK_ERR0R4" || errorCode === 'IBANK_ERR0R1' ?
-             <img src={serviceErrorIcon} />
-             :
-             ""
-            }
-          </div>
-          <div className="info__head">
-            {productInfo[0].name!=="ALIPAY" && errorCode==="A02" ?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA02Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA02Header_CN : CONSTANTS.errorCodeA02Header_HK } </p>
-              :
-              productInfo[0].name!=="ALIPAY" &&  productInfo[0].name!=="asiamiles" &&  errorCode==="A03"?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Header_CN : CONSTANTS.errorCodeA03Header_HK } </p>
-              :
-              productInfo[0].name==="asiamiles" &&  errorCode==="A03"?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Header_CN : CONSTANTS.errorCodeA03Header_HK } </p>
-              :
-              ""
-            }
-          </div>
-          <div className="alertModal__info">
-            <div className="alertModal__info__desc">
-            {productInfo[0].name!=="ALIPAY" && errorCode==="A02"?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA02Content : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA02Content_CN : CONSTANTS.errorCodeA02Content_HK } </p>
-              :
-              productInfo[0].name!=="ALIPAY" &&  productInfo[0].name!=="asiamiles" &&  errorCode==="A03"?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Content : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Content_CN : CONSTANTS.errorCodeA03Content_HK } </p>
-              :
-              productInfo[0].name==="asiamiles" &&  errorCode==="A03" ?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03ContentAsiamiles : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03ContentAsiamiles_CN : CONSTANTS.errorCodeA03ContentAsiamiles_HK } </p>
-              :
-              errorCode==="A20" || errorCode==="A26" || errorCode=== "IBANK_ERR0R2" ||errorCode === "IBANK_ERR0R4" || errorCode === 'IBANK_ERR0R1' ?
-              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.serviceErrorCodeContent : language === CONSTANTS.LANG_CN ? CONSTANTS.serviceErrorCodeContent_CN : CONSTANTS.serviceErrorCodeContent_HK } </p>
-              :
-              ""
-            }
-              <p
-                className="btn"
-                onClick={goBack}
-              >
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}
-              </p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "Success" &&
-        <div className="popup-declare">
-          <div className="popup-container1-success">
-            <div className="popup-info__desc" style={{ padding: "5%" }}>
-              <img src={successIcon} />
-              <div className="textImage ">
-                <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.zolozText : language === CONSTANTS.LANG_CN ? CONSTANTS.zolozText_CN : CONSTANTS.zolozText_HK}</p>
-              </div>
-              <p className="decline-btn bg-button" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "invalideimagesize" &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-          <div className="alertModal__info">
-            <div className="app__ref">{language === CONSTANTS.LANG_EN ? CONSTANTS.fileSizeExceed : language === CONSTANTS.LANG_CN ? CONSTANTS.fileSizeExceed_CN : CONSTANTS.fileSizeExceed_HK} </div>
-          </div>
-          <div className="alertModal__info__desc">
-            <p className="btn" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "zoloError" &&
-        <div className="alertModal__container">
-          <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-          <div className="alertModal__info">
-            <div className="app__ref">
-              {language === CONSTANTS.LANG_EN ? `${CONSTANTS.zoloErrorMsg}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.zoloErrorMsg_CN}` : `${CONSTANTS.zoloErrorMsg_HK}`}
-              </div>
-          </div>
-          <div className="alertModal__info__desc">
-            <p className="btn" onClick={goBack}>OK</p>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "PriorityOrPrivate" &&
-        <div className="popup-declare">
-          <div className="popup-container1-success">
-            <div className="popup-info__desc" style={{ padding: "5%" }}>
-            <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-              <div className="textImage1" dangerouslySetInnerHTML={campaignID==='HKSOZ01MCWB000' ? getMarkup(CONSTANTS.priorityBanking) : campaignID==='HKSOZ02MCWB000' ?getMarkup(CONSTANTS.privateBanking) : undefined}>
-                {/* <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.priorityBanking : language === CONSTANTS.LANG_CN ? CONSTANTS.zolozText_CN : CONSTANTS.zolozText_HK}</p> */}
-              </div>
-              <p className="decline-btn bg-button" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-            </div>
-          </div>
-        </div>
-      }
-      {alertType && alertType === "PriorityOrPrivateReview" &&
-        <div className="popup-declare">
-          <div className="popup-container1-success">
-            <div className="popup-info__desc" style={{ padding: "5%" }}>
-            <div className="waring__icon">
-            <img src={warningIcon} />
-          </div>
-              <div className="textImage1" dangerouslySetInnerHTML={getMarkup(CONSTANTS.privateBankingReview)}>
-                {/* <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.priorityBanking : language === CONSTANTS.LANG_CN ? CONSTANTS.zolozText_CN : CONSTANTS.zolozText_HK}</p> */}
-              </div>
-              <p className="decline-btn bg-button" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
-            </div>
-          </div>
-        </div>
-      }
-    </>
-  )
-}
+  const mockState = {
+    stages: {
+      stages: [{
+        stageInfo: {
+          application: {
+              cos_ref_number: 'TEST12345'
+          },
+          products: [{
+              campaign: 'HKSOZ01MCWB000'
+          }]
+        }
+      }]
+    },
+    preApproval: {
+      formConfigmetaData: {}
+    }
+  };
 
-export default AlertModel
+  const renderComponent = (props = {}, state = mockState) => {
+    const store = mockStore(state);
+    return render(
+      <Provider store={store}>
+        <AlertModel {...defaultProps} {...props} />
+      </Provider>
+    );
+  };
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('DECLINERLS alert type', () => {
+    it('should render DECLINERLS alert with English content', () => {
+      renderComponent({ alertType: 'DECLINERLS' });
+      
+      expect(screen.getByText(CONSTANTS.headerText)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.nextTextRLS)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.regretTextRLS)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.enquiryContentRLS)).toBeInTheDocument();
+      expect(screen.getByText('(+852) 2886-8868')).toBeInTheDocument();
+      expect(screen.getByText(`${CONSTANTS.refNoText} TEST12345`)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.futureRefQuote)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.OK)).toBeInTheDocument();
+    });
+
+    it('should call goBack when OK button is clicked', () => {
+      renderComponent({ alertType: 'DECLINERLS' });
+      fireEvent.click(screen.getByText(CONSTANTS.OK));
+      expect(defaultProps.goBack).toHaveBeenCalled();
+    });
+  });
+
+  describe('DECLINE alert type', () => {
+    it('should render DECLINE alert for PL product', () => {
+      const state = {
+        ...mockState,
+        stages: {
+          stages: [{
+            stageInfo: {
+              application: {
+                  cos_ref_number: 'TEST12345'
+              },
+              products: [{
+                  campaign: 'HKSOZ01MCWB000',
+                  product_category: 'PL'
+              }]
+            }
+          }]
+        }
+      };
+      
+      renderComponent({ alertType: 'DECLINE' }, state);
+      
+      expect(screen.getByText(CONSTANTS.cardDeclineText)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.regretTextPL)).toBeInTheDocument();
+    });
+
+    it('should render DECLINE alert for CC product', () => {
+      const state = {
+        ...mockState,
+        stages: {
+          stages: [{
+            stageInfo: {
+              application: {
+                  cos_ref_number: 'TEST12345'
+              },
+              products: [{
+                  campaign: 'HKSOZ01MCWB000',
+                  product_category: 'CC'
+              }]
+            }
+          }]
+        }
+      };
+      
+      renderComponent({ alertType: 'DECLINE' }, state);
+      
+      expect(screen.getByText(CONSTANTS.cardDeclineText)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.regretTextCC)).toBeInTheDocument();
+    });
+  });
+
+  describe('RESUBMIT alert type', () => {
+    it('should render RESUBMIT alert with message', () => {
+      const testMessage = '<p>Test message</p>';
+      renderComponent({ 
+        alertType: 'RESUBMIT',
+        message: testMessage
+      });
+      
+      expect(screen.getByText('Test message')).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.RETRY)).toBeInTheDocument();
+    });
+  });
+
+  describe('OTPNot alert type', () => {
+    it('should render OTPNot alert', () => {
+      renderComponent({ alertType: 'OTPNot' });
+      
+      expect(screen.getByText(CONSTANTS.otpNotAvailable)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.OK)).toBeInTheDocument();
+    });
+  });
+
+  describe('ErrorCode alert type', () => {
+    it('should render A02 error code alert', () => {
+      const state = {
+        ...mockState,
+        stages: {
+          stages: [{
+            stageInfo: {
+              application: {
+                  cos_ref_number: 'TEST12345'
+              },
+              products: [{
+                  campaign: 'HKSOZ01MCWB000',
+                  name: 'TestProduct'
+              }]
+            }
+          }]
+        }
+      };
+      
+      renderComponent({ 
+        alertType: 'ErrorCode',
+        errorCode: 'A02'
+      }, state);
+      
+      expect(screen.getByText(CONSTANTS.errorCodeA02Header)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.errorCodeA02Content)).toBeInTheDocument();
+    });
+
+    it('should render service error icon for A20 error code', () => {
+      renderComponent({ 
+        alertType: 'ErrorCode',
+        errorCode: 'A20'
+      });
+      
+      expect(screen.getByAltText('service error')).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.serviceErrorCodeContent)).toBeInTheDocument();
+    });
+  });
+
+  describe('Success alert type', () => {
+    it('should render Success alert', () => {
+      renderComponent({ alertType: 'Success' });
+      
+      expect(screen.getByText(CONSTANTS.zolozText)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.OK)).toBeInTheDocument();
+    });
+  });
+
+  describe('invalideimagesize alert type', () => {
+    it('should render invalideimagesize alert', () => {
+      renderComponent({ alertType: 'invalideimagesize' });
+      
+      expect(screen.getByText(CONSTANTS.fileSizeExceed)).toBeInTheDocument();
+      expect(screen.getByText(CONSTANTS.OK)).toBeInTheDocument();
+    });
+  });
+
+  describe('zoloError alert type', () => {
+    it('should render zoloError alert', () => {
+      renderComponent({ alertType: 'zoloError' });
+      
+      expect(screen.getByText(CONSTANTS.zoloErrorMsg)).toBeInTheDocument();
+      expect(screen.getByText('OK')).toBeInTheDocument();
+    });
+  });
+
+  describe('PriorityOrPrivate alert type', () => {
+    it('should render priority banking content for HKSOZ01MCWB000 campaign', () => {
+      renderComponent({ alertType: 'PriorityOrPrivate' });
+      
+      // Assuming CONSTANTS.priorityBanking contains some expected text
+      expect(screen.getByText(/priority banking/i)).toBeInTheDocument();
+    });
+
+    it('should render private banking content for HKSOZ02MCWB000 campaign', () => {
+      const state = {
+        ...mockState,
+        stages: {
+          stages: [{
+            stageInfo: {
+              application: {
+                  cos_ref_number: 'TEST12345'
+              },
+              products: [{
+                  campaign: 'HKSOZ02MCWB000'
+              }]
+            }
+          }]
+        }
+      };
+      
+      renderComponent({ alertType: 'PriorityOrPrivate' }, state);
+      
+      // Assuming CONSTANTS.privateBanking contains some expected text
+      expect(screen.getByText(/private banking/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('PriorityOrPrivateReview alert type', () => {
+    it('should render private banking review content', () => {
+      renderComponent({ alertType: 'PriorityOrPrivateReview' });
+      
+      // Assuming CONSTANTS.privateBankingReview contains some expected text
+      expect(screen.getByText(/review/i)).toBeInTheDocument();
+    });
+  });
+
+  it('should not render anything when no alertType is provided', () => {
+    const { container } = renderComponent();
+    expect(container.firstChild).toBeNull();
+  });
+});
