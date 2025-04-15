@@ -1,216 +1,270 @@
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import HeaderModel from './HeaderModel';
-import { Provider } from 'react-redux';
-import configureMockStore from 'redux-mock-store';
-import { getData, getPDFData } from '../../../modules/preApproval/services/preApprovalServices';
-import { preApprovalAction } from '../../../modules/preApproval/store/preApproval-slice';
+import { getUrl } from "../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../utils/common/constants";
+import "./alert-modal.scss";
+import declineIcon from "../../../modules/preApproval/images/decline.png";
+import warningIcon from "../../../../src/assets/_images/ico_warning_sign_red.svg";
+import serviceErrorIcon from "../../preApproval/images/icon-sc-l-mobile-tech-error-serviceUnavailable.png";
+import successIcon from "../../preApproval/commonComponents/documentUpload/images-du/icon-sc-l-notification-alert-successful-cardBinding.png";
+import declineRlsIcon from "../../../modules/preApproval/images/group-71.png";
+import phoneIcon from '../../../assets/_images/icon-sc-small-icon-sc-s-phone-call.png'
+import DOMPurify from "dompurify";
+import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
+import { useSelector } from "react-redux";
+import { useEffect } from "react";
 
-// Mock the external dependencies
-jest.mock('../../../modules/preApproval/services/preApprovalServices', () => ({
-  getData: jest.fn(),
-  getPDFData: jest.fn(),
-}));
+const AlertModel: React.FC<any> = ({
+  goBack,
+  exit,
+  alertType,
+  message,
+  errorCode
+}) => {
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const applicationRefNo = stageSelector[0].stageInfo?.application.cos_ref_number;
+  const productInfo:KeyWithAnyModel = getUrl.getProductInfo();
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
+  // const campaignID = formConfigmetaData?.products[0].campaign;
+  const campaignID = stageSelector[0]?.stageInfo?.products[0]?.campaign;
+  const ref_number = "HK24101700230315"
+  const language = getUrl.getLanguageInfo("lang");
 
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(),
-  },
-}));
-
-jest.mock('../../../modules/preApproval/store/preApproval-slice', () => ({
-  preApprovalAction: {
-    setKfsDocumentPdf: jest.fn(),
-  },
-}));
-
-jest.mock('../../../services/common-service', () => ({
-  dispatchLoader: jest.fn(),
-}));
-
-const mockStore = configureMockStore();
-
-describe('HeaderModel Component', () => {
-  const mockProps = {
-    fileName: 'test.pdf',
-    closepdf: jest.fn(),
-    title: 'Test Title',
-    footer: 'Test Footer',
-  };
-
-  const mockResponse = {
-    data: {
-      products: {
-        'CAMPAIGN_1': [{ pdfURL: 'https://example.com/kfs.pdf' }],
-      },
-      productsMob: {
-        'CAMPAIGN_1': [{ pdfURL: 'https://example.com/mobile/kfs.pdf' }],
-      },
-      tncLinkCampaignCode: {
-        'CAMPAIGN_1': [{
-          pdfLinks: [
-            { url: 'https://example.com/terms.pdf', Title: 'Terms and Conditions' }
-          ]
-        }],
-        isCasa: [{
-          pdfLinks: [
-            { url: 'https://example.com/casa.pdf', Title: 'CASA Terms' }
-          ]
-        }]
-      }
+  useEffect(() => {
+    const link = document.getElementById('priorityBankingLink') as HTMLAnchorElement;
+    if (link) {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        window.open(link.href, '_blank', 'noopener,noreferrer');
+      });
     }
+  });
+
+  const getMarkup = (content: any) => {
+    return {
+      __html: DOMPurify.sanitize(content),
+    };
   };
 
-  const mockFormConfigMetaData = {
-    products: [{
-      campaign: 'CAMPAIGN_1'
-    }]
-  };
+  return (
+    <>
+      {alertType && alertType === "DECLINERLS" &&
+        <div className="alertModal__container">
+          <div className="banner--declineRLS">
+            <img src={declineRlsIcon} />
+            <p >{language === CONSTANTS.LANG_EN ? CONSTANTS.headerText : language === CONSTANTS.LANG_CN ? CONSTANTS.headerText_CN : CONSTANTS.headerText_HK}</p>
+          </div>
+          <div className="application-contentRLS">
+            <p className="application-f1">{language === CONSTANTS.LANG_EN ? CONSTANTS.nextTextRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.nextTextRLS_CN : CONSTANTS.nextTextRLS_HK}</p>
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextRLS_CN : CONSTANTS.regretTextRLS_HK}</p>
+            <b>{language === CONSTANTS.LANG_EN ? CONSTANTS.enquiryContentRLS : language === CONSTANTS.LANG_CN ? CONSTANTS.enquiryContentRLS_CN : CONSTANTS.enquiryContentRLS_HK}</b>
+            <div className="application-phone">
+                <div className="application-f3Img">
+                    <p><img src={phoneIcon} /></p>
+                </div>
+                <div className="applicationf3Text">
+                    <p className="application-f3"><b>(+852) 2886-8868</b></p>
+                </div>
+            </div>
+        </div>
+          <div className="reference-details">
+            <span>{language === CONSTANTS.LANG_EN ? `${CONSTANTS.refNoText} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.refNoText_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.refNoText_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}</span>
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.futureRefQuote : language === CONSTANTS.LANG_CN ? CONSTANTS.futureRefQuote_CN : CONSTANTS.futureRefQuote_HK}</p>
+          </div>
+          <p className="btn" onClick={goBack}> {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+        </div>
+      }
+      {alertType && alertType === "DECLINE" &&
+        <div className="alertModal__container">
+          <div className="banner--decline">
+            <img src={declineIcon} />
+          </div>
+          <div><p>{language === CONSTANTS.LANG_EN ? CONSTANTS.cardDeclineText : language === CONSTANTS.LANG_CN ? CONSTANTS.cardDeclineText_CN : CONSTANTS.cardDeclineText_HK}</p></div>
+          <div className="Thank-you-for-applyi">
+            {productInfo[0].product_category=="PL" ?
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextPL : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextPL_CN : CONSTANTS.regretTextPL_HK}</p>
+            :
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.regretTextCC : language === CONSTANTS.LANG_CN ? CONSTANTS.regretTextCC_CN : CONSTANTS.regretTextCC_HK}</p>
+            }
+          </div>
+          <div className="reference-details">
+            <span>{language === CONSTANTS.LANG_EN ? `${CONSTANTS.refNoText} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.refNoText_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.refNoText_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}</span>
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.futureRefQuote : language === CONSTANTS.LANG_CN ? CONSTANTS.futureRefQuote_CN : CONSTANTS.futureRefQuote_HK}</p>
+          </div>
+          <p className="btn" id='gobackBtn' onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+        </div>
+      }
+      {alertType && alertType === "RESUBMIT" &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+          <div className="alertModal__info">
+            <div className="app__ref">
+              {language === CONSTANTS.LANG_EN ? `${CONSTANTS.applicationNo} ${applicationRefNo ? applicationRefNo : ref_number}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.applicationNo_CN} ${applicationRefNo ? applicationRefNo : ref_number}` : `${CONSTANTS.applicationNo_HK} ${applicationRefNo ? applicationRefNo : ref_number}`}
+            </div>
+            <div className="alertModal__info__head">
+            </div>
+            <div className="alertModal__info__desc">
+              <p ><span dangerouslySetInnerHTML={getMarkup(message)} />
+              </p>
+              <p
+                className="btn"
+                onClick={goBack}
+              >
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.RETRY : language === CONSTANTS.RETRY_CN ? CONSTANTS.OK_CN : CONSTANTS.RETRY_HK}
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "OTPNot" &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+          <div className="alertModal__info">
+            <div className="app__ref">
+            </div>
+            <div className="alertModal__info__head">
+            </div>
+            <div className="alertModal__info__desc">
+              <p ><span>{language === CONSTANTS.LANG_EN ? CONSTANTS.otpNotAvailable : language === CONSTANTS.LANG_CN ? CONSTANTS.otpNotAvailable_CN : CONSTANTS.otpNotAvailable_HK}</span>
+              </p>
+              <p
+                className="btn"
+                onClick={goBack}
+              >
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "ErrorCode" && errorCode &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            {errorCode==="A02" ?
+            <img src={warningIcon} />
+             :
+             errorCode==="A20" || errorCode==="A26" || errorCode=== "IBANK_ERR0R2" ||errorCode === "IBANK_ERR0R4" || errorCode === 'IBANK_ERR0R1' ?
+             <img src={serviceErrorIcon} />
+             :
+             ""
+            }
+          </div>
+          <div className="info__head">
+            {productInfo[0].name!=="ALIPAY" && errorCode==="A02" ?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA02Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA02Header_CN : CONSTANTS.errorCodeA02Header_HK } </p>
+              :
+              productInfo[0].name!=="ALIPAY" &&  productInfo[0].name!=="asiamiles" &&  errorCode==="A03"?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Header_CN : CONSTANTS.errorCodeA03Header_HK } </p>
+              :
+              productInfo[0].name==="asiamiles" &&  errorCode==="A03"?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Header : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Header_CN : CONSTANTS.errorCodeA03Header_HK } </p>
+              :
+              ""
+            }
+          </div>
+          <div className="alertModal__info">
+            <div className="alertModal__info__desc">
+            {productInfo[0].name!=="ALIPAY" && errorCode==="A02"?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA02Content : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA02Content_CN : CONSTANTS.errorCodeA02Content_HK } </p>
+              :
+              productInfo[0].name!=="ALIPAY" &&  productInfo[0].name!=="asiamiles" &&  errorCode==="A03"?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03Content : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03Content_CN : CONSTANTS.errorCodeA03Content_HK } </p>
+              :
+              productInfo[0].name==="asiamiles" &&  errorCode==="A03" ?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.errorCodeA03ContentAsiamiles : language === CONSTANTS.LANG_CN ? CONSTANTS.errorCodeA03ContentAsiamiles_CN : CONSTANTS.errorCodeA03ContentAsiamiles_HK } </p>
+              :
+              errorCode==="A20" || errorCode==="A26" || errorCode=== "IBANK_ERR0R2" ||errorCode === "IBANK_ERR0R4" || errorCode === 'IBANK_ERR0R1' ?
+              <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.serviceErrorCodeContent : language === CONSTANTS.LANG_CN ? CONSTANTS.serviceErrorCodeContent_CN : CONSTANTS.serviceErrorCodeContent_HK } </p>
+              :
+              ""
+            }
+              <p
+                className="btn"
+                onClick={goBack}
+              >
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}
+              </p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "Success" &&
+        <div className="popup-declare">
+          <div className="popup-container1-success">
+            <div className="popup-info__desc" style={{ padding: "5%" }}>
+              <img src={successIcon} />
+              <div className="textImage ">
+                <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.zolozText : language === CONSTANTS.LANG_CN ? CONSTANTS.zolozText_CN : CONSTANTS.zolozText_HK}</p>
+              </div>
+              <p className="decline-btn bg-button" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "invalideimagesize" &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+          <div className="alertModal__info">
+            <div className="app__ref">{language === CONSTANTS.LANG_EN ? CONSTANTS.fileSizeExceed : language === CONSTANTS.LANG_CN ? CONSTANTS.fileSizeExceed_CN : CONSTANTS.fileSizeExceed_HK} </div>
+          </div>
+          <div className="alertModal__info__desc">
+            <p className="btn" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "zoloError" &&
+        <div className="alertModal__container">
+          <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+          <div className="alertModal__info">
+            <div className="app__ref">
+              {language === CONSTANTS.LANG_EN ? `${CONSTANTS.zoloErrorMsg}` : language === CONSTANTS.LANG_CN ? `${CONSTANTS.zoloErrorMsg_CN}` : `${CONSTANTS.zoloErrorMsg_HK}`}
+              </div>
+          </div>
+          <div className="alertModal__info__desc">
+            <p className="btn" onClick={goBack}>OK</p>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "PriorityOrPrivate" &&
+        <div className="popup-declare">
+          <div className="popup-container1-success">
+            <div className="popup-info__desc" style={{ padding: "5%" }}>
+            <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+              <div className="textImage1" dangerouslySetInnerHTML={campaignID==='HKSOZ01MCWB000' ? getMarkup(CONSTANTS.priorityBanking) : campaignID==='HKSOZ02MCWB000' ?getMarkup(CONSTANTS.privateBanking) : undefined}>
+                {/* <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.priorityBanking : language === CONSTANTS.LANG_CN ? CONSTANTS.zolozText_CN : CONSTANTS.zolozText_HK}</p> */}
+              </div>
+              <p className="decline-btn bg-button" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+            </div>
+          </div>
+        </div>
+      }
+      {alertType && alertType === "PriorityOrPrivateReview" &&
+        <div className="popup-declare">
+          <div className="popup-container1-success">
+            <div className="popup-info__desc" style={{ padding: "5%" }}>
+            <div className="waring__icon">
+            <img src={warningIcon} />
+          </div>
+              <div className="textImage1" dangerouslySetInnerHTML={getMarkup(CONSTANTS.privateBankingReview)}>
+                {/* <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.priorityBanking : language === CONSTANTS.LANG_CN ? CONSTANTS.zolozText_CN : CONSTANTS.zolozText_HK}</p> */}
+              </div>
+              <p className="decline-btn bg-button" onClick={goBack}>{language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK}</p>
+            </div>
+          </div>
+        </div>
+      }
+    </>
+  )
+}
 
-  beforeEach(() => {
-    // Reset all mocks before each test
-    jest.clearAllMocks();
-    
-    // Mock getData to return our mock response
-    (getData as jest.Mock).mockResolvedValue(mockResponse);
-    (getPDFData as jest.Mock).mockResolvedValue('mock-pdf-data');
-  });
-
-  const setup = (props = {}, state = {}) => {
-    const store = mockStore({
-      preApproval: {
-        formConfigmetaData: mockFormConfigMetaData,
-        ...state.preApproval
-      },
-      ...state
-    });
-
-    return render(
-      <Provider store={store}>
-        <HeaderModel {...mockProps} {...props} />
-      </Provider>
-    );
-  };
-
-  test('renders with basic props', () => {
-    setup();
-    expect(screen.getByText('Test Title')).toBeInTheDocument();
-    expect(screen.getByRole('button')).toBeInTheDocument();
-  });
-
-  test('calls closepdf when close button is clicked', () => {
-    setup();
-    fireEvent.click(screen.getByRole('button'));
-    expect(mockProps.closepdf).toHaveBeenCalled();
-  });
-
-  test('displays footer content when provided', () => {
-    setup({ footer: 'Test Footer Text' });
-    expect(screen.getByText('Test Footer Text')).toBeInTheDocument();
-  });
-
-  test('fetches PDF data on mount', async () => {
-    setup();
-    
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalled();
-      expect(getPDFData).toHaveBeenCalled();
-      expect(preApprovalAction.setKfsDocumentPdf).toHaveBeenCalledWith('mock-pdf-data');
-    });
-  });
-
-  test('handles mobile PDF URL correctly', async () => {
-    // Mock mobile user agent and small screen
-    Object.defineProperty(window, 'innerWidth', { value: 500 });
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15'
-    });
-
-    setup();
-
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalled();
-      // Verify mobile URL is used
-      expect(getPDFData).toHaveBeenCalledWith(expect.stringContaining('mobile/kfs.pdf'));
-    });
-  });
-
-  test('handles desktop PDF URL correctly', async () => {
-    // Mock desktop user agent and large screen
-    Object.defineProperty(window, 'innerWidth', { value: 1024 });
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    });
-
-    setup();
-
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalled();
-      // Verify desktop URL is used
-      expect(getPDFData).toHaveBeenCalledWith(expect.stringContaining('kfs.pdf'));
-    });
-  });
-
-  test('uses Chinese PDF URL when language is zh', async () => {
-    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
-    
-    setup();
-
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalledWith(expect.stringContaining('Chinese'));
-    });
-  });
-
-  test('uses English PDF URL when language is en', async () => {
-    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-    
-    setup();
-
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalledWith(expect.stringContaining('English'));
-    });
-  });
-
-  test('displays terms and conditions links', async () => {
-    setup({ footer: true });
-
-    await waitFor(() => {
-      expect(screen.getByText('Terms and Conditions')).toBeInTheDocument();
-      expect(screen.getByText('Terms and Conditions').closest('a')).toHaveAttribute('href', 'https://example.com/terms.pdf');
-    });
-  });
-
-  test('handles localhost URL replacement', async () => {
-    const originalLocation = window.location;
-    delete window.location;
-    window.location = { host: 'localhost:3000' } as unknown as Location;
-
-    setup();
-
-    await waitFor(() => {
-      expect(getPDFData).toHaveBeenCalledWith(expect.stringContaining('http://localhost:3000/'));
-    });
-
-    window.location = originalLocation;
-  });
-
-  test('sets PDF name correctly', async () => {
-    setup();
-
-    await waitFor(() => {
-      expect(screen.getByTestId('pdf-component')).toHaveAttribute('data-filename', 'kfs.pdf');
-    });
-  });
-
-  test('shows and hides spinner during loading', async () => {
-    setup();
-
-    // Initially shows spinner
-    expect(screen.getByTestId('spinner')).toBeInTheDocument();
-
-    await waitFor(() => {
-      // Spinner should be hidden after loading
-      expect(screen.queryByTestId('spinner')).not.toBeInTheDocument();
-    });
-  });
-});
+export default AlertModel
