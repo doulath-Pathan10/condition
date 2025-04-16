@@ -1,314 +1,292 @@
-import React, { useState, useEffect } from "react";
-import "./document-upload.scss";
-import { useDispatch, useSelector } from "react-redux";
-import Modal from "../modals/tipsModal/tips-modal";
-import PopupModel from "../../../../../shared/components/popup-model/popup-model";
-import ImagePreviewModal from "../modals/imagePreviewModal/image-preview-modal";
-import { postDocuments, } from "../../../services/preApprovalPostServices";
-import AlertModel from "../../../alertModal/alert-modal";
-import { dispatchLoader } from "../../../../../services/common-service";
-import { StoreModel } from "../../../../../utils/model/common-model";
-import { stagesAction } from "../../../../../utils/store/stages-slice";
-import { CONSTANTS } from "../../../../../utils/common/constants";
-import { errorAction } from "../../../../../utils/store/error-slice";
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import DocumentUpload from './DocumentUpload';
+import '@testing-library/jest-dom';
+import { Provider } from 'react-redux';
+import configureMockStore from 'redux-mock-store';
+import { StoreModel } from '../../../../../utils/model/common-model';
+import { postDocuments } from '../../../services/preApprovalPostServices';
+import { dispatchLoader } from '../../../../../services/common-service';
 
-const DocumentUpload: React.FC<any> = ({
-  setShowContinueBtn
-}) => {
-  const dispatch = useDispatch();
-  const footerContent1 = "File format should be in JPG or PNG. The individual file size must not exceed 5MB. Click ";
-  const footerContent2 = " on tips for uploading.";
-  const copyRights = "© Standard Chartered Bank (HK) Limited";
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [imagePreview, setImagePreview] = useState(false);
-  const [imgeURL, setImageURL] = useState("");
-  const [name, setName] = useState("");
-  const [files, setFiles] = useState<any>([]);
-  const [openSuccessModal, setOpenSuccessModal] = useState(false);
-  const [validImageSizeModel, setValidImageSizeModel] = useState(false);
-  const stageSelector = useSelector(
-    (state: StoreModel) => state.stages.stages[0].stageInfo
-  );
-  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
-  const documentCount = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentCount);
-  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
-  const uploadedDocuments = useSelector((state: any) => state.stages.dynamicDocumentsUpload.uploadedDocuments);
+// Mock all external dependencies
+jest.mock('../../../services/preApprovalPostServices', () => ({
+  postDocuments: jest.fn()
+}));
 
-  useEffect(() => {
-    dispatch(dispatchLoader(false));
-    var isMobile = false;
-    /*istanbul ignore else*/
-    if (
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent
-      )
-    ) {
-      isMobile = true;
-    }
-    setFiles([])
-  }, []);
+jest.mock('../../../../../services/common-service', () => ({
+  dispatchLoader: jest.fn()
+}));
 
-  // const closeFileUpload = () => {
-  //   setShowContinueBtn(false);
-  // };
+jest.mock('../modals/tipsModal/tips-modal', () => () => <div>Tips Modal</div>);
+jest.mock('../../../../../shared/components/popup-model/popup-model', () => ({ children }: any) => <div>{children}</div>);
+jest.mock('../modals/imagePreviewModal/image-preview-modal', () => () => <div>Image Preview Modal</div>);
+jest.mock('../../../alertModal/alert-modal', () => ({ alertType, goBack }: any) => (
+  <div onClick={goBack}>{alertType} Alert</div>
+));
 
-  const closeFileUploadBack = () => {
-    dispatch(stagesAction.updatefileSectionData(null))
-  };
+// Mock URL.createObjectURL
+global.URL.createObjectURL = jest.fn(() => 'mock-url');
 
-  const handleUploadFile = async (e: any) => {
-    e.preventDefault();
-    const filename = e.target.files[0].name;
-    var _size = e.target.files[0].size;
-    var fSExt = new Array('Bytes', 'KB', 'MB', 'GB'),
-    i=0;while(_size>900){_size/=1024;i++;}
-    var exactSize = (Math.round(_size*100)/100)+' '+fSExt[i];
-    const file = e.target.files[0];
-    const maxSize = 5 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      setValidImageSizeModel(true);
-      return;
-    }
-    try {
-      await dispatch(dispatchLoader(true));
-      await postDocuments(channel_reference, e.target.files[0])?.then(async (response: any) => {
-        const tempData = {
-          file: file,
-          filename: filename,
-          filesize: exactSize,
-          ...response.data,
-        };
-        if (response.status >= 200 && response.status <= 300) {
-          let newFiles = files;
-          newFiles.push(tempData)
-          setFiles(newFiles);
-        }
-        else {
-          dispatch(dispatchLoader(false));
-          dispatch(
-            errorAction.getError({
-              statusCode: "error",
-              statusText: "no response",
-            })
-          );
-        }
-      })
-      await dispatch(dispatchLoader(false));
-    } catch (err) {
-      console.log("err:", err);
-    }
-    e.target.value = null
-  };
-
-  const okBtnClick = () => {
-    let filesValue = stageSelector.applicant_documents[0].document_list
-    let filesData: any = JSON.parse(JSON.stringify(filesValue))
-    for (let i in filesData) {
-      if (filesData[i].document_category === fileSectionData.document_category) {
-        filesData[i].document_options[0].document_types[0].uploaded_documents = files;
-        filesData[i]["applicant_sequence_number"] = 1;
-      }
-    }
-    let stageData = JSON.parse(JSON.stringify(stageSelector));
-    stageData.applicant_documents[0].document_list = filesData;
-    let uploadedData: any = JSON.parse(JSON.stringify(uploadedDocuments));
-    for (let i in files) {
-      delete files[i].file
-      delete files[i].filename
-      delete files[i].filesize
-      uploadedData.push(files[i])
-    }
-    dispatch(stagesAction.uploadedDocumentData(uploadedData))
-    dispatch(
-      stagesAction.getStage({
-        id: CONSTANTS.STAGE_NAMES.DOC_3,
-        formConfig: stageData,
-      })
-    );
-    dispatch(stagesAction.updateDocumentCount(documentCount + 1));
-    dispatch(stagesAction.updatefileSectionData(null))
-    dispatch(stagesAction.updatechangechangeIconIncomeProof(false));
-    dispatch(stagesAction.updateSuccess(true))
-    setShowContinueBtn(false);
-  };
-
-  const handleDelete = (docId: any) => {
-    const updateFiles = files.filter((file: any) => file.docId !== docId);
-    setFiles(updateFiles)
-  };
-  const handleRefresh = (fileID: any, index: any) => { };
-
-  const callModal = () => {
-    setIsModalOpen(true);
-  };
-  const openImagePreview = (img: any, name: any) => {
-    setImageURL(img);
-    setName(name);
-    setImagePreview(true);
-  };
-
-  const successModalClose = () => {
-    setOpenSuccessModal(false);
-  };
-
-  const modelClose = () => {
-    setValidImageSizeModel(false);
-  };
-
-  return (
-    <div className={"document-view"}>
-      {
-        <PopupModel displayPopup={openSuccessModal}>
-          <AlertModel alertType="Success" goBack={successModalClose} />
-        </PopupModel>
-      }
-      {validImageSizeModel && (
-        <PopupModel displayPopup={validImageSizeModel}>
-          <AlertModel alertType={"invalideimagesize"} goBack={modelClose} />
-        </PopupModel>
-      )}
-      {imagePreview && (
-        <ImagePreviewModal
-          imgeURL={imgeURL}
-          name={name}
-          imagePreview={imagePreview}
-          setImagePreview={setImagePreview}
-        />
-      )}
-      <>
-        <Modal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} category={fileSectionData.document_category} />
-        <div className="container">
-          {/* <div className="uploadHkDocument">
-            <p className="doc-close" onClick={closeFileUpload}>
-              <span className="doc-close-btn"></span>
-              CLOSE
-            </p>
-            <p className="hk-proof-name">{fileSectionData.document_category}</p>
-          </div> */}
-          {files?.map((item: any, index: any) => {
-            return (
-              <div className="upload-btn1" key={index}>
-                <div className="thumbnail-img-container">
-                  <a>
-                    <img
-                      data-testid="image-preview-id"
-                      src={URL.createObjectURL(item.file)}
-                      alt={item.filename}
-                      onClick={() =>
-                        openImagePreview(
-                          URL.createObjectURL(item.file),
-                          item.filename
-                        )
-                      }
-                    ></img>
-                  </a>
-                </div>
-                <div className="container-image">
-                  <div className="uploading-doc-name">
-                    <span className="span-file-name">{item.filename}</span>
-                    <div className="progress-text-icon"></div>
-                    {item.documentStatus === "UPLOADED" && (
-                      <div
-                        data-testid="delete-btn"
-                        role="button"
-                        className="trash-icon"
-                        onClick={() => {
-                          handleDelete(item.docId);
-                        }}
-                      ></div>
-                    )}
-                    {item.documentStatus === "Upload failed" && (
-                      <div
-                        data-testid="refresh-btn"
-                        className="retry-icon"
-                        onClick={() => {
-                          handleRefresh(item.docId, index);
-                        }}
-                      ></div>
-                    )}
-                  </div>
-                  <div
-                    className={
-                      item.documentStatus === "UPLOADED"
-                        ? "uploaded"
-                        : "retry-uploaded"
-                    }
-                  ></div>
-                  <div
-                    className={
-                      item.documentStatus === "UPLOADED"
-                        ? "tick-mark"
-                        : "no-tick-mark"
-                    }
-                  >
-                    {item.documentStatus === "UPLOADED"
-                      ? `${"Upload completed"} !`
-                      : `${item.documentStatus} Retry?`}
-                  </div>
-                  <div className="fileSizeDetails">
-                    <span>{item.filesize}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          <div className="upload-btn-section">
-            <input
-              className="upload-input-file"
-              id="file-upload"
-              type="file"
-              accept=".jpg, .png"
-              onChange={(e) => handleUploadFile(e)}
-              multiple
-            />
-            <label htmlFor="file-upload" className="upload-btn">
-              <span className="upload-img"></span>
-              Upload
-            </label>
-          </div>
-          <div className="document-footer">
-            <div className="footer-banner">
-              <div className="footer-content">
-                <p className="sec-2">
-                  {footerContent1}
-                  <span className="tipsLink" onClick={callModal}>here</span>
-                  {footerContent2}
-                </p>
-              </div>
-              <span className="images"></span>
-            </div>
-          </div>
-          <div className="hk-copy-rights">
-            <p>{copyRights}</p>
-          </div>
-          <div className="footer footer-set">
-            {" "}
+const mockStore = configureMockStore();
+const initialState = {
+  stages: {
+    stages: [{
+      stageInfo: {
+        application: { channel_reference: 'TEST123' },
+        applicant_documents: [{
+          document_list: [
             {
-              <div title="back-btn-upload-doc1" className="back" onClick={closeFileUploadBack}>
-                <span className="arrow"></span> Back
-              </div>
+              document_category: 'ID Proof',
+              document_options: [{
+                document_types: [{
+                  uploaded_documents: []
+                }]
+              }]
             }
-            <button
-              role="button"
-              title={fileSectionData.document_category}
-              type="submit"
-              style={{ border: "20px" }}
-              className={
-                files?.length === 0
-                  ? `continue form-invalid`
-                  : `continue form-valid`
-              }
-              onClick={() => okBtnClick()}
-              disabled={files?.length === 0}
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      </>
-    </div>
-  );
+          ]
+        }]
+      }
+    }],
+    dynamicDocumentsUpload: {
+      documentCount: 0,
+      fileSectionData: { document_category: 'ID Proof' },
+      uploadedDocuments: []
+    }
+  },
+  error: {
+    error: null
+  }
 };
 
-export default DocumentUpload;
+describe('DocumentUpload Component', () => {
+  let store: any;
+  const mockSetShowContinueBtn = jest.fn();
+  
+  beforeEach(() => {
+    store = mockStore(initialState);
+    jest.clearAllMocks();
+  });
+
+  it('should render the component with initial state', () => {
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    expect(screen.getByText('Upload')).toBeInTheDocument();
+    expect(screen.getByText('Back')).toBeInTheDocument();
+    expect(screen.getByText('Continue')).toBeDisabled();
+    expect(screen.getByText(/File format should be in JPG or PNG/)).toBeInTheDocument();
+    expect(screen.getByText('© Standard Chartered Bank (HK) Limited')).toBeInTheDocument();
+  });
+
+  it('should open tips modal when "here" is clicked', () => {
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByText('here'));
+    expect(screen.getByText('Tips Modal')).toBeInTheDocument();
+  });
+
+  it('should handle file upload successfully', async () => {
+    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+    const mockResponse = {
+      status: 200,
+      data: { docId: '123', documentStatus: 'UPLOADED' }
+    };
+    
+    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    const input = screen.getByTestId('file-upload');
+    fireEvent.change(input, { target: { files: [mockFile] } });
+    
+    await waitFor(() => {
+      expect(dispatchLoader).toHaveBeenCalledWith(true);
+      expect(postDocuments).toHaveBeenCalledWith('TEST123', mockFile);
+      expect(dispatchLoader).toHaveBeenCalledWith(false);
+      expect(screen.getByText('test.png')).toBeInTheDocument();
+      expect(screen.getByText('Upload completed !')).toBeInTheDocument();
+      expect(screen.getByText('Continue')).toBeEnabled();
+    });
+  });
+
+  it('should show error modal when file size exceeds limit', async () => {
+    const largeFile = new File(['test'], 'large.png', { type: 'image/png' });
+    Object.defineProperty(largeFile, 'size', { value: 6 * 1024 * 1024 });
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    const input = screen.getByTestId('file-upload');
+    fireEvent.change(input, { target: { files: [largeFile] } });
+    
+    expect(screen.getByText('invalideimagesize Alert')).toBeInTheDocument();
+    expect(postDocuments).not.toHaveBeenCalled();
+  });
+
+  it('should handle file delete', async () => {
+    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+    const mockResponse = {
+      status: 200,
+      data: { docId: '123', documentStatus: 'UPLOADED' }
+    };
+    
+    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    const input = screen.getByTestId('file-upload');
+    fireEvent.change(input, { target: { files: [mockFile] } });
+    
+    await waitFor(() => {
+      fireEvent.click(screen.getByTestId('delete-btn'));
+      expect(screen.queryByText('test.png')).not.toBeInTheDocument();
+      expect(screen.getByText('Continue')).toBeDisabled();
+    });
+  });
+
+  it('should open image preview when image is clicked', async () => {
+    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+    const mockResponse = {
+      status: 200,
+      data: { docId: '123', documentStatus: 'UPLOADED' }
+    };
+    
+    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    const input = screen.getByTestId('file-upload');
+    fireEvent.change(input, { target: { files: [mockFile] } });
+    
+    await waitFor(() => {
+      fireEvent.click(screen.getByTestId('image-preview-id'));
+      expect(screen.getByText('Image Preview Modal')).toBeInTheDocument();
+    });
+  });
+
+  it('should handle continue button click', async () => {
+    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+    const mockResponse = {
+      status: 200,
+      data: { docId: '123', documentStatus: 'UPLOADED' }
+    };
+    
+    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    const input = screen.getByTestId('file-upload');
+    fireEvent.change(input, { target: { files: [mockFile] } });
+    
+    await waitFor(() => {
+      fireEvent.click(screen.getByText('Continue'));
+      expect(mockSetShowContinueBtn).toHaveBeenCalledWith(false);
+      const actions = store.getActions();
+      expect(actions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'stages/updateDocumentCount' }),
+          expect.objectContaining({ type: 'stages/updatefileSectionData' }),
+          expect.objectContaining({ type: 'stages/getStage' })
+        ])
+      );
+    });
+  });
+
+  it('should handle back button click', () => {
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByText('Back'));
+    const actions = store.getActions();
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'stages/updatefileSectionData' })
+      ])
+    );
+  });
+
+  it('should show success modal when document upload is successful', async () => {
+    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+    const mockResponse = {
+      status: 200,
+      data: { docId: '123', documentStatus: 'UPLOADED' }
+    };
+    
+    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    const input = screen.getByTestId('file-upload');
+    fireEvent.change(input, { target: { files: [mockFile] } });
+    
+    await waitFor(() => {
+      fireEvent.click(screen.getByText('Continue'));
+      expect(screen.getByText('Success Alert')).toBeInTheDocument();
+    });
+  });
+
+  it('should handle upload failure', async () => {
+    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+    const mockError = new Error('Upload failed');
+    
+    (postDocuments as jest.Mock).mockRejectedValue(mockError);
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    
+    const input = screen.getByTestId('file-upload');
+    fireEvent.change(input, { target: { files: [mockFile] } });
+    
+    await waitFor(() => {
+      expect(dispatchLoader).toHaveBeenCalledWith(false);
+      const actions = store.getActions();
+      expect(actions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ 
+            type: 'error/getError',
+            payload: {
+              statusCode: "error",
+              statusText: "no response",
+            }
+          })
+        ])
+      );
+    });
+  });
+});
