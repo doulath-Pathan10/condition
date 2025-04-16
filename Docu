@@ -1,386 +1,314 @@
-import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
-import Model from './Model';
-import '@testing-library/jest-dom';
-import { Provider } from 'react-redux';
-import configureMockStore from 'redux-mock-store';
-import { StoreModel } from '../../../utils/model/common-model';
+import React, { useState, useEffect } from "react";
+import "./document-upload.scss";
+import { useDispatch, useSelector } from "react-redux";
+import Modal from "../modals/tipsModal/tips-modal";
+import PopupModel from "../../../../../shared/components/popup-model/popup-model";
+import ImagePreviewModal from "../modals/imagePreviewModal/image-preview-modal";
+import { postDocuments, } from "../../../services/preApprovalPostServices";
+import AlertModel from "../../../alertModal/alert-modal";
+import { dispatchLoader } from "../../../../../services/common-service";
+import { StoreModel } from "../../../../../utils/model/common-model";
+import { stagesAction } from "../../../../../utils/store/stages-slice";
+import { CONSTANTS } from "../../../../../utils/common/constants";
+import { errorAction } from "../../../../../utils/store/error-slice";
 
-// Mock all external dependencies thoroughly
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn().mockReturnValue('EN'),
-    getChannelRefNo: jest.fn().mockReturnValue({ channelRefNo: 'TEST123' }),
-    getProductInfo: jest.fn().mockReturnValue([{ product_category: 'CC' }])
-  }
-}));
+const DocumentUpload: React.FC<any> = ({
+  setShowContinueBtn
+}) => {
+  const dispatch = useDispatch();
+  const footerContent1 = "File format should be in JPG or PNG. The individual file size must not exceed 5MB. Click ";
+  const footerContent2 = " on tips for uploading.";
+  const copyRights = "© Standard Chartered Bank (HK) Limited";
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState(false);
+  const [imgeURL, setImageURL] = useState("");
+  const [name, setName] = useState("");
+  const [files, setFiles] = useState<any>([]);
+  const [openSuccessModal, setOpenSuccessModal] = useState(false);
+  const [validImageSizeModel, setValidImageSizeModel] = useState(false);
+  const stageSelector = useSelector(
+    (state: StoreModel) => state.stages.stages[0].stageInfo
+  );
+  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
+  const documentCount = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentCount);
+  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
+  const uploadedDocuments = useSelector((state: any) => state.stages.dynamicDocumentsUpload.uploadedDocuments);
 
-jest.mock('../../../services/track-events', () => ({
-  triggerAdobeEvent: jest.fn()
-}));
-
-jest.mock('../../../modules/preApproval/store/preApproval-slice', () => ({
-  preApprovalAction: {
-    setCurrentStage: jest.fn().mockReturnValue({ type: 'SET_CURRENT_STAGE' })
-  }
-}));
-
-// Mock window.URL.createObjectURL
-global.URL.createObjectURL = jest.fn(() => 'mock-url');
-
-// Mock model.json data with all required fields
-const mockModelData = {
-  techincalissue: {
-    name: 'techincalissue',
-    header_content: 'Technical Issue',
-    header_content_CN: '技术问题',
-    header_content_HK: '技術問題',
-    body_content: ['We are experiencing technical difficulties'],
-    body_content_CN: ['我们遇到技术困难'],
-    body_content_HK: ['我們遇到技術困難'],
-    buttons: ['OK', 'Cancel'],
-    buttons_CN: ['确定', '取消'],
-    buttons_HK: ['確定', '取消']
-  },
-  saveSuccess: {
-    name: 'saveSuccess',
-    header_content: 'Success',
-    header_content_CN: '成功',
-    header_content_HK: '成功',
-    body_content_1: 'Your application has been saved',
-    body_content_1_CN: '您的申请已保存',
-    body_content_1_HK: '您的申請已保存',
-    body_content_2: 'Reference Number:',
-    body_content_2_CN: '参考编号:',
-    body_content_2_HK: '參考編號:'
-  },
-  preApprovedBanner: {
-    name: 'preApprovedBanner',
-    preAprvlHeading: 'Congratulations!',
-    preAprvlHeading_CN: '恭喜！',
-    preAprvlHeading_HK: '恭喜！',
-    creditLimit: 'Your credit limit is',
-    creditLimit_CN: '您的信用额度是',
-    creditLimit_HK: '您的信用額度是',
-    uploadMsg: 'Please upload the following documents',
-    uploadMsg_CN: '请上传以下文件',
-    uploadMsg_HK: '請上傳以下文件',
-    uploadButton: 'Upload Documents',
-    uploadButton_CN: '上传文件',
-    uploadButton_HK: '上傳文件',
-    refNo: 'Ref No:',
-    refNo_CN: '参考编号:',
-    refNo_HK: '參考編號:',
-    footerMsg: 'Your reference number is'
-  },
-  idleTimeOut: {
-    name: 'idleTimeOut',
-    buttons: ['Continue'],
-    buttons_CN: ['继续'],
-    buttons_HK: ['繼續']
-  }
-};
-
-jest.mock('../../../assets/_json/model.json', () => Object.values(mockModelData), { virtual: true });
-
-// Mock the PDF component with props
-jest.mock('../pdf/pdf', () => (props: { fileName: string }) => (
-  <div>Mock PDF Viewer: {props.fileName}</div>
-));
-
-const mockStore = configureMockStore();
-const initialState = {
-  stages: {
-    stages: [{
-      stageInfo: {
-        application: { cos_ref_number: 'APP123' },
-        products: [{
-          campaign: 'TEST_CAMPAIGN',
-          offer_details: [{ approved_amount: 10000 }],
-          name: 'Credit Card'
-        }],
-        applicant_documents: [{
-          document_list: [
-            { document_category: 'ID Proof' },
-            { document_category: 'Address Proof' }
-          ]
-        }]
-      }
-    }]
-  },
-  preApproval: {
-    formConfigmetaData: {
-      products: [{ campaign: 'TEST_CAMPAIGN' }]
+  useEffect(() => {
+    dispatch(dispatchLoader(false));
+    var isMobile = false;
+    /*istanbul ignore else*/
+    if (
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      )
+    ) {
+      isMobile = true;
     }
-  }
+    setFiles([])
+  }, []);
+
+  // const closeFileUpload = () => {
+  //   setShowContinueBtn(false);
+  // };
+
+  const closeFileUploadBack = () => {
+    dispatch(stagesAction.updatefileSectionData(null))
+  };
+
+  const handleUploadFile = async (e: any) => {
+    e.preventDefault();
+    const filename = e.target.files[0].name;
+    var _size = e.target.files[0].size;
+    var fSExt = new Array('Bytes', 'KB', 'MB', 'GB'),
+    i=0;while(_size>900){_size/=1024;i++;}
+    var exactSize = (Math.round(_size*100)/100)+' '+fSExt[i];
+    const file = e.target.files[0];
+    const maxSize = 5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      setValidImageSizeModel(true);
+      return;
+    }
+    try {
+      await dispatch(dispatchLoader(true));
+      await postDocuments(channel_reference, e.target.files[0])?.then(async (response: any) => {
+        const tempData = {
+          file: file,
+          filename: filename,
+          filesize: exactSize,
+          ...response.data,
+        };
+        if (response.status >= 200 && response.status <= 300) {
+          let newFiles = files;
+          newFiles.push(tempData)
+          setFiles(newFiles);
+        }
+        else {
+          dispatch(dispatchLoader(false));
+          dispatch(
+            errorAction.getError({
+              statusCode: "error",
+              statusText: "no response",
+            })
+          );
+        }
+      })
+      await dispatch(dispatchLoader(false));
+    } catch (err) {
+      console.log("err:", err);
+    }
+    e.target.value = null
+  };
+
+  const okBtnClick = () => {
+    let filesValue = stageSelector.applicant_documents[0].document_list
+    let filesData: any = JSON.parse(JSON.stringify(filesValue))
+    for (let i in filesData) {
+      if (filesData[i].document_category === fileSectionData.document_category) {
+        filesData[i].document_options[0].document_types[0].uploaded_documents = files;
+        filesData[i]["applicant_sequence_number"] = 1;
+      }
+    }
+    let stageData = JSON.parse(JSON.stringify(stageSelector));
+    stageData.applicant_documents[0].document_list = filesData;
+    let uploadedData: any = JSON.parse(JSON.stringify(uploadedDocuments));
+    for (let i in files) {
+      delete files[i].file
+      delete files[i].filename
+      delete files[i].filesize
+      uploadedData.push(files[i])
+    }
+    dispatch(stagesAction.uploadedDocumentData(uploadedData))
+    dispatch(
+      stagesAction.getStage({
+        id: CONSTANTS.STAGE_NAMES.DOC_3,
+        formConfig: stageData,
+      })
+    );
+    dispatch(stagesAction.updateDocumentCount(documentCount + 1));
+    dispatch(stagesAction.updatefileSectionData(null))
+    dispatch(stagesAction.updatechangechangeIconIncomeProof(false));
+    dispatch(stagesAction.updateSuccess(true))
+    setShowContinueBtn(false);
+  };
+
+  const handleDelete = (docId: any) => {
+    const updateFiles = files.filter((file: any) => file.docId !== docId);
+    setFiles(updateFiles)
+  };
+  const handleRefresh = (fileID: any, index: any) => { };
+
+  const callModal = () => {
+    setIsModalOpen(true);
+  };
+  const openImagePreview = (img: any, name: any) => {
+    setImageURL(img);
+    setName(name);
+    setImagePreview(true);
+  };
+
+  const successModalClose = () => {
+    setOpenSuccessModal(false);
+  };
+
+  const modelClose = () => {
+    setValidImageSizeModel(false);
+  };
+
+  return (
+    <div className={"document-view"}>
+      {
+        <PopupModel displayPopup={openSuccessModal}>
+          <AlertModel alertType="Success" goBack={successModalClose} />
+        </PopupModel>
+      }
+      {validImageSizeModel && (
+        <PopupModel displayPopup={validImageSizeModel}>
+          <AlertModel alertType={"invalideimagesize"} goBack={modelClose} />
+        </PopupModel>
+      )}
+      {imagePreview && (
+        <ImagePreviewModal
+          imgeURL={imgeURL}
+          name={name}
+          imagePreview={imagePreview}
+          setImagePreview={setImagePreview}
+        />
+      )}
+      <>
+        <Modal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} category={fileSectionData.document_category} />
+        <div className="container">
+          {/* <div className="uploadHkDocument">
+            <p className="doc-close" onClick={closeFileUpload}>
+              <span className="doc-close-btn"></span>
+              CLOSE
+            </p>
+            <p className="hk-proof-name">{fileSectionData.document_category}</p>
+          </div> */}
+          {files?.map((item: any, index: any) => {
+            return (
+              <div className="upload-btn1" key={index}>
+                <div className="thumbnail-img-container">
+                  <a>
+                    <img
+                      data-testid="image-preview-id"
+                      src={URL.createObjectURL(item.file)}
+                      alt={item.filename}
+                      onClick={() =>
+                        openImagePreview(
+                          URL.createObjectURL(item.file),
+                          item.filename
+                        )
+                      }
+                    ></img>
+                  </a>
+                </div>
+                <div className="container-image">
+                  <div className="uploading-doc-name">
+                    <span className="span-file-name">{item.filename}</span>
+                    <div className="progress-text-icon"></div>
+                    {item.documentStatus === "UPLOADED" && (
+                      <div
+                        data-testid="delete-btn"
+                        role="button"
+                        className="trash-icon"
+                        onClick={() => {
+                          handleDelete(item.docId);
+                        }}
+                      ></div>
+                    )}
+                    {item.documentStatus === "Upload failed" && (
+                      <div
+                        data-testid="refresh-btn"
+                        className="retry-icon"
+                        onClick={() => {
+                          handleRefresh(item.docId, index);
+                        }}
+                      ></div>
+                    )}
+                  </div>
+                  <div
+                    className={
+                      item.documentStatus === "UPLOADED"
+                        ? "uploaded"
+                        : "retry-uploaded"
+                    }
+                  ></div>
+                  <div
+                    className={
+                      item.documentStatus === "UPLOADED"
+                        ? "tick-mark"
+                        : "no-tick-mark"
+                    }
+                  >
+                    {item.documentStatus === "UPLOADED"
+                      ? `${"Upload completed"} !`
+                      : `${item.documentStatus} Retry?`}
+                  </div>
+                  <div className="fileSizeDetails">
+                    <span>{item.filesize}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div className="upload-btn-section">
+            <input
+              className="upload-input-file"
+              id="file-upload"
+              type="file"
+              accept=".jpg, .png"
+              onChange={(e) => handleUploadFile(e)}
+              multiple
+            />
+            <label htmlFor="file-upload" className="upload-btn">
+              <span className="upload-img"></span>
+              Upload
+            </label>
+          </div>
+          <div className="document-footer">
+            <div className="footer-banner">
+              <div className="footer-content">
+                <p className="sec-2">
+                  {footerContent1}
+                  <span className="tipsLink" onClick={callModal}>here</span>
+                  {footerContent2}
+                </p>
+              </div>
+              <span className="images"></span>
+            </div>
+          </div>
+          <div className="hk-copy-rights">
+            <p>{copyRights}</p>
+          </div>
+          <div className="footer footer-set">
+            {" "}
+            {
+              <div title="back-btn-upload-doc1" className="back" onClick={closeFileUploadBack}>
+                <span className="arrow"></span> Back
+              </div>
+            }
+            <button
+              role="button"
+              title={fileSectionData.document_category}
+              type="submit"
+              style={{ border: "20px" }}
+              className={
+                files?.length === 0
+                  ? `continue form-invalid`
+                  : `continue form-valid`
+              }
+              onClick={() => okBtnClick()}
+              disabled={files?.length === 0}
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      </>
+    </div>
+  );
 };
 
-describe('Model Component - High Coverage Tests', () => {
-  const mockClosePopup = jest.fn();
-  const mockHandlebuttonClick = jest.fn();
-  const mockHandleChooseClick = jest.fn();
-  const mockAgreePDF = jest.fn();
-  const mockClosePDF = jest.fn();
-  
-  let store: any;
-  
-  beforeEach(() => {
-    store = mockStore(initialState);
-    jest.clearAllMocks();
-  });
-
-  // Test all modal variants
-  describe.each([
-    ['techincalissue', 'Technical Issue'],
-    ['saveSuccess', 'Success'],
-    ['preApprovedBanner', 'Congratulations!'],
-    ['idleTimeOut', 'Continue']
-  ])('%s modal', (modalName, expectedHeader) => {
-    it(`should render ${modalName} modal with correct content`, () => {
-      render(
-        <Provider store={store}>
-          <Model name={modalName} closePopup={mockClosePopup} />
-        </Provider>
-      );
-      
-      expect(screen.getByText(expectedHeader)).toBeInTheDocument();
-    });
-
-    it(`should handle interactions in ${modalName} modal`, () => {
-      render(
-        <Provider store={store}>
-          <Model name={modalName} closePopup={mockClosePopup} />
-        </Provider>
-      );
-
-      if (modalName === 'techincalissue') {
-        fireEvent.click(screen.getByText('OK'));
-        expect(mockClosePopup).toHaveBeenCalled();
-      } else if (modalName === 'idleTimeOut') {
-        fireEvent.click(screen.getByText('Continue'));
-        expect(mockClosePopup).toHaveBeenCalled();
-      }
-    });
-  });
-
-  // PDF Declaration Modal tests
-  describe('PDF Declaration Modal', () => {
-    const pdfProps = {
-      name: 'declaration',
-      data: {
-        title: 'terms.pdf',
-        textContent: 'Terms and Conditions',
-        target: {
-          title: 'terms.pdf',
-          name: 'Terms',
-          checked: false,
-          innerText: 'Download Terms'
-        }
-      },
-      closepdf: mockClosePDF,
-      agreePDF: mockAgreePDF,
-      stageId: 'rp'
-    };
-
-    it('should render PDF modal with all interactive elements', () => {
-      render(
-        <Provider store={store}>
-          <Model {...pdfProps} />
-        </Provider>
-      );
-      
-      expect(screen.getByText('Terms and Conditions')).toBeInTheDocument();
-      expect(screen.getByText('Mock PDF Viewer: terms.pdf')).toBeInTheDocument();
-      expect(screen.getByText('Download PDF')).toBeInTheDocument();
-      expect(screen.getByText('Scroll')).toBeInTheDocument();
-    });
-
-    it('should handle PDF download', () => {
-      global.fetch = jest.fn().mockResolvedValue({
-        blob: jest.fn().mockResolvedValue(new Blob())
-      });
-
-      render(
-        <Provider store={store}>
-          <Model {...pdfProps} />
-        </Provider>
-      );
-      
-      fireEvent.click(screen.getByText('Download PDF'));
-      expect(global.fetch).toHaveBeenCalledWith('terms.pdf');
-    });
-
-    it('should show agree button after scrolling to bottom', () => {
-      render(
-        <Provider store={store}>
-          <Model {...pdfProps} />
-        </Provider>
-      );
-      
-      const scrollContainer = screen.getByTestId('pdf-scroll-btm');
-      fireEvent.scroll(scrollContainer, {
-        target: { scrollTop: 1000, clientHeight: 500, scrollHeight: 1500 }
-      });
-      
-      expect(screen.getByText('Agree')).toBeInTheDocument();
-    });
-
-    it('should call agreePDF when agree button is clicked', () => {
-      render(
-        <Provider store={store}>
-          <Model {...pdfProps} />
-        </Provider>
-      );
-      
-      // Trigger scroll to show agree button
-      fireEvent.scroll(screen.getByTestId('pdf-scroll-btm'), {
-        target: { scrollTop: 1000, clientHeight: 500, scrollHeight: 1500 }
-      });
-      
-      fireEvent.click(screen.getByText('Agree'));
-      expect(mockAgreePDF).toHaveBeenCalledWith(false, pdfProps.data);
-    });
-  });
-
-  // Language variations tests
-  describe('Language Variations', () => {
-    it.each([
-      ['CN', '技术问题', '我们遇到技术困难', '确定'],
-      ['HK', '技術問題', '我們遇到技術困難', '確定']
-    ])('should render correct content for %s language', (lang, header, content, button) => {
-      require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(lang);
-      
-      render(
-        <Provider store={store}>
-          <Model name="techincalissue" closePopup={mockClosePopup} />
-        </Provider>
-      );
-      
-      expect(screen.getByText(header)).toBeInTheDocument();
-      expect(screen.getByText(content)).toBeInTheDocument();
-      expect(screen.getByText(button)).toBeInTheDocument();
-    });
-  });
-
-  // Edge cases
-  describe('Edge Cases', () => {
-    it('should handle empty check modal with two buttons', () => {
-      render(
-        <Provider store={store}>
-          <Model 
-            name="empty_check" 
-            handlebuttonClick={mockHandlebuttonClick}
-            handleChooseClick={mockHandleChooseClick}
-          />
-        </Provider>
-      );
-      
-      const buttons = screen.getAllByRole('button');
-      expect(buttons).toHaveLength(2);
-      
-      fireEvent.click(buttons[0]);
-      expect(mockHandlebuttonClick).toHaveBeenCalled();
-      
-      fireEvent.click(buttons[1]);
-      expect(mockHandleChooseClick).toHaveBeenCalled();
-    });
-
-    it('should handle info tooltips with custom content', () => {
-      const customContent = 'This is a custom tooltip message';
-      render(
-        <Provider store={store}>
-          <Model 
-            name="info_tooltips" 
-            body_content={customContent}
-            btnTxt="Got it"
-            closePopup={mockClosePopup}
-          />
-        </Provider>
-      );
-      
-      expect(screen.getByText(customContent)).toBeInTheDocument();
-      fireEvent.click(screen.getByText('Got it'));
-      expect(mockClosePopup).toHaveBeenCalled();
-    });
-
-    it('should redirect to home page when save success modal is closed', () => {
-      delete window.location;
-      window.location = { href: '' } as any;
-      
-      render(
-        <Provider store={store}>
-          <Model name="saveSuccess" />
-        </Provider>
-      );
-      
-      fireEvent.click(screen.getByTestId('successClose-btn'));
-      expect(window.location.href).toBe('http://localhost/');
-    });
-
-    it('should dispatch setCurrentStage when upload documents is clicked', () => {
-      render(
-        <Provider store={store}>
-          <Model name="preApprovedBanner" />
-        </Provider>
-      );
-      
-      fireEvent.click(screen.getByText('Upload Documents'));
-      expect(require('../../../modules/preApproval/store/preApproval-slice').preApprovalAction.setCurrentStage)
-        .toHaveBeenCalledWith('DC');
-    });
-  });
-
-  // Additional coverage for untested paths
-  describe('Additional Coverage', () => {
-    it('should handle product category PL in decline modal', () => {
-      require('../../../utils/common/change.utils').getUrl.getProductInfo.mockReturnValue([{ product_category: 'PL' }]);
-      
-      render(
-        <Provider store={store}>
-          <Model name="decline" />
-        </Provider>
-      );
-      
-      // Verify PL specific content would be rendered
-    });
-
-    it('should handle missing stageInfo in preApprovedBanner', () => {
-      const customStore = mockStore({
-        ...initialState,
-        stages: {
-          stages: [{}] // Empty stage info
-        }
-      });
-      
-      render(
-        <Provider store={customStore}>
-          <Model name="preApprovedBanner" />
-        </Provider>
-      );
-      
-      // Verify component handles missing data gracefully
-      expect(screen.queryByText('Your credit limit is')).not.toBeInTheDocument();
-    });
-
-    it('should handle scroll button click', () => {
-      const pdfProps = {
-        name: 'declaration',
-        data: {
-          title: 'terms.pdf',
-          textContent: 'Terms'
-        },
-        closepdf: mockClosePDF,
-        agreePDF: mockAgreePDF
-      };
-      
-      render(
-        <Provider store={store}>
-          <Model {...pdfProps} />
-        </Provider>
-      );
-      
-      fireEvent.click(screen.getByText('Scroll'));
-      // Verify scroll behavior would be triggered
-    });
-  });
-});
+export default DocumentUpload;
