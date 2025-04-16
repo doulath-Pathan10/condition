@@ -1,347 +1,350 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import thunk from 'redux-thunk';
-import Zoloz from './Zoloz';
-import axios from 'axios';
-import { CONSTANTS } from '../../../../../utils/common/constants';
+import React, { useState, useRef } from "react";
+import "./model.scss";
+import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
+import modelInfo from "../../../assets/_json/model.json";
+import Pdf from "../pdf/pdf";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { getUrl } from "../../../utils/common/change.utils";
+import trackEvents from "../../../services/track-events";
+import { useNavigate } from "react-router-dom";
+import tickblue from '../../../modules/preApproval/images/tick-blue.png'
+import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
+import { useDispatch, useSelector } from "react-redux";
+import warningIcon from "../../../../src/assets/_images/ico_warning_sign_red.svg";
+import DOMPurify from "dompurify";
 
-// Mock axios
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-// Mock react-redux hooks
-jest.mock('react-redux', () => ({
-  ...jest.requireActual('react-redux'),
-  useSelector: jest.fn(),
-  useDispatch: jest.fn(),
-}));
+const Model = (props: KeyWithAnyModel) => {
+  const modelsData: KeyWithAnyModel = modelInfo;
+  const modelData = modelsData.find((model: any) => model.name === props.name);
+  const ref = useRef<HTMLDivElement>(null);
+  const [showbutton, setShowButton] = useState(false)
+  const language = getUrl.getLanguageInfo("lang")
+  const application_reference = getUrl.getChannelRefNo()?.channelRefNo;
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const ref_number = "HK24101700230315";
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
+  // const campaignID = formConfigmetaData?.products[0].campaign;
+ 
+  const dispatch = useDispatch();
+  const handlebuttonClick = (index: number) => {
+    if (index === 0 && !props.callBackMethod) {
+      window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
+    } else if (props.handlebuttonClick) {
+      props.handlebuttonClick();
+    }
+  }
 
-// Mock other components
-jest.mock('../carousel/carousel', () => () => <div>Carousel Mock</div>);
-jest.mock('../../../../../shared/components/popup-model/popup-model', () => ({ children, displayPopup }: any) => 
-  displayPopup ? <div>{children}</div> : null);
-jest.mock('../../../alertModal/alert-modal', () => ({ alertType, goBack }: any) => 
-  <div onClick={goBack}>{alertType} Alert</div>);
-jest.mock('../modals/imagePreviewModal/image-preview-modal', () => ({ imgeURL, name, imagePreview, setImagePreview }: any) => 
-  imagePreview ? <div>{name} Preview</div> : null);
+  const scrollbtm = (e: React.MouseEvent<any>) => {
+    e.preventDefault()
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: "end", inline: "nearest" })
+    ref.current?.scroll(0, ref.current?.scrollTop + 250)
+    if (ref.current?.scrollTop === 0) {
+      setShowButton(true);
+    } else {
+      setShowButton(false)
+    }
+  }
 
-const mockStore = configureStore([thunk]);
+  const mouseScrollbtm = (e: React.UIEvent<HTMLDivElement>) => {
+    const currentScrollTop = e.currentTarget.scrollTop + e.currentTarget.clientHeight;
+    const boxScrollHeight = e.currentTarget.scrollHeight * 4 / 5;
+    if (currentScrollTop >= boxScrollHeight) {
+      setShowButton(true);
+    } else {
+      setShowButton(false)
+    }
+  }
+  const downloadPDF = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+    trackEvents.triggerAdobeEvent("ctaClick", "Download PDF");
+    event.preventDefault()
+    fetch(props?.data?.target ? props?.data?.target.title : props?.data?.title).then(response => {
+      response.blob().then(blob => {
+        // Creating new object of PDF file
+        const fileURL = window.URL.createObjectURL(blob);
+        // Setting various property values
+        let alink = document.createElement('a');
+        alink.href = fileURL;
+        alink.download = props?.data?.target ? props?.data?.target.innerText : props?.data.slot;
+        alink.click();
+      })
+    })
+  }
+  const closepdf = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+    event.preventDefault()
+    if (props?.data?.target) {
+      props.data.target.checked = false;
+      props?.closepdf(false, props?.data);
+      event.stopPropagation();
+    } else {
+      props?.closepdf(false, props?.data);
+      event.stopPropagation();
+    }
 
-describe('Zoloz Component', () => {
-  let store: any;
-  const mockDispatch = jest.fn();
-  const mockSetHKIDVersion = jest.fn();
-  
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: { channel_reference: 'test123' },
-            applicant_documents: [{
-              document_list: [{
-                document_category: 'R0001',
-                document_options: [{
-                  document_types: [{
-                    uploaded_documents: []
-                  }]
-                }]
-              }]
-            }]
-          }
-        }],
-        dynamicDocumentsUpload: {
-          showUploadFileSuccess: false,
-          HKIDQRCodeData: { qrCode: 'testQRCode', transactionId: 'trans123' },
-          HKIDVersionValue: 'A001',
-          fileSectionData: { document_category: 'R0001' },
-          documentCount: 0
-        }
-      },
-      preApproval: {
-        documentZoloCheckRes: [{
-          docId: 'doc123',
-          documentName: 'testDoc.png',
-          documentCategoryCode: 'R0001',
-          documentTypeCode: 'A001'
-        }],
-        imgPrevURL: 'testImageUrl'
-      }
-    });
-    
-    (useSelector as jest.Mock).mockImplementation((callback) => callback(store.getState()));
-    (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
-  });
-  
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-  
-  it('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    expect(screen.getByText('CLOSE')).toBeInTheDocument();
-    expect(screen.getByText('Colour Identity Proof')).toBeInTheDocument();
-  });
-  
-  it('displays QR code section when showUploadFileSuccess is false', () => {
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    expect(screen.getByText('Carousel Mock')).toBeInTheDocument();
-    expect(screen.getByText('Submit')).toBeInTheDocument();
-  });
-  
-  it('displays uploaded document section when showUploadFileSuccess is true', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          showUploadFileSuccess: true
-        }
-      }
-    });
-    
-    (useSelector as jest.Mock).mockImplementation((callback) => callback(store.getState()));
-    
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    expect(screen.getByText('testDoc.png')).toBeInTheDocument();
-    expect(screen.getByText('Upload completed')).toBeInTheDocument();
-  });
-  
-  it('calls closeFileUpload when close button is clicked', () => {
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByText('CLOSE'));
-    expect(mockDispatch).toHaveBeenCalled();
-  });
-  
-  it('calls callSubmit when submit button is clicked', async () => {
-    const mockZoloCheckResponse = {
-      status: 200,
-      data: {
-        documents: [{
-          docId: 'doc123',
-          documentName: 'testDoc.png',
-          documentCategoryCode: 'R0001',
-          documentTypeCode: 'A001'
-        }]
-      }
+  }
+  const agreePDF = (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+    event.preventDefault()
+    if (props?.data.target) {
+      props.data.target.checked = true;
+      props.agreePDF(false, props?.data);
+      event.stopPropagation();
+    } else {
+      props.agreePDF(false, props?.data);
+      event.stopPropagation();
+    }
+
+  }
+
+  const closeSuccessPopup = () => {
+    window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
+  }
+  const uplaoddocuments = () => {
+    dispatch(preApprovalAction.setCurrentStage("DC"));
+  }
+
+  const getMarkup = (content: any) => {
+    return {
+      __html: DOMPurify.sanitize(content),
     };
-    
-    const mockAcknowledgeResponse = {
-      status: 200,
-      data: [{ responseStatus: 'Success' }]
-    };
-    
-    const mockImagePreviewResponse = {
-      status: 200,
-      data: new Blob()
-    };
-    
-    const mockPdfPreviewResponse = {
-      status: 200,
-      data: {
-        statusCode: 'OK',
-        documents: []
-      }
-    };
-    
-    mockedAxios.post.mockImplementation((url) => {
-      if (url.includes('zoloz-check')) return Promise.resolve(mockZoloCheckResponse);
-      if (url.includes('acknowledge')) return Promise.resolve(mockAcknowledgeResponse);
-      if (url.includes('image-preview')) return Promise.resolve(mockImagePreviewResponse);
-      if (url.includes('pdf-preview')) return Promise.resolve(mockPdfPreviewResponse);
-      return Promise.reject(new Error('API not mocked'));
-    });
-    
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByText('Submit'));
-    
-    await waitFor(() => {
-      expect(mockedAxios.post).toHaveBeenCalledWith(expect.stringContaining('zoloz-check'), expect.anything());
-      expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'LOADER/SET_LOADER' }));
-    });
-  });
-  
-  it('shows error popup when zoloz check fails', async () => {
-    const mockZoloCheckResponse = {
-      status: 200,
-      data: { documents: [] } // Empty documents array triggers error
-    };
-    
-    mockedAxios.post.mockResolvedValueOnce(mockZoloCheckResponse);
-    
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByText('Submit'));
-    
-    await waitFor(() => {
-      expect(screen.getByText('zoloError Alert')).toBeInTheDocument();
-    });
-  });
-  
-  it('handles API errors gracefully', async () => {
-    mockedAxios.post.mockRejectedValueOnce(new Error('API Error'));
-    
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByText('Submit'));
-    
-    await waitFor(() => {
-      expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({ type: 'ERROR/GET_ERROR' }));
-    });
-  });
-  
-  it('calls callQRCodeAPI when error popup is closed', async () => {
-    const mockQRCodeResponse = {
-      status: 200,
-      data: { qrCode: 'newQRCode' }
-    };
-    
-    mockedAxios.post.mockResolvedValueOnce({ data: { documents: [] } }); // Trigger error
-    mockedAxios.post.mockResolvedValueOnce(mockQRCodeResponse); // For QR code API
-    
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByText('Submit'));
-    
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('zoloError Alert'));
-      expect(mockedAxios.post).toHaveBeenCalledWith(expect.stringContaining('qrcode'), expect.anything());
-    });
-  });
-  
-  it('opens image preview when uploaded image is clicked', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          showUploadFileSuccess: true
-        }
-      }
-    });
-    
-    (useSelector as jest.Mock).mockImplementation((callback) => callback(store.getState()));
-    
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByTitle('image-preview'));
-    expect(screen.getByText('testDoc.png Preview')).toBeInTheDocument();
-  });
-  
-  it('updates state when continue button is clicked', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          showUploadFileSuccess: true
-        }
-      }
-    });
-    
-    (useSelector as jest.Mock).mockImplementation((callback) => callback(store.getState()));
-    
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByText('Continue'));
-    
-    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'STAGES/GET_STAGE',
-      payload: expect.objectContaining({ id: CONSTANTS.STAGE_NAMES.DOC_3 })
-    }));
-    expect(mockSetHKIDVersion).toHaveBeenCalledWith('');
-  });
-  
-  it('disables continue button when showUploadFileSuccess is false', () => {
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    expect(screen.getByText('Continue')).toHaveClass('form-invalid');
-  });
-  
-  it('enables continue button when showUploadFileSuccess is true', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          showUploadFileSuccess: true
-        }
-      }
-    });
-    
-    (useSelector as jest.Mock).mockImplementation((callback) => callback(store.getState()));
-    
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    expect(screen.getByText('Continue')).toHaveClass('form-valid');
-  });
-  
-  it('displays copyright text', () => {
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-    
-    expect(screen.getByText(/Standard Chartered Bank \(HK\) Limited/)).toBeInTheDocument();
-  });
-});
+  };
+console.log(props,'props in model')
+
+  return (
+    <>
+      {(modelData && props.name !== 'saveSuccess' && props.name !== 'preApprovedBanner') && (
+        <div className="popup">
+          <div className="popup-container1">
+            <div className="waring-icon">
+              <svg
+                width="51"
+                height="50"
+                viewBox="0 0 51 50"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M25.5 43.75C35.8553 43.75 44.25 35.3553 44.25 25C44.25 14.6447 35.8553 6.25 25.5 6.25C15.1447 6.25 6.75 14.6447 6.75 25C6.75 35.3553 15.1447 43.75 25.5 43.75Z"
+                  stroke="#2772C7"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M25.5 15.625V26.5625"
+                  stroke="#2772C7"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M25.5 35.9375C26.7944 35.9375 27.8438 34.8882 27.8438 33.5938C27.8438 32.2993 26.7944 31.25 25.5 31.25C24.2056 31.25 23.1562 32.2993 23.1562 33.5938C23.1562 34.8882 24.2056 35.9375 25.5 35.9375Z"
+                  fill="#2772C7"
+                />
+              </svg>
+            </div>
+            {(application_reference && props.name === "techincalissue") &&
+              <p className="app_ref_number">{language === CONSTANTS.LANG_EN ? CONSTANTS.applicationNo : language === CONSTANTS.LANG_CN ? CONSTANTS.applicationNo_CN : CONSTANTS.applicationNo_HK} {application_reference}</p>
+            }
+            <div className="popup-info">
+              {modelData.header_content && (
+                <div className="popup-info__head">
+                  {language === CONSTANTS.LANG_EN ? modelData.header_content : language === CONSTANTS.LANG_CN ? modelData.header_content_CN : modelData.header_content_HK}
+                </div>
+              )}
+
+              <div className="popup-info__desc">
+                {(language === CONSTANTS.LANG_EN ? modelData.body_content : language === CONSTANTS.LANG_CN ? modelData.body_content_CN : modelData.body_content_HK).map(
+                  (content: string, index: number) => {
+                    return <p key={`${content}${index}`}>{content}</p>;
+                  }
+                )}
+                {(modelData.name === "idleTimeOut" && props.name === 'idleTimeOut') &&
+                  <p
+                    role="button"
+                    data-testid="btn-click"
+                    className="btn"
+                    onClick={() => props.closePopup()}
+                  >
+                    {language === CONSTANTS.LANG_EN ? modelData.buttons[0] : language === CONSTANTS.LANG_CN ? modelData.buttons_CN[0] : modelData.buttons_HK[0]}
+                  </p>
+                }
+                {props.name === 'empty_check' ?
+                  <>
+                    <p className="btn" data-testid="handle-btn-click" onClick={() => props.handlebuttonClick()}>{language === CONSTANTS.LANG_EN ?
+                      modelData.buttons[0] : language === CONSTANTS.LANG_CN ? modelData.buttons_CN[0] : modelData.buttons_HK[0]}</p>
+                    <p className="btn" data-testid="handle-choose-click" onClick={() => props.handleChooseClick()}>{language === CONSTANTS.LANG_EN ?
+                      modelData.buttons[1] : language === CONSTANTS.LANG_CN ? modelData.buttons_CN[1] : modelData.buttons_HK[1]}</p>
+                  </>
+                  :
+                  <>
+                    {(modelData.buttons && props.name !== 'idleTimeOut') &&
+                      (language === CONSTANTS.LANG_EN ? modelData.buttons : language === CONSTANTS.LANG_CN ? modelData.buttons_CN : modelData.buttons_HK).map((button: string, index: number) => {
+                        return (
+                          <p
+                            role="button"
+                            data-testid="btn-click"
+                            className="btn"
+                            onClick={() => handlebuttonClick(index)}
+                            key={`${button}${index}`}
+                          >
+                            {button}
+                          </p>
+                        );
+                      })
+                    }
+                  </>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(modelData && props.name === 'saveSuccess') && (
+        <div className="popup">
+          <div className="popup-container1 saveSuccessPopup">
+            <div className="popup-thankYouIcon"></div>
+            <div className="popup-info saveSuccessPopupInfo">
+              {modelData.header_content && (
+                <div className="popup-info__head saveSuccessPopupHead">
+                  {language === CONSTANTS.LANG_EN ? modelData.header_content : language === CONSTANTS.LANG_CN ? modelData.header_content_CN : modelData.header_content_HK}
+                </div>
+              )}
+
+              <button type="button" data-testid="successClose-btn" className="close successClose" onClick={closeSuccessPopup}>
+                {/* <span aria-hidden="true">&times;</span> */}
+              </button>
+
+              <div className="popup-info__desc">
+                {modelData.body_content_1 &&
+                  <p >{language === CONSTANTS.LANG_EN ? modelData.body_content_1 : language === CONSTANTS.LANG_CN ? modelData.body_content_1_CN : modelData.body_content_1_HK}</p>
+                }
+                {modelData.body_content_2 &&
+                  <p className="body_content_2">{language === CONSTANTS.LANG_EN ? modelData.body_content_2 : language === CONSTANTS.LANG_CN ? modelData.body_content_2_CN : modelData.body_content_2_HK} {application_reference}</p>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(modelData === '' || modelData === undefined) && (
+        props.name && props.name === 'info_tooltips' ?
+          <div className="popup">
+            <div className="popup-container1 info__tooltips">
+              <div className="popup-info">
+                <div className="popup-info__desc__top">
+                  <div className="popup-info__desc">
+                    {props.body_content &&
+                      <p >{props.body_content}</p>
+                    }
+                  </div>
+                </div>
+                <div className="popup-info__footer">
+                  {props.btnTxt && <p
+                    className="btn info_tooltip_btn"
+                    onClick={() => props.closePopup()}
+                  >
+                    {props.btnTxt}
+                  </p>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+          :
+          <div className="popup-declare">
+            <div className="popup-container1-declare">
+              <div className="popup-info-declare">
+                {(props?.data?.target ? props?.data?.target?.name : props?.data?.textContent) && (
+                  <div className="popup-info__head-declare">
+                    <h5>{props.stageId !== 'rp' && props?.data?.target ? props.data.target.name : props?.data?.textContent}</h5>
+                    <button data-testid="close-btn" type="button" className="close pdfClose" onClick={(e) => closepdf(e)}>
+                      {/* <span aria-hidden="true">&times;</span> */}
+                    </button>
+                  </div>
+                )}
+                <div className="popup-info__desc declaration_popup-info__desc" data-testid="pdf-scroll-btm" onScroll={(e) => mouseScrollbtm(e)} id="pdfViewer" ref={ref}>
+                  <Pdf fileName={props?.data?.target ? props?.data?.target?.title : props?.data?.title} />
+                </div>
+                <div className="popup-info__footer-declare">
+                  <div className="pdf-accept confirm-btn">
+                    <button role="button" data-testid="pdf-download-btn1" onClick={(e) => downloadPDF(e)} id="pdf-download-btn1">{language === CONSTANTS.LANG_EN ? 'Download PDF' : language === CONSTANTS.LANG_CN ? 'PDF下载' : 'PDF下載'}</button>
+                  </div>
+                  {!showbutton &&
+                    <div className="pdf-scroll" id="scrollbutton">
+                      <button data-testid="pdf-scroll-btn1" id="pdf-scroll-btn1" onClick={(e) => scrollbtm(e)}>{language === CONSTANTS.LANG_EN ? 'Scroll' : language === CONSTANTS.LANG_CN ? '继续往下滑' : '繼續往下滑'}</button>
+                    </div>
+                  }
+                  {showbutton &&
+                    <div className="pdf-accept confirm-btn" id="navigationBtn">
+                      <button data-testid="pdf-agree-btn" id="adreencnt" onClick={(e) => agreePDF(e)}>{language === CONSTANTS.LANG_EN ? 'Agree' : language === CONSTANTS.LANG_CN ? '同意' : '同意'}</button>
+                    </div>
+                  }
+                </div>
+
+              </div>
+            </div>
+          </div>
+      )}
+
+      {(modelData && props.name === 'preApprovedBanner') && (
+        <div className="popup">
+          <div className="popup-container1 saveSuccessPopup">
+            <div className="popup-alertSuccess"></div>
+            <div className="popup-info saveSuccessPopupInfo">
+              {modelData.preAprvlHeading && (
+                <div className="popup-info__head saveSuccessPopupHead">
+                  {language === CONSTANTS.LANG_EN ? modelData.preAprvlHeading : language === CONSTANTS.LANG_CN ? modelData.preAprvlHeading_CN : modelData.preAprvlHeading_HK}
+                </div>
+              )}
+
+              <div className="popup-info__desc">
+                <div className="preApproval--MainBody">
+                  <div className='Your-Credit-Card-is-body'>
+                    <span className='Preliminary-Credit-L'>{language === CONSTANTS.LANG_EN ? modelData.creditLimit : language === CONSTANTS.LANG_CN ? modelData.creditLimit_CN : modelData.creditLimit_HK} {stageSelector[0].stageInfo.products[0].offer_details[0].approved_amount}</span>
+                  </div>
+                  <div className='authentication-upload'>
+                    {language === CONSTANTS.LANG_EN ? modelData.uploadMsg : language === CONSTANTS.LANG_CN ? modelData.uploadMsg_CN : modelData.uploadMsg_HK}
+                    </div>
+                    <div className="checkList-div">
+                      <div className="documentList-section">
+                        <span className="Please-upload">
+                        {stageSelector[0].stageInfo!=undefined  && stageSelector[0].stageInfo?.applicant_documents[0]?.document_list.map((item:any)=>{
+                            return <p className="doc"><img className="tick-blue" src={tickblue} />{item.document_category}</p>
+                          })
+                          }
+                        </span>
+                      </div>
+                    </div>
+                
+                  </div>
+                
+                <div className="preApproval--buttonSection">
+                  <button className="button" onClick={uplaoddocuments}>{language === CONSTANTS.LANG_EN ? modelData.uploadButton : language === CONSTANTS.LANG_CN ? modelData.uploadButton_CN : modelData.uploadButton_HK}</button>
+                </div>
+                <div className="Preapproval--FooterSection Rectangle-17">
+                  {modelData.refNo &&
+                    <span className="Ref-No">{language === CONSTANTS.LANG_EN ? modelData.refNo : language === CONSTANTS.LANG_CN ? modelData.refNo_CN : modelData.refNo_HK} {application_reference ? application_reference : ref_number}</span>
+                  }
+                  <span className="Your-reference-number">{language === CONSTANTS.LANG_EN ? modelData.footerMsg : language === CONSTANTS.LANG_CN ? modelData.body_content_2_CN : modelData.body_content_2_HK} {application_reference}</span>
+                </div>
+
+
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+};
+
+export default Model;
+
+
+
+Please write an test cases using react and jest
