@@ -1,464 +1,315 @@
-import "./amount.scss"
-import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import validateService from "../../../services/validation-service";
-import { KeyWithAnyModel, LovInputModel, StoreModel } from "../../../utils/model/common-model";
-import { fieldError, fieldIdAppend, getUrl, isFieldUpdate, isFieldValueUpdate } from "../../../utils/common/change.utils";
-import "../phone/phone.scss";
-import errorMsg from "../../../assets/_json/error.json";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
-import { lastAction } from "../../../utils/store/last-accessed-slice";
-import { fieldErrorAction } from "../../../utils/store/field-error-slice";
-import { stagesAction } from "../../../utils/store/stages-slice";
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import Amount from './Amount';
+import { CONSTANTS } from '../../../utils/common/constants';
 
-export const Amount = (props: KeyWithAnyModel) => {
+const mockStore = configureStore([]);
 
-  const [lovData, setLovData] = useState<any>([]);
-  const [error, setError] = useState('');
-  const lovSelector = useSelector((state: StoreModel) => state.lov);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const fieldErrorSelector = useSelector(
-    (state: StoreModel) => state.fielderror.error
-  );
-  const madatoryFieldSelector = useSelector(
-    (state: StoreModel) => state.fielderror.mandatoryFields
-  );
-  const dispatch = useDispatch();
-  let propsData = props && props.data;
-  const [defaultValue, setDefaultValue] = useState("");
-  const [placeholder, setPlaceHolder] = useState(propsData && props.data.rwb_label_name)
-  const language = getUrl.getLanguageInfo("lang")
-  const boxRegex = /^[0-9]{8}$/; // /^[0-9]*$/;
-  const regex = /^[0-9]*$/;
-  const [otherLoansView, setOtherLoansView] = useState(false)
-  const [tickMark,setTickMark] = useState(false);
-  const userInputSelector = useSelector((state: StoreModel) => state.stages.userInput);
-  const otherLoans = userInputSelector.applicants[0].other_loans;
-  const relationshipWithBank=userInputSelector.applicants[0].related_party;
-  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
-  const resumePage = getUrl.getParameterByName("pageId")
+describe('Amount Component', () => {
+  let store: any;
+  const mockProps = {
+    data: {
+      logical_field_name: 'requested_loan_amount',
+      rwb_label_name: 'Loan Amount',
+      mandatory: 'Yes',
+      min_length: 4,
+      length: 7,
+      regex: '^[0-9]*$',
+      editable: false
+    },
+    handleCallback: jest.fn()
+  };
 
-  useEffect(() => {
-    /*istanbul ignore else*/
-    if (userInputSelector && userInputSelector.applicants[0] && userInputSelector.applicants[0][props.data.logical_field_name]) {
-      const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
-      setDefaultValue(displayValue);
-    }
-     /*istanbul ignore else*/
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
-       /*istanbul ignore else*/
-      if (stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"]
-      ) {
-        const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
-        setDefaultValue(displayValue);
-      }
-    }
-  }, []);
+  beforeEach(() => {
+    store = mockStore({
+      lov: { lov: [] },
+      stages: {
+        stages: [{ stageId: 'ad-1', stageInfo: { applicants: [{}] } }],
+        userInput: { applicants: [{}] }
+      },
+      fielderror: { error: [], mandatoryFields: [] },
+      preApproval: { resumeAllowed: 'N' },
+      lastAccessed: { field: '' }
+    });
+  });
 
-  useEffect(() =>{
-    if(stageSelector[0].stageId === 'ad-6' && otherLoans === 'N'){
-      setDefaultValue('');
-      setTickMark(false);
-    } 
-  },[otherLoans==='N']) 
+  test('renders without crashing', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    expect(screen.getByLabelText('Loan Amount')).toBeInTheDocument();
+  });
 
-  useEffect(() => {
-    /*istanbul ignore else*/
-    if (lovSelector.lov.length > 0) {
-      lovSelector.lov.forEach((ref: LovInputModel) => {
-        /*istanbul ignore else*/
-        if (props.data.logical_field_name.includes(ref.label)) {
-          setLovData(ref.value);
-        }
-      });
-    }
-  }, [lovSelector.lov, props?.data?.logical_field_name]);
+  test('displays the correct label', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    expect(screen.getByText('Loan Amount')).toBeInTheDocument();
+  });
 
-  useEffect(() => {
-    let fieldName = props.data.logical_field_name;
-    /*istanbul ignore else*/ 
-    if (fieldError(fieldErrorSelector, props)) {
-      if (fieldName === "requested_loan_amount" && props.data.min_length && `${defaultValue}`.length < props.data.min_length) {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' digits' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-      }
-      if (fieldName === "requested_loan_amount" && (Number(defaultValue) / 1000) % 1 !== 0) {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmountMin : language === CONSTANTS.LANG_CN ? errorMsg.loanAmountMin_CN : errorMsg.loanAmountMin_HK}`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-      }
-      else if (fieldName === "requested_loan_amount" && Number(defaultValue) < 5000 || Number(defaultValue) > 2000000) {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmount : language === CONSTANTS.LANG_CN ? errorMsg.loanAmount_CN : errorMsg.loanAmount_HK}`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-      }
-      if ((fieldName === 'annual_income_pl' || fieldName === 'annual_income') && (Number(defaultValue) === 0)) {
-        setError(`${language === CONSTANTS.LANG_EN ? props.data?.rwb_label_name + ' ' + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}*`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-          return
-      }
-      else if ((fieldName === 'annual_income_pl' || fieldName === 'annual_income') && !(Number(defaultValue) >= 96000)) {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePl : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePl_CN : errorMsg.annualIncomePl_HK}`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-          return
-      }
-      else if (fieldName === 'annual_income_pl' && error === '' && stageSelector[0].stageId === 'ad-1a') {
-        dispatch(
-          fieldErrorAction.removeFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-      }
-      else if (error === '') {
-        dispatch(
-          fieldErrorAction.removeFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldErrorSelector, error, stageSelector]);
+  test('shows error when value is below minimum amount (5000)', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    fireEvent.change(input, { target: { value: '4999' } });
+    
+    expect(screen.getByText(/Loan amount must be between HKD 5,000 and HKD 2,000,000/)).toBeInTheDocument();
+  });
 
-  useEffect(() => {
-    if (error == "") {
-      dispatch(ContinueBtnAction.getContinueEnableState(true));
-      setError('')
-    } else {
-      dispatch(ContinueBtnAction.getContinueEnableState(false));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps  
-  }, [error, madatoryFieldSelector, dispatch])
+  test('shows error when value is above maximum amount (2000000)', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    fireEvent.change(input, { target: { value: '2000001' } });
+    
+    expect(screen.getByText(/Loan amount must be between HKD 5,000 and HKD 2,000,000/)).toBeInTheDocument();
+  });
 
-  const validations = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    /*istanbul ignore else*/ 
-    if ((props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") && event.target.value.length < 1) {
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        }));
-    }
-    if (fieldName === "requested_loan_amount") {
-      /*istanbul ignore else*/
-      if (event.target.value === " " || event.target.value === null || event.target.value === "") {
-        setError(`${language === CONSTANTS.LANG_EN ? props?.data?.rwb_label_name : language === CONSTANTS.LANG_CN ? errorMsg.required_mandatory_CN + props?.data?.rwb_label_name : errorMsg.required_mandatory_HK + props?.data?.rwb_label_name}`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
+  test('shows error when value is not in multiples of 1000', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    fireEvent.change(input, { target: { value: '5500' } });
+    
+    expect(screen.getByText(/Loan amount must be in multiples of HKD 1,000/)).toBeInTheDocument();
+  });
+
+  test('shows error when value is below min length', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    fireEvent.change(input, { target: { value: '123' } });
+    
+    expect(screen.getByText(/Minimum length is 4 digits/)).toBeInTheDocument();
+  });
+
+  test('shows tick mark when valid value is entered', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    fireEvent.change(input, { target: { value: '10000' } });
+    
+    expect(document.querySelector('.tick-class')).toBeInTheDocument();
+  });
+
+  test('dispatches correct actions on valid input', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    fireEvent.change(input, { target: { value: '10000' } });
+    
+    const actions = store.getActions();
+    expect(actions.some((action: any) => action.type === 'fieldError/removeFieldError')).toBeTruthy();
+  });
+
+  test('disables input when editable is true', () => {
+    const disabledProps = {
+      ...mockProps,
+      data: {
+        ...mockProps.data,
+        editable: true
       }
-      else {
-        if (props.data.min_length && `${event.target.value}`.length < props.data.min_length) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' digits' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-        }
-        else if (Number(event.target.value) < 5000 || Number(event.target.value) > 2000000) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmount : language === CONSTANTS.LANG_CN ? errorMsg.loanAmount_CN : errorMsg.loanAmount_HK}`);
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-        }
-        else if ((Number(event.target.value) / 1000) % 1 !== 0) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmountMin : language === CONSTANTS.LANG_CN ? errorMsg.loanAmountMin_CN : errorMsg.loanAmountMin_HK}`);
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-          // return
-        }
-        else {
-          dispatch(
-            fieldErrorAction.removeFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-        }
+    };
+    
+    render(
+      <Provider store={store}>
+        <Amount {...disabledProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    expect(input).toBeDisabled();
+  });
+
+  test('handles annual income validation correctly', () => {
+    const annualIncomeProps = {
+      ...mockProps,
+      data: {
+        ...mockProps.data,
+        logical_field_name: 'annual_income_pl',
+        rwb_label_name: 'Annual Income'
       }
-    }
-    else if (fieldName === 'annual_income_pl' || fieldName === 'annual_income') {
-      if ((Number(event.target.value) === 0)) {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePlValid : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-          return
+    };
+    
+    render(
+      <Provider store={store}>
+        <Amount {...annualIncomeProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Annual Income');
+    fireEvent.change(input, { target: { value: '95999' } });
+    
+    expect(screen.getByText(/Annual income must be at least HKD 96,000/)).toBeInTheDocument();
+  });
+
+  test('shows HKD label for annual income field', () => {
+    const annualIncomeProps = {
+      ...mockProps,
+      data: {
+        ...mockProps.data,
+        logical_field_name: 'annual_income_pl',
+        rwb_label_name: 'Annual Income'
       }
-      /*istanbul ignore else*/ 
-      if (error === '') {
-        dispatch(
-          fieldErrorAction.removeFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
+    };
+    
+    render(
+      <Provider store={store}>
+        <Amount {...annualIncomeProps} />
+      </Provider>
+    );
+    
+    expect(screen.getByText('HKD')).toBeInTheDocument();
+  });
+
+  test('clears value when other loans is N in ad-6 stage', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        stages: [{ stageId: 'ad-6', stageInfo: { applicants: [{}] }],
+        userInput: { applicants: [{ other_loans: 'N' }] }
       }
-      /*istanbul ignore else*/ 
-      if (!(Number(event.target.value) >= 96000)) {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePl : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePl_CN : errorMsg.annualIncomePl_HK}`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-          return
+    });
+    
+    const { rerender } = render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    // Simulate other_loans changing to 'N'
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        stages: [{ stageId: 'ad-6', stageInfo: { applicants: [{}] }],
+        userInput: { applicants: [{ other_loans: 'N' }] }
       }
-    }
-    if (otherLoans === 'Y') {
-      if (fieldName === "monthly_installment_mortgage_payment") {
-        if (!regex.test(event.target.value)) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-        }
+    });
+    
+    rerender(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount') as HTMLInputElement;
+    expect(input.value).toBe('');
+  });
+
+  test('shows other loans fields when other_loans is Y', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        stages: [{ stageId: 'ad-6', stageInfo: { applicants: [{}] }],
+        userInput: { applicants: [{ other_loans: 'Y' }] }
       }
-      if (fieldName === "total_outstanding_other_loan_amount") {
-        /*istanbul ignore else*/ 
-        if (!regex.test(event.target.value)) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
+    });
+    
+    const otherLoansProps = {
+      ...mockProps,
+      data: {
+        ...mockProps.data,
+        logical_field_name: 'monthly_installment_mortgage_payment'
+      }
+    };
+    
+    render(
+      <Provider store={store}>
+        <Amount {...otherLoansProps} />
+      </Provider>
+    );
+    
+    expect(screen.getByLabelText('Monthly Installment Mortgage Payment')).toBeInTheDocument();
+  });
+
+  test('handles resume data correctly', () => {
+    store = mockStore({
+      ...store.getState(),
+      preApproval: { resumeAllowed: 'Y' },
+      stages: {
+        stages: [{
+          stageId: 'ad-1',
+          stageInfo: {
+            applicants: [{
+              requested_loan_amount_a_1: '15000'
+            }]
           }
+        }],
+        userInput: { applicants: [{}] }
       }
-      if (fieldName === "total_outstanding_other_monthly_payment") {
-        if (!regex.test(event.target.value)) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
-          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
-          dispatch(
-            fieldErrorAction.getFieldError({
-              fieldName: props.data.logical_field_name,
-            }));
-          }
-      }
-      // else if (fieldName === "total_outstanding_other_loan_amount") {
-      //   if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
-      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' charactershelllo' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
-      //     dispatch(
-      //       fieldErrorAction.getFieldError({
-      //         fieldName: props.data.logical_field_name,
-      //       }));
-      //   }
-      // }
-    }
-  }
+    });
+    
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount') as HTMLInputElement;
+    expect(input.value).toBe('15000');
+  });
 
-  const changeHandler = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    setDefaultValue(event.target.value.trim());
-    setError('');
-    if (event.target.value.length === 0) {
-      setTickMark(false);
-      // return setError(`${language === CONSTANTS.LANG_EN ? props?.data?.rwb_label_name + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.required_mandatory_CN + props?.data?.rwb_label_name : errorMsg.required_mandatory_HK + props?.data?.rwb_label_name}hi144`);; 
-    }
-    validations(fieldName, event)
-    props.handleCallback(props.data, event.target.value);
-    setTickMark(true);
-    const fieldValue = event.target.value;
-    dispatch(isFieldUpdate(props, fieldValue, fieldName));
-    dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
-    if (event.target.validity.valid ) {
-      const fieldValue = event.target.value;
-      dispatch(isFieldUpdate(props, fieldValue, fieldName));
-      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
-    }
-  };
+  test('shows error message in different languages', () => {
+    // Mock language to CN
+    jest.spyOn(require('../../../utils/common/change.utils'), 'getUrl').mockImplementation(() => ({
+      getLanguageInfo: () => CONSTANTS.LANG_CN
+    }));
+    
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    fireEvent.change(input, { target: { value: '123' } });
+    
+    expect(screen.getByText(/最少需要4位数字/)).toBeInTheDocument();
+  });
 
-  const allowOnlyCharacter = (event: any, fieldName: string) => {
-    validateService.allowOnlyCharacter(event, fieldName);
-  };
-
-  const bindHandler = (fieldName: string, event: any) => {
-    /*istanbul ignore else*/ 
-    if (event.target.validity.valid) {
-      const fieldValue = event.target.value;
-      dispatch(isFieldUpdate(props, fieldValue, fieldName));
-      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
-    }
-  };
-
-  const focusHandler = (fieldName: string, event: React.FocusEvent<HTMLInputElement>) => {
-    dispatch(lastAction.getField(fieldName))
-  }
-  useEffect(() => {
-    /*istanbul ignore else*/ 
-    if (otherLoans === 'Y') {
-      setOtherLoansView(true);
-      setError("");
-      const monthly_installment = document.querySelector<HTMLInputElement>(`input[name="monthly_installment_mortgage_payment"]`);
-      /*istanbul ignore else*/ 
-      if (monthly_installment != null) {
-        monthly_installment.value = "";
-      }
-      const total_outstanding_other_loan_amount = document.querySelector<HTMLInputElement>(`input[name="total_outstanding_other_loan_amount"]`);
-      /*istanbul ignore else*/ 
-      if (total_outstanding_other_loan_amount != null) {
-        total_outstanding_other_loan_amount.value = "";
-      }
-      const total_outstanding_other_monthly_payment = document.querySelector<HTMLInputElement>(`input[name="total_outstanding_other_monthly_payment"]`);
-      /*istanbul ignore else*/ 
-      if (total_outstanding_other_monthly_payment != null) {
-        total_outstanding_other_monthly_payment.value = "";
-      }
-    }
-
-    return () => {
-    }
-  }, [otherLoans])
-
-  const keyDownvalidations = (fieldName: string,event: any) => {
-    /*istanbul ignore else*/ 
-    if ((props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") &&  event.target.value === "") {
-      setError(`${language === CONSTANTS.LANG_EN ? props.data?.rwb_label_name + ' ' + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}*`);
-    }
-  }
-
-  const keyDownHandler = (fieldName: string, event: React.KeyboardEvent<HTMLInputElement>) => {
-    /*istanbul ignore else*/ 
-    if(event?.key === "Tab"){
-      keyDownvalidations(fieldName,event)
-    }
-  }
-  const noPlaceholder = props.data.logical_field_name === "monthly_installment_mortgage_payment" || props.data.logical_field_name === "total_outstanding_other_loan_amount" || props.data.logical_field_name === "total_outstanding_other_monthly_payment"
-  
-  useEffect(() => {
-    /*istanbul ignore else*/ 
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0] && (resumeAllowed === "Y" || resumePage === "resume")) {
-      /*istanbul ignore else*/ 
-      if (props.data.logical_field_name) {
-        const displayValue = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"];
-        setDefaultValue(displayValue);
-      }
-    }
-  }, []);
-
-  return (
-    <>
-      {propsData && stageSelector[0].stageId !== 'ad-6' &&
-        <>
-          <div className={`${"amount"} `}>
-            <label htmlFor={props.data.logical_field_name} className={(props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") ? props.data.logical_field_name : ''}>
-              {(defaultValue && !error) && <div className="tick-class"></div>}
-              <span> {props.data.rwb_label_name}</span>
-            </label>
-            <div className={`${noPlaceholder ? 'amount-child' : ''}`}>
-              <div className={`amount__container ${props.data.editable ? 'disabled' : ''}`}>
-                {(props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") &&
-                  <div className="amount_with_currency_lable">
-                    HKD
-                  </div>
-                }
-                <input
-                  type="tel"
-                  name={props.data.logical_field_name}
-                  id={fieldIdAppend(props)}
-                  placeholder={noPlaceholder ? '' : placeholder}
-                  value={defaultValue}
-                  minLength={props.data.min_length}
-                  maxLength={props.data.length && props.data.length}
-                  pattern={props.data.regex}
-                  onChange={changeHandler.bind(this, props.data.logical_field_name)}
-                  onKeyPress={(event) =>
-                    allowOnlyCharacter(event, props.data.logical_field_name)
-                  }
-                  onBlur={bindHandler.bind(this, props.data.logical_field_name)}
-                  onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-                  // required={
-                  //   (props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") ? true : false
-                  // }
-                  disabled={props.data.editable}
-                  className={`${error ? 'input-error' : 'input-no-error'}`}
-                  onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
-                  autoComplete="off"
-                />
-              </div>
-            </div>
-          </div>
-          {error && (
-            <div className="error-msg">
-              {error}
-            </div>
-          )}
-        </>
-      }
-      {(stageSelector[0].stageId === 'ad-6' && propsData && otherLoans === 'Y') &&
-        <>
-          <div className={`${"amount"} `}>
-            <label htmlFor={props.data.logical_field_name}>
-              {(tickMark  && !error ) && <div className="tick-class"></div>}
-              <span> {props.data.rwb_label_name}</span>
-            </label>
-            <div className={`${noPlaceholder ? 'amount-child' : ''}`}>
-              <div className={`amount__container ${props.data.editable ? 'disabled' : ''}`}>
-                {noPlaceholder &&
-                  <div className="amount_with_currency_lable">
-                    HKD
-                  </div>
-                }
-                <input
-                  type="tel"
-                  name={props.data.logical_field_name}
-                  id={fieldIdAppend(props)}
-                  placeholder={noPlaceholder ? '' : placeholder}
-                  value={defaultValue}
-                  minLength={props.data.min_length}
-                  maxLength={props.data.length}
-                  // pattern={props.data.regex}
-                  onChange={changeHandler.bind(this, props.data.logical_field_name)}
-                  onBlur={bindHandler.bind(this, props.data.logical_field_name)}
-                  onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-                  disabled={props.data.editable}
-                  className={`${error ? 'input-error' : 'input-no-error'}`}
-                  onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
-                  autoComplete="off"
-                />
-              </div>
-            </div>
-          </div>
-          {error && (
-            <div className="error-msg">
-              {error}
-            </div>
-          )}
-        </>
-      }
-    </>
-  );
-};
-
-export default Amount;
-
-Please write an test cases using react and jest
-I have tried in claude but unable to pass testcases please provide good testcases for so that I can achieve 90 percent 
+  test('handles tab key press validation', () => {
+    render(
+      <Provider store={store}>
+        <Amount {...mockProps} />
+      </Provider>
+    );
+    
+    const input = screen.getByPlaceholderText('Loan Amount');
+    fireEvent.keyDown(input, { key: 'Tab' });
+    
+    // Should show required error if empty
+    expect(screen.getByText(/Loan Amount is required/)).toBeInTheDocument();
+  });
+});
