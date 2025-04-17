@@ -1,292 +1,464 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import DocumentUpload from './DocumentUpload';
-import '@testing-library/jest-dom';
-import { Provider } from 'react-redux';
-import configureMockStore from 'redux-mock-store';
-import { StoreModel } from '../../../../../utils/model/common-model';
-import { postDocuments } from '../../../services/preApprovalPostServices';
-import { dispatchLoader } from '../../../../../services/common-service';
+import "./amount.scss"
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import validateService from "../../../services/validation-service";
+import { KeyWithAnyModel, LovInputModel, StoreModel } from "../../../utils/model/common-model";
+import { fieldError, fieldIdAppend, getUrl, isFieldUpdate, isFieldValueUpdate } from "../../../utils/common/change.utils";
+import "../phone/phone.scss";
+import errorMsg from "../../../assets/_json/error.json";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
+import { lastAction } from "../../../utils/store/last-accessed-slice";
+import { fieldErrorAction } from "../../../utils/store/field-error-slice";
+import { stagesAction } from "../../../utils/store/stages-slice";
 
-// Mock all external dependencies
-jest.mock('../../../services/preApprovalPostServices', () => ({
-  postDocuments: jest.fn()
-}));
+export const Amount = (props: KeyWithAnyModel) => {
 
-jest.mock('../../../../../services/common-service', () => ({
-  dispatchLoader: jest.fn()
-}));
+  const [lovData, setLovData] = useState<any>([]);
+  const [error, setError] = useState('');
+  const lovSelector = useSelector((state: StoreModel) => state.lov);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const fieldErrorSelector = useSelector(
+    (state: StoreModel) => state.fielderror.error
+  );
+  const madatoryFieldSelector = useSelector(
+    (state: StoreModel) => state.fielderror.mandatoryFields
+  );
+  const dispatch = useDispatch();
+  let propsData = props && props.data;
+  const [defaultValue, setDefaultValue] = useState("");
+  const [placeholder, setPlaceHolder] = useState(propsData && props.data.rwb_label_name)
+  const language = getUrl.getLanguageInfo("lang")
+  const boxRegex = /^[0-9]{8}$/; // /^[0-9]*$/;
+  const regex = /^[0-9]*$/;
+  const [otherLoansView, setOtherLoansView] = useState(false)
+  const [tickMark,setTickMark] = useState(false);
+  const userInputSelector = useSelector((state: StoreModel) => state.stages.userInput);
+  const otherLoans = userInputSelector.applicants[0].other_loans;
+  const relationshipWithBank=userInputSelector.applicants[0].related_party;
+  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
+  const resumePage = getUrl.getParameterByName("pageId")
 
-jest.mock('../modals/tipsModal/tips-modal', () => () => <div>Tips Modal</div>);
-jest.mock('../../../../../shared/components/popup-model/popup-model', () => ({ children }: any) => <div>{children}</div>);
-jest.mock('../modals/imagePreviewModal/image-preview-modal', () => () => <div>Image Preview Modal</div>);
-jest.mock('../../../alertModal/alert-modal', () => ({ alertType, goBack }: any) => (
-  <div onClick={goBack}>{alertType} Alert</div>
-));
-
-// Mock URL.createObjectURL
-global.URL.createObjectURL = jest.fn(() => 'mock-url');
-
-const mockStore = configureMockStore();
-const initialState = {
-  stages: {
-    stages: [{
-      stageInfo: {
-        application: { channel_reference: 'TEST123' },
-        applicant_documents: [{
-          document_list: [
-            {
-              document_category: 'ID Proof',
-              document_options: [{
-                document_types: [{
-                  uploaded_documents: []
-                }]
-              }]
-            }
-          ]
-        }]
-      }
-    }],
-    dynamicDocumentsUpload: {
-      documentCount: 0,
-      fileSectionData: { document_category: 'ID Proof' },
-      uploadedDocuments: []
+  useEffect(() => {
+    /*istanbul ignore else*/
+    if (userInputSelector && userInputSelector.applicants[0] && userInputSelector.applicants[0][props.data.logical_field_name]) {
+      const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
+      setDefaultValue(displayValue);
     }
-  },
-  error: {
-    error: null
+     /*istanbul ignore else*/
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
+       /*istanbul ignore else*/
+      if (stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"]
+      ) {
+        const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
+        setDefaultValue(displayValue);
+      }
+    }
+  }, []);
+
+  useEffect(() =>{
+    if(stageSelector[0].stageId === 'ad-6' && otherLoans === 'N'){
+      setDefaultValue('');
+      setTickMark(false);
+    } 
+  },[otherLoans==='N']) 
+
+  useEffect(() => {
+    /*istanbul ignore else*/
+    if (lovSelector.lov.length > 0) {
+      lovSelector.lov.forEach((ref: LovInputModel) => {
+        /*istanbul ignore else*/
+        if (props.data.logical_field_name.includes(ref.label)) {
+          setLovData(ref.value);
+        }
+      });
+    }
+  }, [lovSelector.lov, props?.data?.logical_field_name]);
+
+  useEffect(() => {
+    let fieldName = props.data.logical_field_name;
+    /*istanbul ignore else*/ 
+    if (fieldError(fieldErrorSelector, props)) {
+      if (fieldName === "requested_loan_amount" && props.data.min_length && `${defaultValue}`.length < props.data.min_length) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' digits' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      if (fieldName === "requested_loan_amount" && (Number(defaultValue) / 1000) % 1 !== 0) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmountMin : language === CONSTANTS.LANG_CN ? errorMsg.loanAmountMin_CN : errorMsg.loanAmountMin_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      else if (fieldName === "requested_loan_amount" && Number(defaultValue) < 5000 || Number(defaultValue) > 2000000) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmount : language === CONSTANTS.LANG_CN ? errorMsg.loanAmount_CN : errorMsg.loanAmount_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      if ((fieldName === 'annual_income_pl' || fieldName === 'annual_income') && (Number(defaultValue) === 0)) {
+        setError(`${language === CONSTANTS.LANG_EN ? props.data?.rwb_label_name + ' ' + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}*`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+          return
+      }
+      else if ((fieldName === 'annual_income_pl' || fieldName === 'annual_income') && !(Number(defaultValue) >= 96000)) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePl : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePl_CN : errorMsg.annualIncomePl_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+          return
+      }
+      else if (fieldName === 'annual_income_pl' && error === '' && stageSelector[0].stageId === 'ad-1a') {
+        dispatch(
+          fieldErrorAction.removeFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      else if (error === '') {
+        dispatch(
+          fieldErrorAction.removeFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldErrorSelector, error, stageSelector]);
+
+  useEffect(() => {
+    if (error == "") {
+      dispatch(ContinueBtnAction.getContinueEnableState(true));
+      setError('')
+    } else {
+      dispatch(ContinueBtnAction.getContinueEnableState(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps  
+  }, [error, madatoryFieldSelector, dispatch])
+
+  const validations = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    /*istanbul ignore else*/ 
+    if ((props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") && event.target.value.length < 1) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        }));
+    }
+    if (fieldName === "requested_loan_amount") {
+      /*istanbul ignore else*/
+      if (event.target.value === " " || event.target.value === null || event.target.value === "") {
+        setError(`${language === CONSTANTS.LANG_EN ? props?.data?.rwb_label_name : language === CONSTANTS.LANG_CN ? errorMsg.required_mandatory_CN + props?.data?.rwb_label_name : errorMsg.required_mandatory_HK + props?.data?.rwb_label_name}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      else {
+        if (props.data.min_length && `${event.target.value}`.length < props.data.min_length) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' digits' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        }
+        else if (Number(event.target.value) < 5000 || Number(event.target.value) > 2000000) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmount : language === CONSTANTS.LANG_CN ? errorMsg.loanAmount_CN : errorMsg.loanAmount_HK}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        }
+        else if ((Number(event.target.value) / 1000) % 1 !== 0) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmountMin : language === CONSTANTS.LANG_CN ? errorMsg.loanAmountMin_CN : errorMsg.loanAmountMin_HK}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+          // return
+        }
+        else {
+          dispatch(
+            fieldErrorAction.removeFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        }
+      }
+    }
+    else if (fieldName === 'annual_income_pl' || fieldName === 'annual_income') {
+      if ((Number(event.target.value) === 0)) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePlValid : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+          return
+      }
+      /*istanbul ignore else*/ 
+      if (error === '') {
+        dispatch(
+          fieldErrorAction.removeFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      /*istanbul ignore else*/ 
+      if (!(Number(event.target.value) >= 96000)) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePl : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePl_CN : errorMsg.annualIncomePl_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+          return
+      }
+    }
+    if (otherLoans === 'Y') {
+      if (fieldName === "monthly_installment_mortgage_payment") {
+        if (!regex.test(event.target.value)) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        }
+      }
+      if (fieldName === "total_outstanding_other_loan_amount") {
+        /*istanbul ignore else*/ 
+        if (!regex.test(event.target.value)) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+          }
+      }
+      if (fieldName === "total_outstanding_other_monthly_payment") {
+        if (!regex.test(event.target.value)) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+          }
+      }
+      // else if (fieldName === "total_outstanding_other_loan_amount") {
+      //   if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
+      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' charactershelllo' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
+      //     dispatch(
+      //       fieldErrorAction.getFieldError({
+      //         fieldName: props.data.logical_field_name,
+      //       }));
+      //   }
+      // }
+    }
   }
+
+  const changeHandler = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    setDefaultValue(event.target.value.trim());
+    setError('');
+    if (event.target.value.length === 0) {
+      setTickMark(false);
+      // return setError(`${language === CONSTANTS.LANG_EN ? props?.data?.rwb_label_name + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.required_mandatory_CN + props?.data?.rwb_label_name : errorMsg.required_mandatory_HK + props?.data?.rwb_label_name}hi144`);; 
+    }
+    validations(fieldName, event)
+    props.handleCallback(props.data, event.target.value);
+    setTickMark(true);
+    const fieldValue = event.target.value;
+    dispatch(isFieldUpdate(props, fieldValue, fieldName));
+    dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
+    if (event.target.validity.valid ) {
+      const fieldValue = event.target.value;
+      dispatch(isFieldUpdate(props, fieldValue, fieldName));
+      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
+    }
+  };
+
+  const allowOnlyCharacter = (event: any, fieldName: string) => {
+    validateService.allowOnlyCharacter(event, fieldName);
+  };
+
+  const bindHandler = (fieldName: string, event: any) => {
+    /*istanbul ignore else*/ 
+    if (event.target.validity.valid) {
+      const fieldValue = event.target.value;
+      dispatch(isFieldUpdate(props, fieldValue, fieldName));
+      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
+    }
+  };
+
+  const focusHandler = (fieldName: string, event: React.FocusEvent<HTMLInputElement>) => {
+    dispatch(lastAction.getField(fieldName))
+  }
+  useEffect(() => {
+    /*istanbul ignore else*/ 
+    if (otherLoans === 'Y') {
+      setOtherLoansView(true);
+      setError("");
+      const monthly_installment = document.querySelector<HTMLInputElement>(`input[name="monthly_installment_mortgage_payment"]`);
+      /*istanbul ignore else*/ 
+      if (monthly_installment != null) {
+        monthly_installment.value = "";
+      }
+      const total_outstanding_other_loan_amount = document.querySelector<HTMLInputElement>(`input[name="total_outstanding_other_loan_amount"]`);
+      /*istanbul ignore else*/ 
+      if (total_outstanding_other_loan_amount != null) {
+        total_outstanding_other_loan_amount.value = "";
+      }
+      const total_outstanding_other_monthly_payment = document.querySelector<HTMLInputElement>(`input[name="total_outstanding_other_monthly_payment"]`);
+      /*istanbul ignore else*/ 
+      if (total_outstanding_other_monthly_payment != null) {
+        total_outstanding_other_monthly_payment.value = "";
+      }
+    }
+
+    return () => {
+    }
+  }, [otherLoans])
+
+  const keyDownvalidations = (fieldName: string,event: any) => {
+    /*istanbul ignore else*/ 
+    if ((props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") &&  event.target.value === "") {
+      setError(`${language === CONSTANTS.LANG_EN ? props.data?.rwb_label_name + ' ' + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}*`);
+    }
+  }
+
+  const keyDownHandler = (fieldName: string, event: React.KeyboardEvent<HTMLInputElement>) => {
+    /*istanbul ignore else*/ 
+    if(event?.key === "Tab"){
+      keyDownvalidations(fieldName,event)
+    }
+  }
+  const noPlaceholder = props.data.logical_field_name === "monthly_installment_mortgage_payment" || props.data.logical_field_name === "total_outstanding_other_loan_amount" || props.data.logical_field_name === "total_outstanding_other_monthly_payment"
+  
+  useEffect(() => {
+    /*istanbul ignore else*/ 
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0] && (resumeAllowed === "Y" || resumePage === "resume")) {
+      /*istanbul ignore else*/ 
+      if (props.data.logical_field_name) {
+        const displayValue = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"];
+        setDefaultValue(displayValue);
+      }
+    }
+  }, []);
+
+  return (
+    <>
+      {propsData && stageSelector[0].stageId !== 'ad-6' &&
+        <>
+          <div className={`${"amount"} `}>
+            <label htmlFor={props.data.logical_field_name} className={(props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") ? props.data.logical_field_name : ''}>
+              {(defaultValue && !error) && <div className="tick-class"></div>}
+              <span> {props.data.rwb_label_name}</span>
+            </label>
+            <div className={`${noPlaceholder ? 'amount-child' : ''}`}>
+              <div className={`amount__container ${props.data.editable ? 'disabled' : ''}`}>
+                {(props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") &&
+                  <div className="amount_with_currency_lable">
+                    HKD
+                  </div>
+                }
+                <input
+                  type="tel"
+                  name={props.data.logical_field_name}
+                  id={fieldIdAppend(props)}
+                  placeholder={noPlaceholder ? '' : placeholder}
+                  value={defaultValue}
+                  minLength={props.data.min_length}
+                  maxLength={props.data.length && props.data.length}
+                  pattern={props.data.regex}
+                  onChange={changeHandler.bind(this, props.data.logical_field_name)}
+                  onKeyPress={(event) =>
+                    allowOnlyCharacter(event, props.data.logical_field_name)
+                  }
+                  onBlur={bindHandler.bind(this, props.data.logical_field_name)}
+                  onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+                  // required={
+                  //   (props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") ? true : false
+                  // }
+                  disabled={props.data.editable}
+                  className={`${error ? 'input-error' : 'input-no-error'}`}
+                  onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          </div>
+          {error && (
+            <div className="error-msg">
+              {error}
+            </div>
+          )}
+        </>
+      }
+      {(stageSelector[0].stageId === 'ad-6' && propsData && otherLoans === 'Y') &&
+        <>
+          <div className={`${"amount"} `}>
+            <label htmlFor={props.data.logical_field_name}>
+              {(tickMark  && !error ) && <div className="tick-class"></div>}
+              <span> {props.data.rwb_label_name}</span>
+            </label>
+            <div className={`${noPlaceholder ? 'amount-child' : ''}`}>
+              <div className={`amount__container ${props.data.editable ? 'disabled' : ''}`}>
+                {noPlaceholder &&
+                  <div className="amount_with_currency_lable">
+                    HKD
+                  </div>
+                }
+                <input
+                  type="tel"
+                  name={props.data.logical_field_name}
+                  id={fieldIdAppend(props)}
+                  placeholder={noPlaceholder ? '' : placeholder}
+                  value={defaultValue}
+                  minLength={props.data.min_length}
+                  maxLength={props.data.length}
+                  // pattern={props.data.regex}
+                  onChange={changeHandler.bind(this, props.data.logical_field_name)}
+                  onBlur={bindHandler.bind(this, props.data.logical_field_name)}
+                  onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+                  disabled={props.data.editable}
+                  className={`${error ? 'input-error' : 'input-no-error'}`}
+                  onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          </div>
+          {error && (
+            <div className="error-msg">
+              {error}
+            </div>
+          )}
+        </>
+      }
+    </>
+  );
 };
 
-describe('DocumentUpload Component', () => {
-  let store: any;
-  const mockSetShowContinueBtn = jest.fn();
-  
-  beforeEach(() => {
-    store = mockStore(initialState);
-    jest.clearAllMocks();
-  });
+export default Amount;
 
-  it('should render the component with initial state', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    expect(screen.getByText('Upload')).toBeInTheDocument();
-    expect(screen.getByText('Back')).toBeInTheDocument();
-    expect(screen.getByText('Continue')).toBeDisabled();
-    expect(screen.getByText(/File format should be in JPG or PNG/)).toBeInTheDocument();
-    expect(screen.getByText('© Standard Chartered Bank (HK) Limited')).toBeInTheDocument();
-  });
-
-  it('should open tips modal when "here" is clicked', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByText('here'));
-    expect(screen.getByText('Tips Modal')).toBeInTheDocument();
-  });
-
-  it('should handle file upload successfully', async () => {
-    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-    const mockResponse = {
-      status: 200,
-      data: { docId: '123', documentStatus: 'UPLOADED' }
-    };
-    
-    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    const input = screen.getByTestId('file-upload');
-    fireEvent.change(input, { target: { files: [mockFile] } });
-    
-    await waitFor(() => {
-      expect(dispatchLoader).toHaveBeenCalledWith(true);
-      expect(postDocuments).toHaveBeenCalledWith('TEST123', mockFile);
-      expect(dispatchLoader).toHaveBeenCalledWith(false);
-      expect(screen.getByText('test.png')).toBeInTheDocument();
-      expect(screen.getByText('Upload completed !')).toBeInTheDocument();
-      expect(screen.getByText('Continue')).toBeEnabled();
-    });
-  });
-
-  it('should show error modal when file size exceeds limit', async () => {
-    const largeFile = new File(['test'], 'large.png', { type: 'image/png' });
-    Object.defineProperty(largeFile, 'size', { value: 6 * 1024 * 1024 });
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    const input = screen.getByTestId('file-upload');
-    fireEvent.change(input, { target: { files: [largeFile] } });
-    
-    expect(screen.getByText('invalideimagesize Alert')).toBeInTheDocument();
-    expect(postDocuments).not.toHaveBeenCalled();
-  });
-
-  it('should handle file delete', async () => {
-    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-    const mockResponse = {
-      status: 200,
-      data: { docId: '123', documentStatus: 'UPLOADED' }
-    };
-    
-    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    const input = screen.getByTestId('file-upload');
-    fireEvent.change(input, { target: { files: [mockFile] } });
-    
-    await waitFor(() => {
-      fireEvent.click(screen.getByTestId('delete-btn'));
-      expect(screen.queryByText('test.png')).not.toBeInTheDocument();
-      expect(screen.getByText('Continue')).toBeDisabled();
-    });
-  });
-
-  it('should open image preview when image is clicked', async () => {
-    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-    const mockResponse = {
-      status: 200,
-      data: { docId: '123', documentStatus: 'UPLOADED' }
-    };
-    
-    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    const input = screen.getByTestId('file-upload');
-    fireEvent.change(input, { target: { files: [mockFile] } });
-    
-    await waitFor(() => {
-      fireEvent.click(screen.getByTestId('image-preview-id'));
-      expect(screen.getByText('Image Preview Modal')).toBeInTheDocument();
-    });
-  });
-
-  it('should handle continue button click', async () => {
-    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-    const mockResponse = {
-      status: 200,
-      data: { docId: '123', documentStatus: 'UPLOADED' }
-    };
-    
-    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    const input = screen.getByTestId('file-upload');
-    fireEvent.change(input, { target: { files: [mockFile] } });
-    
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      expect(mockSetShowContinueBtn).toHaveBeenCalledWith(false);
-      const actions = store.getActions();
-      expect(actions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ type: 'stages/updateDocumentCount' }),
-          expect.objectContaining({ type: 'stages/updatefileSectionData' }),
-          expect.objectContaining({ type: 'stages/getStage' })
-        ])
-      );
-    });
-  });
-
-  it('should handle back button click', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    fireEvent.click(screen.getByText('Back'));
-    const actions = store.getActions();
-    expect(actions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: 'stages/updatefileSectionData' })
-      ])
-    );
-  });
-
-  it('should show success modal when document upload is successful', async () => {
-    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-    const mockResponse = {
-      status: 200,
-      data: { docId: '123', documentStatus: 'UPLOADED' }
-    };
-    
-    (postDocuments as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    const input = screen.getByTestId('file-upload');
-    fireEvent.change(input, { target: { files: [mockFile] } });
-    
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      expect(screen.getByText('Success Alert')).toBeInTheDocument();
-    });
-  });
-
-  it('should handle upload failure', async () => {
-    const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-    const mockError = new Error('Upload failed');
-    
-    (postDocuments as jest.Mock).mockRejectedValue(mockError);
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    
-    const input = screen.getByTestId('file-upload');
-    fireEvent.change(input, { target: { files: [mockFile] } });
-    
-    await waitFor(() => {
-      expect(dispatchLoader).toHaveBeenCalledWith(false);
-      const actions = store.getActions();
-      expect(actions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ 
-            type: 'error/getError',
-            payload: {
-              statusCode: "error",
-              statusText: "no response",
-            }
-          })
-        ])
-      );
-    });
-  });
-});
+Please write an test cases using react and jest
+I have tried in claude but unable to pass testcases please provide good testcases for so that I can achieve 90 percent 
