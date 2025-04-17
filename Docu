@@ -1,555 +1,311 @@
-import { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import validateService from "../../../services/validation-service";
-import { fieldError, isFieldUpdate, fieldIdAppend, getUrl } from "../../../utils/common/change.utils";
-import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
-import "./dates.scss";
-import errorMsg from "../../../assets/_json/error.json";
-import { userAgeAction } from "../../../utils/store/age-slice";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { lastAction } from "../../../utils/store/last-accessed-slice";
-import { fieldErrorAction } from "../../../utils/store/field-error-slice";
-import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
-// import 'font-awesome/css/font-awesome.min.css';
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import Dates from './Dates';
+import { CONSTANTS } from '../../../utils/common/constants';
 
-export const Dates = (props: KeyWithAnyModel) => {
-  const [date, setDate] = useState({ DD: "", MM: "", YYYY: "" });
-  const [dateVal, setDateVal] = useState("");
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const [tickMark, setTickMark] = useState(false);
-  const [error, setError] = useState('');
-  const dispatch = useDispatch();
-  const fieldErrorSelector = useSelector(
-    (state: StoreModel) => state.fielderror.error
-  );
-  const applicantsSelector = useSelector(
-    (state: StoreModel) => state.stages.userInput.applicants[0]
-  );
-  const inputSelector = useSelector(
-    (state: StoreModel) => state.stages.userInput
-  );
-  const language = getUrl.getLanguageInfo("lang")
+const mockStore = configureStore([]);
 
-  const workType=applicantsSelector.work_type || stageSelector[0]?.stageInfo?.applicants[0]?.work_type_a_1;
-  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
-  const resumePage = getUrl.getParameterByName("pageId")
-
-  useEffect(() => {
-    if (error === "") {
-      dispatch(ContinueBtnAction.getContinueEnableState(true));
-    } else {
-      dispatch(ContinueBtnAction.getContinueEnableState(false));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps  
-  }, [error, dispatch])
-
-  useEffect(() => {
-    let storeDate = null;
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
-      storeDate = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name+"_a_1"];
-    }
-    if(inputSelector.applicants[0][props.data.logical_field_name]) {
-      storeDate= inputSelector.applicants[0][props.data.logical_field_name]
-    }
-    if (storeDate) {
-      let splitDate = storeDate.split("-");
-      setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    let storeDate = null;
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0] && (resumeAllowed === "Y" || resumePage === "resume")) {
-      storeDate = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name+"_a_1"];
-    }
-    if(stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name]) {
-      storeDate= stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name]
-    }
-    if (storeDate) {
-      let splitDate = storeDate.split("-");
-      setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  let currentDate: Date = new Date();
-  let currentDay = String(currentDate.getDate()).padStart(2, '0');
-  let currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
-  let currentYear = currentDate.getFullYear();
-  const formatFutureDate :any= currentYear - (stageSelector[0].stageInfo.products[0].product_category !== "PL" ? 18 : 20) + "-" + currentMonth + "-" + currentDay
-  let calculatePastYears;
-  if(props.data.logical_field_name === "date_of_birth"){
-    const calculatePastYears1 = currentDate.setFullYear(currentDate.getFullYear() -100);
-    currentDate.setDate(currentDate.getDate()+1)
-    calculatePastYears = currentDate.toISOString().split("T")[0]
-    // = currentYear - (stageSelector[0].stageInfo.products[0].product_category !== "PL" ? 18 : 20)
-  } 
-  if(props.data.logical_field_name === "expiry_date"){
-    const calculatePastYears1 = currentDate.setFullYear(currentDate.getFullYear());
-    currentDate.setDate(currentDate.getDate()+1)
-    calculatePastYears = currentDate.toISOString().split("T")[0]
-  }
-  const changeHandler = (
-    data: React.ChangeEvent<HTMLInputElement>,
-    type: string
-  ) => {
-    setError('');
-    let nextfield = null;
-    const { maxLength, value } = data.target;
-    if (value.length >= maxLength) {
-      if (type === 'MM') {
-        if (Number(data.target.value) <= 12) {
-          nextfield = document.querySelector(
-            `input[name=${props.data.logical_field_name}_yyyy]`
-          ) as HTMLInputElement | null;
-        }
-      } else if (type === 'DD') {
-        nextfield = document.querySelector(
-          `input[name=${props.data.logical_field_name}_mm]`
-        ) as HTMLInputElement | null;
-      }
-    }
-    if (nextfield !== null) {
-      nextfield.focus();
-    }
-    const fieldName = props.data.logical_field_name;
-    if (type === 'YYYY') {
-
-      date["YYYY"] = data.target.value;
-    } else if (type === 'MM') {
-      date["MM"] = data.target.value;
-    } else if (type === 'DD') {
-      date["DD"] = data.target.value;
-    }
-    else {
-      if (value !== '') {
-        date["YYYY"] = data.target.value.split("-")[0];
-        date["MM"] = data.target.value.split("-")[1];
-        date["DD"] = data.target.value.split("-")[2];
-      }
-      else {
-        date["YYYY"] = '';
-        date["MM"] = '';
-        date["DD"] = '';
-      }
-    }
-
-    const userValue = date["YYYY"] + "-" + date["MM"] + "-" + date["DD"];
-    let splitDate = userValue.split("-");
-    setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
-    setDateVal(userValue);
-    if (Number(date["MM"]) > 12) {
-      setTickMark(false)
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        })
-      );
-      return
-    }
-    let year = Number(date["YYYY"]);
-    let isLeap = ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
-
-    let currentDate :any = new Date();
-    let expiryCheckInputVal = date["DD"] + "-" +  date["MM"]  + "-" +  date["YYYY"] ;
-    let currentDay = currentDate.getDate();
-    let currentMonth = currentDate.getMonth() +1;
-    let currentYear = currentDate.getFullYear();
-    let expirydateCheck = currentDay + "-" + currentMonth + "-" + currentYear
-    const dateInputValue = new Date(expiryCheckInputVal.split("-").reverse().join("-"));
-    const currentExpiryDate = new Date(expirydateCheck.split("-").reverse().join("-"));
-    if (isLeap && Number(date["DD"]) > 29 && date["MM"] === '2') {
-      setTickMark(false)
-      setError('Date is not valid');
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        })
-      );
-      return
-    }
-    if (!isLeap && Number(date["DD"]) > 28 && date["MM"] === '2') {
-      setTickMark(false)
-      setError('Date is not valid');
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        })
-      );
-      return
-    }
-    else if(date['DD'].length === 0 || date['MM'].length === 0 || data.target.value==='0' || date['DD'] === '0' || date['MM'] === '0' ||data.target.value==='00'|| date['MM'] ==='00'|| date['YYYY'].length === 0 ||date['YYYY'].length < 4 ){
-      setTickMark(false)
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-        dispatch(
-          fieldErrorAction.getFieldError({
-            fieldName: props.data.logical_field_name,
-          }));
-    }
-    else if( props.data.logical_field_name==='expiry_date' && currentExpiryDate > dateInputValue){
-      setTickMark(false)
-      setError(`${props.data.rwb_label_name} ${language === CONSTANTS.LANG_EN ? errorMsg.expiry_future_date : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}`)
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        }));
-    }
-    else {
-      setTickMark(true)
-      setError('');
-      dispatch(
-        fieldErrorAction.removeToggleFieldError(
-          props.data.logical_field_name,
-        ));
-    }
-
-    props.handleCallback(props.data, userValue);
-    props.handleFieldDispatch?.(props?.data?.logical_field_name, userValue);
-    if (date["DD"] !== "" || date["MM"] !== "" || date["YYYY"] !== "") {
-      if (date["YYYY"].length > 3 && date["DD"].length > 1 && date["MM"].length > 1) {
-        if (validateService.isValidDate(userValue)) {
-
-          /* Conditions for expiry date*/
-          if (props.data.logical_field_name === 'expiry_date') {
-            let isGreaterThanThirtyDays = validateService.calculateMonth(userValue);
-            if (!isGreaterThanThirtyDays) {
-              if (applicantsSelector.id_type_cb === "Exit-Entry Permit")
-                setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK}`);
-              else if (applicantsSelector.id_type_cb === "Passport")
-                setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK}`);
-            } else
-              dispatch(isFieldUpdate(props, userValue, fieldName));
-          }
-
-          /**Validation for date of birth */
-          else if (props.data.logical_field_name === 'date_of_birth') {
-            let age = validateService.calculateAge(userValue);
-            if(currentExpiryDate < dateInputValue) {
-              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-              return
-            }
-            if (age > 99) {
-              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-                return
-            }else if (age < 20 && stageSelector[0].stageInfo.products[0].product_category === "PL") {//min age for PL is 20 
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-              return setError(`${language === CONSTANTS.LANG_EN ? errorMsg.plDateOfBirthMin : language === CONSTANTS.LANG_CN ? errorMsg.plDateOfBirthMin_CN : errorMsg.plDateOfBirthMin_HK}`);
-            }else if (age < 18 && stageSelector[0].stageInfo.products[0].product_category !== "PL") {
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-              return setError(`${language === CONSTANTS.LANG_EN ? errorMsg.dateOfBirthMin : language === CONSTANTS.LANG_CN ? errorMsg.dateOfBirthMin_CN : errorMsg.dateOfBirthMin_HK}`);
-            }else {
-              dispatch(userAgeAction.addUserAge({ userAge: age }))
-              dispatch(isFieldUpdate(props, userValue, fieldName));
-              dispatch(
-                fieldErrorAction.removeToggleFieldError(
-                  props.data.logical_field_name,
-                ));
-            }
-          }
-          else if(props.data.logical_field_name === 'business_est_date'){
-            let age = validateService.calculateAge(userValue);
-            if(age < 0) {
-              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-              dispatch(
-                fieldErrorAction.getFieldError({
-                  fieldName: props.data.logical_field_name,
-                }));
-            }
-          }
-        }
-        else {
-          if (props.data.logical_field_name === 'expiry_date') {
-            setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-
-          } else {
-            setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-          }
-        }
-      } 
-      // else {
-      //   if (props.data.logical_field_name === 'expiry_date') {
-      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
-
-      //   } else {
-      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      //   }
-      // }
-    }
-    else if (props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") {
-      if (props.data.logical_field_name === 'expiry_date') {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-
-      } else {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      }
-    }
+describe('Dates Component', () => {
+  let store: any;
+  const mockProps = {
+    data: {
+      logical_field_name: 'date_of_birth',
+      rwb_label_name: 'Date of Birth',
+      mandatory: 'Yes',
+      editable: false
+    },
+    handleCallback: jest.fn(),
+    handleFieldDispatch: jest.fn()
   };
 
-  const bindHandler = (data: any, type: string) => {
-    if(props.data.logical_field_name==='date_of_birth' && data.target.value===''){
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        })
-      );
-    }
+  beforeEach(() => {
+    store = mockStore({
+      stages: {
+        stages: [{
+          stageId: 'ad-2',
+          stageInfo: {
+            applicants: [{}],
+            products: [{ product_category: 'PL' }]
+          }
+        }],
+        userInput: {
+          applicants: [{
+            work_type: 'E001',
+            id_type_cb: 'Passport',
+            expiry_date: null
+          }]
+        }
+      },
+      fielderror: { error: [], mandatoryFields: [] },
+      lastAccessed: { field: '' },
+      preApproval: { resumeAllowed: 'N' }
+    });
+  });
+
+  test('renders without crashing', () => {
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
     
-    if ((type === "DD" || type === "MM") && data.target.value && parseInt(data.target.value) > 0 && (data.target.value).length < 2) {
-      date[type] = `0${data.target.value}`;
-      data.target.value = date[type];
-      changeHandler(data, type);
-    }
-  };
+    expect(screen.getByLabelText('Date of Birth')).toBeInTheDocument();
+  });
 
-  useEffect(() => {
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
-      const storeDate =
-        stageSelector[0].stageInfo.applicants[0][
-        props.data.logical_field_name
-        ];
-      if (storeDate) {
-        let splitDate = storeDate.split("-");
-        setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
+  test('displays three input fields (DD, MM, YYYY)', () => {
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
+    
+    expect(screen.getByPlaceholderText('DD')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('MM')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('YYYY')).toBeInTheDocument();
+  });
+
+  test('auto-focuses next field when maxLength is reached', () => {
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
+    
+    const ddInput = screen.getByPlaceholderText('DD');
+    const mmInput = screen.getByPlaceholderText('MM');
+    
+    fireEvent.change(ddInput, { target: { value: '12' } });
+    expect(mmInput).toHaveFocus();
+  });
+
+  test('shows error for invalid month (>12)', () => {
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
+    
+    const mmInput = screen.getByPlaceholderText('MM');
+    fireEvent.change(mmInput, { target: { value: '13' } });
+    
+    expect(screen.getByText(/Date of Birth is required/)).toBeInTheDocument();
+  });
+
+  test('shows error for invalid date in February (non-leap year)', () => {
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
+    
+    const ddInput = screen.getByPlaceholderText('DD');
+    const mmInput = screen.getByPlaceholderText('MM');
+    const yyyyInput = screen.getByPlaceholderText('YYYY');
+    
+    // 2023 is not a leap year
+    fireEvent.change(ddInput, { target: { value: '29' } });
+    fireEvent.change(mmInput, { target: { value: '02' } });
+    fireEvent.change(yyyyInput, { target: { value: '2023' } });
+    
+    expect(screen.getByText('Date is not valid')).toBeInTheDocument();
+  });
+
+  test('shows error for underage user (PL product)', () => {
+    // Mock current date to be 2023-01-01
+    const originalDate = global.Date;
+    global.Date.now = jest.fn(() => new Date('2023-01-01').getTime());
+    
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
+    
+    // User born in 2004 (would be 19 in 2023, but PL requires >=20)
+    const ddInput = screen.getByPlaceholderText('DD');
+    const mmInput = screen.getByPlaceholderText('MM');
+    const yyyyInput = screen.getByPlaceholderText('YYYY');
+    
+    fireEvent.change(ddInput, { target: { value: '01' } });
+    fireEvent.change(mmInput, { target: { value: '01' } });
+    fireEvent.change(yyyyInput, { target: { value: '2004' } });
+    
+    expect(screen.getByText(/Minimum age for Personal Loan is 20/)).toBeInTheDocument();
+    
+    // Restore original Date
+    global.Date = originalDate;
+  });
+
+  test('shows error for empty required field on tab', () => {
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
+    
+    const ddInput = screen.getByPlaceholderText('DD');
+    fireEvent.keyDown(ddInput, { key: 'Tab' });
+    
+    expect(screen.getByText(/Date of Birth is required/)).toBeInTheDocument();
+  });
+
+  test('shows tick mark when valid date is entered', () => {
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
+    
+    const ddInput = screen.getByPlaceholderText('DD');
+    const mmInput = screen.getByPlaceholderText('MM');
+    const yyyyInput = screen.getByPlaceholderText('YYYY');
+    
+    fireEvent.change(ddInput, { target: { value: '01' } });
+    fireEvent.change(mmInput, { target: { value: '01' } });
+    fireEvent.change(yyyyInput, { target: { value: '1990' } });
+    
+    expect(document.querySelector('.tick-class')).toBeInTheDocument();
+  });
+
+  test('handles expiry date validation for passport', () => {
+    const expiryProps = {
+      ...mockProps,
+      data: {
+        ...mockProps.data,
+        logical_field_name: 'expiry_date',
+        rwb_label_name: 'Expiry Date'
       }
-    }
-  }, [stageSelector, props.data && props.data.logical_field_name]);
+    };
+    
+    render(
+      <Provider store={store}>
+        <Dates {...expiryProps} />
+      </Provider>
+    );
+    
+    const ddInput = screen.getByPlaceholderText('DD');
+    const mmInput = screen.getByPlaceholderText('MM');
+    const yyyyInput = screen.getByPlaceholderText('YYYY');
+    
+    // Set date to today (should show error for passport needing 6 months validity)
+    const today = new Date();
+    fireEvent.change(ddInput, { target: { value: String(today.getDate()).padStart(2, '0') } });
+    fireEvent.change(mmInput, { target: { value: String(today.getMonth() + 1).padStart(2, '0') } });
+    fireEvent.change(yyyyInput, { target: { value: today.getFullYear() } });
+    
+    expect(screen.getByText(/Passport must be valid for at least 6 months/)).toBeInTheDocument();
+  });
 
-  useEffect(() => {
-    if (props.data && props.data.logical_field_name === 'expiry_date') {
-      if (applicantsSelector.expiry_date) {
-        setDate({ DD: "", MM: "", YYYY: "" });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicantsSelector.id_type_cb])
-
-  useEffect(() => {
-    //setErrors(fieldError(fieldErrorSelector, props));
-    if (fieldError(fieldErrorSelector, props)) {
-      if (props.data.logical_field_name === 'expiry_date') {
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-
-      }
-      //  else {
-      //   setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      // }
-    } 
-    // else {
-    //   setError('');
-    // }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldErrorSelector]);
-
-  const allowOnlyCharacter = (event: React.KeyboardEvent<HTMLInputElement>, fieldName: string) => {
-    validateService.allowOnlyCharacter(event, fieldName);
-  };
-
-  useEffect(() => {
-    if (error === (language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK))
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK}`);
-    else if (error === (language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK))
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK}`);
-    if (props.data && props.data.logical_field_name === 'expiry_date') {
-      if (applicantsSelector.expiry_date) {
-        setDate({ DD: "", MM: "", YYYY: "" });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicantsSelector.id_type_cb])
-
-  const focusHandler = (
-    fieldName: string,
-    event: React.FocusEvent<HTMLInputElement>
-  ) => {
-    dispatch(lastAction.getField(fieldName));
-  };
-
-  const keyDownHandler = (fieldName: string, event: React.KeyboardEvent<HTMLInputElement>) => {
-    if(event?.key === 'Tab'){
-      if((props.data.logical_field_name === 'date_of_birth' || props.data.logical_field_name === 'business_est_date') && (date.DD === '' || date.MM === '' || date.YYYY === '')){
-        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      }
-    }
-  }
-
-  return (
-    <>
-      {(stageSelector[0].stageId === 'ad-2' &&
-        workType === 'E002' || workType === 'E001' || workType === 'E103' || workType === 'E104') &&
-        props && props.data &&
-        <div className="date">
-          <label htmlFor={props.data.logical_field_name} className="text-label tick-enabled">
-            {!error && tickMark &&
-              <div className="tick-class"></div>
-            }
-            <span> {props.data.rwb_label_name}</span>
-          </label>
-          <div className="date__inputs" id={fieldIdAppend(props)}>
-            <input
-              placeholder="DD"
-              minLength={1}
-              maxLength={2}
-              type="tel"
-              value={date.DD}
-              onChange={(event) => changeHandler(event, "DD")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onBlur={(event) => bindHandler(event, "DD")}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_dd'}
-              id={props.data.logical_field_name + '_dd'}
-              onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            <input
-              placeholder="MM"
-              minLength={1}
-              maxLength={2}
-              type="tel"
-              value={date.MM}
-              onChange={(event) => changeHandler(event, "MM")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onBlur={(event) => bindHandler(event, "MM")}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_mm'}
-              id={props.data.logical_field_name + '_mm'}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            <input
-              // title="year-input"
-              placeholder="YYYY"
-              minLength={4}
-              maxLength={4}
-              type="tel"
-              value={date.YYYY}
-              onChange={(event) => changeHandler(event, "YYYY")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_yyyy'}
-              id={props.data.logical_field_name + '_yyyy'}
-              autoComplete="off"
-            />
-          </div>
-        </div>
-      }
-      {(workType !== 'S103' && stageSelector[0].stageId === 'pd-1')&&
-        props && props.data &&
-        <div className="date">
-          <label htmlFor={props.data.logical_field_name} className="text-label tick-enabled">
-            {!error && tickMark &&
-              <div className="tick-class"></div>
-            }
-            <span> {props.data.rwb_label_name}</span>
-          </label>
-          <div className="date__inputs" id={fieldIdAppend(props)}>
-            <input
-              placeholder="DD"
-              minLength={1}
-              maxLength={2}
-              type="tel"
-              value={date.DD}
-              onChange={(event) => changeHandler(event, "DD")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onBlur={(event) => bindHandler(event, "DD")}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_dd'}
-              id={props.data.logical_field_name + '_dd'}
-              onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            <input
-              placeholder="MM"
-              minLength={1}
-              maxLength={2}
-              type="tel"
-              value={date.MM}
-              onChange={(event) => changeHandler(event, "MM")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onBlur={(event) => bindHandler(event, "MM")}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_mm'}
-              id={props.data.logical_field_name + '_mm'}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            <input
-              // title="year-input"
-              placeholder="YYYY"
-              minLength={4}
-              maxLength={4}
-              type="tel"
-              value={date.YYYY}
-              onChange={(event) => changeHandler(event, "YYYY")}
-              onKeyPress={(event) =>
-                allowOnlyCharacter(event, props.data.logical_field_name)
-              }
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              disabled={props.data.editable}
-              className={error && 'input-error'}
-              name={props.data.logical_field_name + '_yyyy'}
-              id={props.data.logical_field_name + '_yyyy'}
-              autoComplete="off"
-            />
-            <span className="date-separators-m"></span>
-            {(props.data.logical_field_name === "date_of_birth" || props.data.logical_field_name === "expiry_date") &&
-              <input
-                className="date_icon"
-                type="date"
-                value={dateVal}
-                max= {props.data.logical_field_name==='date_of_birth'&& formatFutureDate} //future date 
-                min={calculatePastYears as any} //past date
-                onChange={(event) => changeHandler(event, "date")}
-              />
-            }
-          </div>
-        </div>
+  test('handles expiry date validation for Exit-Entry Permit', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        ...store.getState().stages,
+        userInput: {
+          applicants: [{
+            ...store.getState().stages.userInput.applicants[0],
+            id_type_cb: 'Exit-Entry Permit'
+          }]
         }
+      }
+    });
+    
+    const expiryProps = {
+      ...mockProps,
+      data: {
+        ...mockProps.data,
+        logical_field_name: 'expiry_date',
+        rwb_label_name: 'Expiry Date'
+      }
+    };
+    
+    render(
+      <Provider store={store}>
+        <Dates {...expiryProps} />
+      </Provider>
+    );
+    
+    const ddInput = screen.getByPlaceholderText('DD');
+    const mmInput = screen.getByPlaceholderText('MM');
+    const yyyyInput = screen.getByPlaceholderText('YYYY');
+    
+    // Set date to today (should show error for EEP needing 1 month validity)
+    const today = new Date();
+    fireEvent.change(ddInput, { target: { value: String(today.getDate()).padStart(2, '0') } });
+    fireEvent.change(mmInput, { target: { value: String(today.getMonth() + 1).padStart(2, '0') } });
+    fireEvent.change(yyyyInput, { target: { value: today.getFullYear() } });
+    
+    expect(screen.getByText(/Exit-Entry Permit must be valid for at least 1 month/)).toBeInTheDocument();
+  });
 
-      {error && <div className="error-msg">{error}</div>}
-    </>
-  );
-};
+  test('disables inputs when editable is true', () => {
+    const disabledProps = {
+      ...mockProps,
+      data: {
+        ...mockProps.data,
+        editable: true
+      }
+    };
+    
+    render(
+      <Provider store={store}>
+        <Dates {...disabledProps} />
+      </Provider>
+    );
+    
+    expect(screen.getByPlaceholderText('DD')).toBeDisabled();
+    expect(screen.getByPlaceholderText('MM')).toBeDisabled();
+    expect(screen.getByPlaceholderText('YYYY')).toBeDisabled();
+  });
 
-export default Dates;
+  test('shows error message in different languages', () => {
+    // Mock language to CN
+    jest.spyOn(require('../../../utils/common/change.utils'), 'getUrl').mockImplementation(() => ({
+      getLanguageInfo: () => CONSTANTS.LANG_CN
+    }));
+    
+    render(
+      <Provider store={store}>
+        <Dates {...mockProps} />
+      </Provider>
+    );
+    
+    const mmInput = screen.getByPlaceholderText('MM');
+    fireEvent.change(mmInput, { target: { value: '13' } });
+    
+    expect(screen.getByText(/请输入出生日期/)).toBeInTheDocument();
+  });
 
-
-Please write an test cases using react and jest
+  test('handles business establishment date validation', () => {
+    const businessProps = {
+      ...mockProps,
+      data: {
+        ...mockProps.data,
+        logical_field_name: 'business_est_date',
+        rwb_label_name: 'Business Establishment Date'
+      }
+    };
+    
+    render(
+      <Provider store={store}>
+        <Dates {...businessProps} />
+      </Provider>
+    );
+    
+    const ddInput = screen.getByPlaceholderText('DD');
+    const mmInput = screen.getByPlaceholderText('MM');
+    const yyyyInput = screen.getByPlaceholderText('YYYY');
+    
+    // Set future date (invalid)
+    const futureDate = new Date();
+    futureDate.setFullYear(futureDate.getFullYear() + 1);
+    
+    fireEvent.change(ddInput, { target: { value: String(futureDate.getDate()).padStart(2, '0') } });
+    fireEvent.change(mmInput, { target: { value: String(futureDate.getMonth() + 1).padStart(2, '0') } });
+    fireEvent.change(yyyyInput, { target: { value: futureDate.getFullYear() } });
+    
+    expect(screen.getByText(/Business Establishment Date is required/)).toBeInTheDocument();
+  });
+});
