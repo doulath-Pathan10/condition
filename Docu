@@ -9,24 +9,31 @@ jest.mock('../../utils/store/store', () => ({
 
 const mockStore = store as jest.Mocked<typeof store>;
 
-describe('rulesUtils Function', () => {
-  const mockFieldset: FieldsetModel[] = [{
+describe('rulesUtils Function - Comprehensive Tests', () => {
+  const baseFieldset: FieldsetModel[] = [{
     fields: [
       { logical_field_name: 'monthly_installment_mortgage_payment', default_visibility: 'Yes', editable: true, mandatory: 'No' },
       { logical_field_name: 'embossed_name', default_visibility: 'Yes', editable: true },
       { logical_field_name: 'place_of_birth', default_visibility: 'Yes', editable: true },
-      { logical_field_name: 'office_phone_number', default_visibility: 'Yes', editable: true }
+      { logical_field_name: 'office_phone_number', default_visibility: 'Yes', editable: true },
+      { logical_field_name: 'currency', default_visibility: 'Yes', editable: true },
+      { logical_field_name: 'rewards_choice_segment', default_visibility: 'Yes', editable: true },
+      { logical_field_name: 'estatement_fee', default_visibility: 'Yes', editable: true }
     ]
   }];
 
-  const mockValidationObj = {
+  const baseValidationObj = {
     nonEditable: [['monthly_installment_mortgage_payment']],
     hidden: []
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Default mock store state
+    // Reset to default mock state
+    mockDefaultState();
+  });
+
+  function mockDefaultState() {
     mockStore.getState.mockReturnValue({
       stages: {
         stages: [{
@@ -46,132 +53,240 @@ describe('rulesUtils Function', () => {
         }]
       }
     });
-  });
+  }
 
-  test('should return fields with correct structure', () => {
-    const result = rulesUtils(mockFieldset, mockValidationObj);
-    expect(Array.isArray(result)).toBe(true);
-    expect(result[0]).toHaveProperty('fields');
-    expect(Array.isArray(result[0].fields)).toBe(true);
-  });
-
-  test('should set editable to false for nonEditable fields', () => {
-    const result = rulesUtils(mockFieldset, mockValidationObj);
-    const mortgageField = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
-    expect(mortgageField?.editable).toBe(false);
-  });
-
-  test('should set default_visibility to null for default_visibility_no_field fields', () => {
-    const result = rulesUtils(mockFieldset, mockValidationObj);
-    const mortgageField = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
-    expect(mortgageField?.default_visibility).toBeNull();
-  });
-
-  test('should set mandatory to Yes for mandatory fields', () => {
-    const result = rulesUtils(mockFieldset, mockValidationObj);
-    const officePhoneField = result[0].fields.find(f => f.logical_field_name === 'office_phone_number');
-    expect(officePhoneField?.mandatory).toBe('Yes');
-  });
-
-  test('should add embossed_name to hidden fields when name is long (CC product)', () => {
-    mockStore.getState.mockReturnValue({
-      stages: {
-        stages: [{
-          stageInfo: {
-            products: [{ product_category: 'CC' }],
-            applicants: [{
-              full_name_a_1: 'Very Long Name That Exceeds Nineteen Characters',
-              casaSegment: 'N'
-            }]
-          }
-        }]
-      }
+  // Test group 1: Basic functionality
+  describe('Basic Functionality', () => {
+    test('should return filtered fields array', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result[0]).toHaveProperty('fields');
+      expect(result[0].fields.length).toBeLessThanOrEqual(baseFieldset[0].fields.length);
     });
 
-    const result = rulesUtils(mockFieldset, mockValidationObj);
-    const embossedNameField = result[0].fields.find(f => f.logical_field_name === 'embossed_name');
-    expect(embossedNameField?.default_visibility).toBeNull();
-  });
-
-  test('should hide place_of_birth for CC products', () => {
-    const result = rulesUtils(mockFieldset, mockValidationObj);
-    const placeOfBirthField = result[0].fields.find(f => f.logical_field_name === 'place_of_birth');
-    expect(placeOfBirthField?.default_visibility).toBe('No');
-  });
-
-  test('should add preferred_relationship_branch_EA to hidden fields for CC product_type 1313 with casaSegment Y', () => {
-    const customFieldset = [{
-      fields: [
-        { logical_field_name: 'preferred_relationship_branch_EA', default_visibility: 'Yes' }
-      ]
-    }];
-
-    const result = rulesUtils(customFieldset, mockValidationObj);
-    const branchField = result[0].fields.find(f => f.logical_field_name === 'preferred_relationship_branch_EA');
-    expect(branchField?.default_visibility).toBeNull();
-  });
-
-  test('should add rewards_choice_segment for specific campaigns', () => {
-    const customFieldset = [{
-      fields: [
-        { logical_field_name: 'rewards_choice_segment', default_visibility: 'Yes' }
-      ]
-    }];
-
-    const result = rulesUtils(customFieldset, mockValidationObj);
-    const rewardsField = result[0].fields.find(f => f.logical_field_name === 'rewards_choice_segment');
-    expect(rewardsField?.default_visibility).toBeNull();
-  });
-
-  test('should hide different fields for non-CC products', () => {
-    mockStore.getState.mockReturnValue({
-      stages: {
-        stages: [{
-          stageInfo: {
-            products: [{ product_category: 'LOAN' }],
-            applicants: [{}]
-          }
-        }]
-      }
+    test('should handle empty fields array', () => {
+      const result = rulesUtils([{ fields: [] }], baseValidationObj);
+      expect(result[0].fields).toEqual([]);
     });
 
-    const customFieldset = [{
-      fields: [
-        { logical_field_name: 'purpose_of_account', default_visibility: 'Yes' },
-        { logical_field_name: 'estatement', default_visibility: 'Yes' }
-      ]
-    }];
-
-    const result = rulesUtils(customFieldset, mockValidationObj);
-    const purposeField = result[0].fields.find(f => f.logical_field_name === 'purpose_of_account');
-    const estatementField = result[0].fields.find(f => f.logical_field_name === 'estatement');
-    expect(purposeField?.default_visibility).toBe('No');
-    expect(estatementField?.default_visibility).toBe('No');
-  });
-
-  test('should filter out fields with default_visibility No', () => {
-    const result = rulesUtils(mockFieldset, mockValidationObj);
-    const placeOfBirthField = result[0].fields.find(f => f.logical_field_name === 'place_of_birth');
-    expect(placeOfBirthField).toBeUndefined(); // Should be filtered out
-  });
-
-  test('should handle empty input fields', () => {
-    const result = rulesUtils([{ fields: [] }], mockValidationObj);
-    expect(result[0].fields).toEqual([]);
-  });
-
-  test('should handle undefined state values gracefully', () => {
-    mockStore.getState.mockReturnValue({
-      stages: {
-        stages: [{
-          stageInfo: {
-            products: [{}],
-            applicants: [{}]
-          }
-        }]
-      }
+    test('should handle undefined props', () => {
+      expect(() => rulesUtils(undefined as any, baseValidationObj)).toThrow();
     });
 
-    expect(() => rulesUtils(mockFieldset, mockValidationObj)).not.toThrow();
+    test('should handle undefined validationObj', () => {
+      expect(() => rulesUtils(baseFieldset, undefined as any)).toThrow();
+    });
+  });
+
+  // Test group 2: Editability rules
+  describe('Field Editability', () => {
+    test('should set editable=false for nonEditable fields', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
+      expect(field?.editable).toBe(false);
+    });
+
+    test('should keep editable=true for fields not in nonEditable list', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'office_phone_number');
+      expect(field?.editable).toBe(true);
+    });
+
+    test('should handle empty nonEditable array', () => {
+      const result = rulesUtils(baseFieldset, { nonEditable: [], hidden: [] });
+      baseFieldset[0].fields.forEach(originalField => {
+        const resultField = result[0].fields.find(f => f.logical_field_name === originalField.logical_field_name);
+        if (resultField) {
+          expect(resultField.editable).toBe(true);
+        }
+      });
+    });
+  });
+
+  // Test group 3: Visibility rules
+  describe('Field Visibility', () => {
+    test('should set default_visibility=null for default_visibility_no_field fields', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
+      expect(field?.default_visibility).toBeNull();
+    });
+
+    test('should hide place_of_birth for CC products', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'place_of_birth');
+      expect(field).toBeUndefined(); // Should be filtered out
+    });
+
+    test('should hide currency for CC product_type 1313 with casaSegment Y', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'currency');
+      expect(field?.default_visibility).toBe('No');
+    });
+
+    test('should add estatement_fee to hidden fields for CC products', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'estatement_fee');
+      expect(field?.default_visibility).toBeNull();
+    });
+  });
+
+  // Test group 4: Product-specific rules
+  describe('Product-Specific Rules', () => {
+    test('should add embossed_name to hidden fields when name > 19 chars (CC)', () => {
+      mockStore.getState.mockReturnValue({
+        stages: {
+          stages: [{
+            stageInfo: {
+              products: [{ product_category: 'CC' }],
+              applicants: [{
+                full_name_a_1: 'Very Long Name That Exceeds 19 Chars',
+                casaSegment: 'N'
+              }]
+            }
+          }]
+        }
+      });
+
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'embossed_name');
+      expect(field?.default_visibility).toBeNull();
+    });
+
+    test('should add rewards_choice_segment for specific campaigns', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'rewards_choice_segment');
+      expect(field?.default_visibility).toBeNull();
+    });
+
+    test('should hide different fields for non-CC products', () => {
+      mockStore.getState.mockReturnValue({
+        stages: {
+          stages: [{
+            stageInfo: {
+              products: [{ product_category: 'LOAN' }],
+              applicants: [{}]
+            }
+          }]
+        }
+      });
+
+      const customFieldset = [{
+        fields: [
+          { logical_field_name: 'purpose_of_account', default_visibility: 'Yes' },
+          { logical_field_name: 'estatement', default_visibility: 'Yes' }
+        ]
+      }];
+
+      const result = rulesUtils(customFieldset, baseValidationObj);
+      expect(result[0].fields.find(f => f.logical_field_name === 'purpose_of_account')).toBeUndefined();
+      expect(result[0].fields.find(f => f.logical_field_name === 'estatement')).toBeUndefined();
+    });
+  });
+
+  // Test group 5: Mandatory fields
+  describe('Mandatory Fields', () => {
+    test('should set mandatory=Yes for mandatory fields', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'office_phone_number');
+      expect(field?.mandatory).toBe('Yes');
+    });
+
+    test('should not modify mandatory for non-mandatory fields', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const field = result[0].fields.find(f => f.logical_field_name === 'embossed_name');
+      expect(field?.mandatory).toBeUndefined();
+    });
+  });
+
+  // Test group 6: Edge cases
+  describe('Edge Cases', () => {
+    test('should handle missing stageInfo', () => {
+      mockStore.getState.mockReturnValue({
+        stages: {
+          stages: [{}] // No stageInfo
+        }
+      });
+
+      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
+    });
+
+    test('should handle missing products array', () => {
+      mockStore.getState.mockReturnValue({
+        stages: {
+          stages: [{
+            stageInfo: {
+              // No products array
+              applicants: [{}]
+            }
+          }]
+        }
+      });
+
+      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
+    });
+
+    test('should handle missing applicants array', () => {
+      mockStore.getState.mockReturnValue({
+        stages: {
+          stages: [{
+            stageInfo: {
+              products: [{}],
+              // No applicants array
+            }
+          }]
+        }
+      });
+
+      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
+    });
+
+    test('should handle empty product object', () => {
+      mockStore.getState.mockReturnValue({
+        stages: {
+          stages: [{
+            stageInfo: {
+              products: [{}], // Empty product object
+              applicants: [{}]
+            }
+          }]
+        }
+      });
+
+      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
+    });
+
+    test('should handle empty applicant object', () => {
+      mockStore.getState.mockReturnValue({
+        stages: {
+          stages: [{
+            stageInfo: {
+              products: [{}],
+              applicants: [{}] // Empty applicant object
+            }
+          }]
+        }
+      });
+
+      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
+    });
+  });
+
+  // Test group 7: Filtering behavior
+  describe('Result Filtering', () => {
+    test('should filter out fields with default_visibility=No', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const placeOfBirthField = result[0].fields.find(f => f.logical_field_name === 'place_of_birth');
+      expect(placeOfBirthField).toBeUndefined();
+    });
+
+    test('should include fields with default_visibility=Yes or null', () => {
+      const result = rulesUtils(baseFieldset, baseValidationObj);
+      const mortgageField = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
+      const officePhoneField = result[0].fields.find(f => f.logical_field_name === 'office_phone_number');
+      
+      expect(mortgageField).toBeDefined(); // visibility=null
+      expect(officePhoneField).toBeDefined(); // visibility=Yes
+    });
   });
 });
