@@ -1,21 +1,138 @@
-import { useSelector } from 'react-redux';
-import { KeyWithAnyModel, StoreModel, ValidationObjModel } from '../../utils/model/common-model';
-import { store } from '../../utils/store/store';
+import Rules_ad_9 from './Rules_ad_9';
 import rulesUtils from './rules.utils';
+import { KeyWithAnyModel, ValidationObjModel } from '../../utils/model/common-model';
 
-const Rules_ad_9 = (props: KeyWithAnyModel, s: KeyWithAnyModel): KeyWithAnyModel => {
+// Mock the rulesUtils function
+jest.mock('./rules.utils');
 
-    const validationObj: ValidationObjModel = {
-        nonEditable: [],
-        hidden: []
-    };
-    let hiddenFields;
+describe('Rules_ad_9 Utility Function', () => {
+  const mockRulesUtils = rulesUtils as jest.MockedFunction<typeof rulesUtils>;
+  
+  beforeEach(() => {
+    // Clear all instances and calls to constructor and all methods:
+    mockRulesUtils.mockClear();
+  });
+
+  test('should call rulesUtils with correct parameters', () => {
+    const props = { field1: 'value1', field2: 'value2' };
+    const state = { stateField: 'stateValue' };
     
-    validationObj.hidden!.push(hiddenFields);
+    // Mock the rulesUtils return value
+    mockRulesUtils.mockReturnValue({
+      nonEditable: [],
+      hidden: []
+    });
 
-    return rulesUtils(props, validationObj);
-}
+    const result = Rules_ad_9(props, state);
 
-export default Rules_ad_9;
+    // Verify rulesUtils was called with correct arguments
+    expect(mockRulesUtils).toHaveBeenCalledWith(props, {
+      nonEditable: [],
+      hidden: [undefined] // Because hiddenFields is undefined
+    });
 
-Please write an test cases using react and jest
+    // Verify the return value
+    expect(result).toEqual({
+      nonEditable: [],
+      hidden: []
+    });
+  });
+
+  test('should handle undefined hiddenFields correctly', () => {
+    const props = {};
+    const state = {};
+    
+    mockRulesUtils.mockReturnValue({
+      nonEditable: ['field1'],
+      hidden: [undefined]
+    });
+
+    const result = Rules_ad_9(props, state);
+
+    expect(result.hidden).toContain(undefined);
+    expect(result.nonEditable).toEqual(['field1']);
+  });
+
+  test('should pass along the validation object structure', () => {
+    const props = { test: 'value' };
+    const state = {};
+    
+    mockRulesUtils.mockReturnValue({
+      nonEditable: [],
+      hidden: []
+    });
+
+    Rules_ad_9(props, state);
+
+    const validationObjPassed = mockRulesUtils.mock.calls[0][1];
+    expect(validationObjPassed).toEqual({
+      nonEditable: [],
+      hidden: [undefined]
+    });
+  });
+
+  test('should return whatever rulesUtils returns', () => {
+    const props = {};
+    const state = {};
+    
+    const mockReturnValue = {
+      nonEditable: ['field1', 'field2'],
+      hidden: ['field3']
+    };
+    
+    mockRulesUtils.mockReturnValue(mockReturnValue);
+
+    const result = Rules_ad_9(props, state);
+    expect(result).toEqual(mockReturnValue);
+  });
+
+  test('should work with empty props and state', () => {
+    mockRulesUtils.mockReturnValue({
+      nonEditable: [],
+      hidden: []
+    });
+
+    const result = Rules_ad_9({}, {});
+    expect(result).toEqual({
+      nonEditable: [],
+      hidden: []
+    });
+  });
+
+  test('should handle complex state objects', () => {
+    const complexState = {
+      nested: {
+        object: {
+          with: {
+            values: [1, 2, 3]
+          }
+        }
+      }
+    };
+    
+    mockRulesUtils.mockReturnValue({
+      nonEditable: [],
+      hidden: []
+    });
+
+    expect(() => Rules_ad_9({}, complexState)).not.toThrow();
+  });
+
+  test('should maintain the validation object structure even when rulesUtils modifies it', () => {
+    const props = {};
+    const state = {};
+    
+    mockRulesUtils.mockImplementation((props, validationObj) => {
+      // Modify the validationObj (simulating what rulesUtils might do)
+      validationObj.nonEditable?.push('modifiedField');
+      return validationObj;
+    });
+
+    const result = Rules_ad_9(props, state);
+    
+    expect(result).toEqual({
+      nonEditable: ['modifiedField'],
+      hidden: [undefined]
+    });
+  });
+});
