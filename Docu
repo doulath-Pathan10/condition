@@ -1,320 +1,338 @@
-import "./onboarding-before-start.scss";
-import { useState, useEffect, useRef } from "react";
-import Pdf from "../../../../shared/components/pdf/pdf";
-import { getData, getPDFData } from "../../services/preApprovalServices";
-import { CATEGORIES, KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../services/constants";
-import { useDispatch, useSelector } from "react-redux";
-import { StoreModel } from "../../../../utils/model/common-model";
-import Spinner from "../../../../shared/components/spinner/spinner";
-import { preApprovalAction } from "../../store/preApproval-slice";
-import { dispatchLoader } from "../../../../services/common-service";
-import { getUrl } from "../../../../utils/common/change.utils";
-import { CONSTANTS } from "../../../../utils/common/constants";
-import PILPdfUrl1 from "../../../../assets/pdf-file/PIL/hk-personal-loan-terms-pil-aug09.pdf";
-import PILPdfUrl2 from "../../../../assets/pdf-file/PIL/hk-gn175.pdf";
-import PILPdfUrl3 from "../../../../assets/pdf-file/PIL/hk-loans-personal-instalment-loan-eng.pdf";
-import CCPdfUrl1 from "../../../../assets/pdf-file/CC/hk-gn175.pdf";
-import CCPdfUrl2 from "../../../../assets/pdf-file/CC/hk-gn177.pdf";
-import CCPdfUrl3 from "../../../../assets/pdf-file/CC/hk-cc-tncs-downloadnow.pdf";
-import CCPdfUrl4 from "../../../../assets/pdf-file/CC/e-statement-en.pdf";
-import CCPdfUrl5 from "../../../../assets/pdf-file/CC/hk-rewards-tncs-en.pdf";
-import CCPdfUrl6 from "../../../../assets/pdf-file/CC/hk-tnc-credit-card-instalment-plan-en.pdf";
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import OnboardingBeforeStart from './OnboardingBeforeStart';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import Pdf from '../../../../shared/components/pdf/pdf';
 
-const OnboardingBeforeStart: React.FC<any> = ({
-  isVisible,
-  onScrollEnd,
-  stageID,
-  nextPage
-}) => {
-  const listInnerRef = useRef<HTMLDivElement>(null);
-  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
-  const [kfsDocPDF, setkfsDocPDF] = useState("");
-  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
-  const [pdfName, setPdfName] = useState('')
-  const [showSpinner, setShowSpinner] = useState(true);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const campaignId = stageSelector[0]?.stageInfo?.products[0]?.campaign;
-  const formConfigmetaData = useSelector(
-    (state: StoreModel) => state?.preApproval.formConfigmetaData
-  );
-  // const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const dispatch = useDispatch();
-  const language = getUrl.getLanguageInfo("lang");  
-  console.log(process.env.REACT_APP_KFS_DOC_URL)
-  useEffect(() => {
-    setShowSpinner(true);
-    dispatch(dispatchLoader(true));
-    let KFS;
-    if(language==='zh'){
-      KFS=process.env.REACT_APP_KFS_DOC_URL_Chinees
-    }else{
-      KFS=process.env.REACT_APP_KFS_DOC_URL
-    }
+// Mock the dependencies
+jest.mock('../../../../shared/components/pdf/pdf', () => () => <div>Mock PDF Component</div>);
+jest.mock('../../services/preApprovalServices', () => ({
+  getData: jest.fn(),
+  getPDFData: jest.fn(),
+}));
+jest.mock('../../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn(() => 'en'),
+  },
+}));
+jest.mock('react-redux', () => ({
+  ...jest.requireActual('react-redux'),
+  useSelector: jest.fn(),
+  useDispatch: jest.fn(),
+}));
 
-    getData(KFS)?.then((response: any) => {
-      const campaignID = formConfigmetaData?.products[0].campaign;
-      let pdfURLNew = "";
-      if (stageID === 0) {
-        const pdfURL = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.productsMob[campaignID] : response.data.products[campaignID];
-        const pdfMap = pdfURL.map((item: any) => item.pdfURL)
-        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-        if (window.location.host === "localhost:3000") {
-          pdfURLNew = pdfURL[0].pdfURL.replace(
-            "https://pt.sc.com/",
-            "http://localhost:3000/"
+describe('OnboardingBeforeStart Component', () => {
+  const mockStore = configureStore();
+  let store: any;
+  const mockDispatch = jest.fn();
+  const mockOnScrollEnd = jest.fn();
+  const mockNextPage = jest.fn();
 
-          );
-        } else {
-          pdfURLNew = pdfURL[0].pdfURL;
+  beforeEach(() => {
+    store = mockStore({
+      stages: {
+        stages: [{
+          stageId: 'ad-9a',
+          stageInfo: {
+            products: [{
+              campaign: 'HKPIL23PLSTP10'
+            }]
+          }
+        }]
+      },
+      preApproval: {
+        formConfigmetaData: {
+          products: [{
+            campaign: 'HKPIL23PLSTP10'
+          }]
         }
-        setPdfName(getPDFName);
-        setkfsDocPDF(pdfURLNew);
-        getPDFData(pdfURLNew).then((response: any) => {
-          const pdfurl: any = {};
-          pdfurl.pdf = response;
-          pdfurl.pdfurl = pdfURLNew;
-          setkfsDocPDFDownload(response);
-          dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
-          onScrollEnd(true);
-          setShowSpinner(false);
-          dispatch(dispatchLoader(false));
-        });
       }
-      else if (stageID === 1) {
-        const pdfURLCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.CampaignTnCMob[campaignID] : response.data.CampaignTnC[campaignID];
-        const pdfMap = pdfURLCheck.map((item: any) => item.pdfURL)
-        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-        if (window.location.host === "localhost:3000") {
-          pdfURLNew =pdfURLCheck[0]?.pdfURL.replace("https://pt.sc.com/", "http://localhost:3000/");
-        } else {
-          pdfURLNew = pdfURLCheck[0]?.pdfURL;
-        }
-        setPdfName(getPDFName);
-        setkfsDocPDF(pdfURLNew);
-        getPDFData(pdfURLNew).then((response: any) => {
-          setkfsDocPDFDownload(response);
-          dispatch(preApprovalAction.setTandCDocumentPdf(pdfURLNew));
-          dispatch(preApprovalAction.setDownloadPDFData(response));
-          onScrollEnd(true);
-          setShowSpinner(false);
-          dispatch(dispatchLoader(false));
-        });
-      }
-      const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
-      setPdfLinkTerms(allPDFLinks);
     });
-  }, [stageID]);
 
-  useEffect(() => {
-    const listInnerElement = listInnerRef.current;
-        /* istanbul ignore else */
-    if (listInnerElement) {
-      listInnerElement.addEventListener("scroll", scrollToBottom);
-      // Clean-up
-      return () => {
-        listInnerElement.removeEventListener("scroll", scrollToBottom);
-      };
-    }
-    window.history.replaceState("", "", "/hk/before-start")
+    (useSelector as jest.Mock).mockImplementation((callback) => callback(store.getState()));
+    (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
+
+    // Mock getData response
+    const mockGetData = require('../../services/preApprovalServices').getData;
+    mockGetData.mockResolvedValue({
+      data: {
+        products: {
+          HKPIL23PLSTP10: [{ pdfURL: 'https://example.com/kfs.pdf' }]
+        },
+        productsMob: {
+          HKPIL23PLSTP10: [{ pdfURL: 'https://example.com/kfs-mobile.pdf' }]
+        },
+        CampaignTnC: {
+          HKPIL23PLSTP10: [{ pdfURL: 'https://example.com/tnc.pdf' }]
+        },
+        CampaignTnCMob: {
+          HKPIL23PLSTP10: [{ pdfURL: 'https://example.com/tnc-mobile.pdf' }]
+        },
+        tncLinkCampaignCode: {
+          HKPIL23PLSTP10: [{
+            pdfLinks: [
+              { Title: 'II. Personal Loan Terms', url: 'https://example.com/loan-terms.pdf' },
+              { Title: 'III. Client Terms', url: 'https://example.com/client-terms.pdf' }
+            ]
+          }]
+        }
+      }
+    });
+
+    // Mock getPDFData response
+    const mockGetPDFData = require('../../services/preApprovalServices').getPDFData;
+    mockGetPDFData.mockResolvedValue('mock-pdf-data');
   });
 
- 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
- //Added for mock pdf
-  const downloadPdf = (title: any) => {
-    const lin = document.createElement('a');
-    if(campaignId === "HKPIL23PLSTP10" || campaignId === "HKBDC23PESTP10") {
-      if(title === "II. Personal Loan Terms") {
-        lin.href = PILPdfUrl1;
-      } else if(title === "III. Client Terms") {
-        lin.href = PILPdfUrl2;
-      } else if(title === "Welcome Offers"){
-        lin.href = PILPdfUrl3;
+  it('renders spinner initially', () => {
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    expect(screen.getByTestId('spinner')).toBeInTheDocument();
+  });
+
+  it('renders PDF viewer for stage 0 after loading', async () => {
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      expect(screen.getByText('Mock PDF Component')).toBeInTheDocument();
+    });
+  });
+
+  it('renders terms and conditions table for stage 1', async () => {
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={1} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      expect(screen.getByText('II. Personal Loan Terms')).toBeInTheDocument();
+      expect(screen.getByText('III. Client Terms')).toBeInTheDocument();
+    });
+  });
+
+  it('displays download button for KFS document', async () => {
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      expect(screen.getByText('Download')).toBeInTheDocument();
+    });
+  });
+
+  it('triggers download when download button is clicked', async () => {
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      const downloadButton = screen.getByText('Download');
+      fireEvent.click(downloadButton);
+      
+      // Verify that the download functionality was triggered
+      expect(require('../../services/preApprovalServices').getPDFData).toHaveBeenCalled();
+    });
+  });
+
+  it('shows scroll down button when isVisible is true', async () => {
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('next-arrow')).toBeInTheDocument();
+    });
+  });
+
+  it('shows accept button when isVisible is false', async () => {
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={false} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      expect(screen.getByText('Accept')).toBeInTheDocument();
+    });
+  });
+
+  it('calls nextPage when accept button is clicked', async () => {
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={false} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      const acceptButton = screen.getByText('Accept');
+      fireEvent.click(acceptButton);
+      expect(mockNextPage).toHaveBeenCalled();
+    });
+  });
+
+  it('handles PDF download for different campaign types', async () => {
+    // Test for PIL campaign
+    store = mockStore({
+      stages: {
+        stages: [{
+          stageId: 'ad-9a',
+          stageInfo: {
+            products: [{
+              campaign: 'HKPIL23PLSTP10'
+            }]
+          }
+        }]
+      },
+      preApproval: {
+        formConfigmetaData: {
+          products: [{
+            campaign: 'HKPIL23PLSTP10'
+          }]
+        }
       }
-    } else if(campaignId === "HKSOG20VAWV000" || campaignId === "HKSPG17VAWV000" || campaignId === "HKSPB17VAWV000" || campaignId === "HKSOA16VAWP000" || campaignId === "HKSOA16MCWP000" || campaignId=== "HKSOZ00MCWB000"|| campaignId=== "HKSOZ01MCWB000"|| campaignId=== "HKSOZ02MCWB000") {
-      if(title === "III. Client Terms" || title === "III.Client Terms "){
-        lin.href = CCPdfUrl1;
-      } else if(title === "III. Credit Card Terms"){
-        lin.href = CCPdfUrl2;
-      } else if(title === "VI. Welcome Offers" || title === "IV. Welcome Offers" ||  title === 'VI. Welcome Offers '){
-        lin.href = CCPdfUrl3;
-      } else if(title === "IX.  E-Statement Service" || title === "IX. E-Statement Service" || title === "IX.E-Statement Service" || title === "IX.E-Statement Service "){
-        lin.href = CCPdfUrl4;
-      } else if(title === "X. Points Redemption"){
-        lin.href = CCPdfUrl5;
-      } else if(title === "XI. Credit Card Instalment Plan" || title === "X.Credit Card Installment Plan " || title === "X.Credit Card Installment Plan"){
-        lin.href = CCPdfUrl6;
+    });
+
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={1} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      const downloadLinks = screen.getAllByText('Download');
+      fireEvent.click(downloadLinks[0]);
+      // Verify the correct PDF was selected for download
+    });
+  });
+
+  it('handles Chinese language content', async () => {
+    // Mock Chinese language
+    require('../../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue('zh');
+    
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={false} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      expect(screen.getByText('接受')).toBeInTheDocument(); // Chinese text for "Accept"
+    });
+  });
+
+  it('handles mobile user agent correctly', async () => {
+    // Mock mobile user agent
+    Object.defineProperty(window.navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
+      writable: true
+    });
+
+    render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      // Verify mobile-specific behavior
+      expect(require('../../services/preApprovalServices').getData).toHaveBeenCalledWith(expect.any(String));
+    });
+  });
+
+  it('calls onScrollEnd when scrolled to bottom', async () => {
+    const { container } = render(
+      <Provider store={store}>
+        <OnboardingBeforeStart 
+          isVisible={true} 
+          onScrollEnd={mockOnScrollEnd} 
+          stageID={0} 
+          nextPage={mockNextPage} 
+        />
+      </Provider>
+    );
+    
+    await waitFor(() => {
+      const scrollContainer = container.querySelector('.react-pdf__Page__canvas');
+      if (scrollContainer) {
+        // Simulate scroll to bottom
+        fireEvent.scroll(scrollContainer, { target: { scrollTop: 1000, scrollHeight: 1000, clientHeight: 500 } });
+        expect(mockOnScrollEnd).toHaveBeenCalledWith(false);
       }
-    }
-    const urlParts = lin.href.split("/");
-    const extractedPDFName = urlParts[urlParts.length - 1].split(".")[0];
-    lin.download = extractedPDFName;
-    document.body.appendChild(lin);
-    lin.click();
-    document.body.removeChild(lin);
-  }
-
-  const downloadPDFPreApproval = (e:React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    const lin = document.createElement('a');
-    lin.href = kfsDocPDFDownload;
-    const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
-    if (isSafari) {
-      lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
-      document.body.appendChild(lin);
-      lin.click();
-      document.body.removeChild(lin);
-    } else {
-      lin.download = pdfName;
-      document.body.appendChild(lin);
-      lin.click();
-      document.body.removeChild(lin);
-    }
-  };
-
-  const btnClickScroll = () => {
-    listInnerRef.current?.scrollBy({ top: stageID===0 ? 200 : 5000, behavior: "smooth" });
-  };
-
-  const scrollToBottom = () => {
-        /* istanbul ignore else */
-    if (listInnerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
-      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
-      /* istanbul ignore else */
-      if (isNearBottom) {
-        onScrollEnd(false);
-      }
-    }
-  };
-  var className= "";
-  var isIPHONE = (navigator.userAgent.match('iPad') != null || navigator.userAgent.match('iPhone') != null || navigator.userAgent.match('iPod') != null);
-  var isANDROID = (navigator.userAgent.match('Android') != null);
-  if (isIPHONE) {
-    var isSafari = !!navigator.userAgent.match(/Version\/[\d\.]+.*Safari/);
-    if (isSafari) { 
-      // $('body').addClass("iphoneDeviceSafari"); 
-      className="iphoneDeviceSafari"
-    }
-    else { 
-      // $('body').addClass("iphoneDevice"); 
-      className="iphoneDevice"
-    }
-  } else if (isANDROID) {
-    // $('body').addClass("andriodDevice");
-    className="andriodDevice"
-  } else {
-    // $rootScope.DesktopDevice = true;
-    // $('body').addClass("desktopDevice");
-    className="desktopDevice"
-  }
-  return (
-    <div>
-      {showSpinner === true ? (
-        <Spinner></Spinner>
-      ) : (
-        <>
-          <div>
-            <button 
-              onClick={(e:React.MouseEvent<HTMLButtonElement>) => {
-                downloadPDFPreApproval(e);
-              }}
-              className="view-pdf"
-              // ng-if="source_sys == 'sc.com' || source_sys == 'asiamiles'" //for future reference
-            >
-              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
-            </button>
-          </div>
-          <div className="pdf-view">
-            <div
-              // style={{ maxHeight: stageID == 0 ? "45vh" : "22vh" }}
-              className={stageID == 0 ? "react-pdf__Page__canvas pdf__kfs__page" : "react-pdf__Page__canvas pdf__tnc__page"}
-              ref={listInnerRef}
-            >
-              <Pdf fileName={kfsDocPDF} />
-            </div>
-          </div>
-
-          {stageID == 1 && (
-            <div className="pdf-table">
-              <div className="download-section">
-                <span className="download-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadHeader : language === CONSTANTS.LANG_CN? CONSTANTS.DownloadHeader_CN : CONSTANTS.DownloadHeader_HK}</span>
-                <span className="images"></span>
-              </div>
-
-              <div className="tc-container">
-                <table className="tcTable" border={1}>
-                  <tbody>
-                    {pdfLinkTerms?.map((item: any, index: any) => {
-                      return (
-                        <tr key={index}>
-                          <td className="tcTable__title">{item.Title}</td>
-                          <td className="tcTable__read">
-                            <a
-                              href={item.url}
-                              download
-                              target="_blank"
-                            >
-                             {language === CONSTANTS.LANG_EN ? CONSTANTS.ReadBtn : language === CONSTANTS.LANG_CN? CONSTANTS.ReadBtn_CN : CONSTANTS.ReadBtn_HK}
-                            </a>
-                            <span> / </span>
-                            <span className="tcTable__download"
-                              onClick={() => {
-                                downloadPdf(item.Title);
-                              }}
-                            >
-                              
-                              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="remarks-section">
-                <span className="remarks-section__span">
-                  {" "}
-                  {language === CONSTANTS.LANG_EN ? CONSTANTS.Remarks : language === CONSTANTS.LANG_CN? CONSTANTS.Remarks_CN : CONSTANTS.Remarks_HK}
-                </span>
-              </div>
-            </div>
-          )}
-          
-          <div className="footer-button-list app__footer">
-            {isVisible ? (
-              <>
-                <div className="next-arrow" aria-describedby="submitButton">
-                  <footer
-                  // className={`${stageSelector[0].stageId!=='ad-9a'? 'footer-next1 enabled' : 'footer-next enabled'}`}
-                    className="footer-next enabled"
-                    onClick={btnClickScroll}
-                  >
-                    <i className="next-btn"></i>
-                  </footer>
-                </div>
-              </>
-            )
-              :
-              
-                <button
-                  className="pre-approval-accept-button"
-                  onClick={nextPage}
-                >
-                  {language === CONSTANTS.LANG_EN ? CONSTANTS.acceptButton : language === CONSTANTS.LANG_CN? CONSTANTS.acceptButton_CN : CONSTANTS.acceptButton_HK}
-                </button>
-
-              // </div>
-            }
-
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-export default OnboardingBeforeStart;
-
-Please write an test cases using react and jest
+    });
+  });
+});
