@@ -1,77 +1,177 @@
+import rulesUtils from './rules.utils';
 import { FieldsetModel, KeyWithAnyModel } from '../../utils/model/common-model';
 import { store } from '../../utils/store/store';
 
-const rulesUtils = (props: KeyWithAnyModel, validationObj: any) => {
-    const result = props.map((element: Array<FieldsetModel>) => {
-        return element && element.map((res: FieldsetModel) => {
-            const eFields = res.fields.map((res: KeyWithAnyModel) => {
-                return {
-                    ...res,
-                    editable: validationObj.nonEditable[0] && validationObj.nonEditable[0].includes(res.logical_field_name) ? true : false
-                }
-            })
-            const default_visibility_no_field = [
-                "monthly_installment_mortgage_payment",
-                "total_outstanding_other_loan_amount",
-                "total_outstanding_other_monthly_payment",
-                "direct_marketing_opt_out",
-                "oth_bank_name",
-                "oth_bank_number",
-                "name_of_employer",
-                "business_est_date"
-            ]
-            const productCategory = store.getState().stages.stages[0].stageInfo.products[0].product_category;
-            const productType = store.getState().stages.stages[0].stageInfo.products[0].product_type;
-            const casaSegment = store.getState().stages.stages[0].stageInfo.applicants[0].casaSegment;
-            const asimilesCard = store.getState().stages.stages[0].stageInfo.applicants[0].asiaMilesCard;
-            const campaignID = store.getState().stages.stages[0].stageInfo.products[0].campaign;
+// Mock the Redux store
+jest.mock('../../utils/store/store', () => ({
+  getState: jest.fn()
+}));
 
-            const fullname = store.getState()?.stages?.stages?.[0]?.stageInfo?.applicants?.[0].full_name_a_1;
-            if (productCategory === "CC") {
-                if (fullname?.length > 19) {
-                    default_visibility_no_field.push("embossed_name")
-                }
-                if (productType === "1313" && casaSegment === "Y") {
-                    default_visibility_no_field.push("preferred_relationship_branch_EA", "tin_hkid");
-                    // if(store.getState()?.stages?.stages?.[0]?.stageInfo?.applicants?.[0].tax_resident_of_any_country_region_a_1 === "HK") {
-                    //     default_visibility_no_field.push("tin_hkid");
-                    // }
-                }
-                if (productType === "1313" && (campaignID === 'HKSOZ01MCWB000' || campaignID === 'HKSOZ02MCWB000') && casaSegment === 'Y') {
-                    default_visibility_no_field.push("rewards_choice_segment");
-                }
-                default_visibility_no_field.push("estatement_fee")
-            }
-            const mandatoryField = ['office_phone_number', 'business_est_date', "monthly_installment_mortgage_payment"]
-            eFields.map((subElement: KeyWithAnyModel) => {
-                if (default_visibility_no_field.indexOf(subElement.logical_field_name) > -1) {
-                    subElement.default_visibility = null;
-                }
-                if (mandatoryField.indexOf(subElement.logical_field_name) > -1) {
-                    subElement.mandatory = 'Yes';
-                }
-                let hiddenFields;
-                if (productCategory === "CC") {
-                    hiddenFields = ["place_of_birth", "purpose_of_account", "currency"];
-                    if (productType === "1313" && casaSegment === "Y") {
-                        hiddenFields = ["currency"]
-                    }
-                } else {
-                    hiddenFields = ["place_of_birth", "purpose_of_account", "temp_cli_label", "enotice_label", "credit_limit_extension", "estatement", "note_credit", "estatement_fee"];
-                }
+const mockStore = store as jest.Mocked<typeof store>;
 
-                if (hiddenFields.indexOf(subElement.logical_field_name) > -1) {
-                    subElement.default_visibility = 'No';
+describe('rulesUtils Function', () => {
+  const mockFieldset: FieldsetModel[] = [{
+    fields: [
+      { logical_field_name: 'monthly_installment_mortgage_payment', default_visibility: 'Yes', editable: true, mandatory: 'No' },
+      { logical_field_name: 'embossed_name', default_visibility: 'Yes', editable: true },
+      { logical_field_name: 'place_of_birth', default_visibility: 'Yes', editable: true },
+      { logical_field_name: 'office_phone_number', default_visibility: 'Yes', editable: true }
+    ]
+  }];
 
-                }
-            });
-            const vFields = eFields.filter((subElement: KeyWithAnyModel) => (subElement.default_visibility !== 'No'));
-            return { ...res, fields: vFields }
-        })
-    })
-    return result[0]
-}
+  const mockValidationObj = {
+    nonEditable: [['monthly_installment_mortgage_payment']],
+    hidden: []
+  };
 
-export default rulesUtils
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Default mock store state
+    mockStore.getState.mockReturnValue({
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{
+              product_category: 'CC',
+              product_type: '1313',
+              campaign: 'HKSOZ01MCWB000'
+            }],
+            applicants: [{
+              casaSegment: 'Y',
+              asiaMilesCard: false,
+              full_name_a_1: 'John Doe',
+              tax_resident_of_any_country_region_a_1: 'HK'
+            }]
+          }
+        }]
+      }
+    });
+  });
 
-Please write an test cases using react and jest
+  test('should return fields with correct structure', () => {
+    const result = rulesUtils(mockFieldset, mockValidationObj);
+    expect(Array.isArray(result)).toBe(true);
+    expect(result[0]).toHaveProperty('fields');
+    expect(Array.isArray(result[0].fields)).toBe(true);
+  });
+
+  test('should set editable to false for nonEditable fields', () => {
+    const result = rulesUtils(mockFieldset, mockValidationObj);
+    const mortgageField = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
+    expect(mortgageField?.editable).toBe(false);
+  });
+
+  test('should set default_visibility to null for default_visibility_no_field fields', () => {
+    const result = rulesUtils(mockFieldset, mockValidationObj);
+    const mortgageField = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
+    expect(mortgageField?.default_visibility).toBeNull();
+  });
+
+  test('should set mandatory to Yes for mandatory fields', () => {
+    const result = rulesUtils(mockFieldset, mockValidationObj);
+    const officePhoneField = result[0].fields.find(f => f.logical_field_name === 'office_phone_number');
+    expect(officePhoneField?.mandatory).toBe('Yes');
+  });
+
+  test('should add embossed_name to hidden fields when name is long (CC product)', () => {
+    mockStore.getState.mockReturnValue({
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{ product_category: 'CC' }],
+            applicants: [{
+              full_name_a_1: 'Very Long Name That Exceeds Nineteen Characters',
+              casaSegment: 'N'
+            }]
+          }
+        }]
+      }
+    });
+
+    const result = rulesUtils(mockFieldset, mockValidationObj);
+    const embossedNameField = result[0].fields.find(f => f.logical_field_name === 'embossed_name');
+    expect(embossedNameField?.default_visibility).toBeNull();
+  });
+
+  test('should hide place_of_birth for CC products', () => {
+    const result = rulesUtils(mockFieldset, mockValidationObj);
+    const placeOfBirthField = result[0].fields.find(f => f.logical_field_name === 'place_of_birth');
+    expect(placeOfBirthField?.default_visibility).toBe('No');
+  });
+
+  test('should add preferred_relationship_branch_EA to hidden fields for CC product_type 1313 with casaSegment Y', () => {
+    const customFieldset = [{
+      fields: [
+        { logical_field_name: 'preferred_relationship_branch_EA', default_visibility: 'Yes' }
+      ]
+    }];
+
+    const result = rulesUtils(customFieldset, mockValidationObj);
+    const branchField = result[0].fields.find(f => f.logical_field_name === 'preferred_relationship_branch_EA');
+    expect(branchField?.default_visibility).toBeNull();
+  });
+
+  test('should add rewards_choice_segment for specific campaigns', () => {
+    const customFieldset = [{
+      fields: [
+        { logical_field_name: 'rewards_choice_segment', default_visibility: 'Yes' }
+      ]
+    }];
+
+    const result = rulesUtils(customFieldset, mockValidationObj);
+    const rewardsField = result[0].fields.find(f => f.logical_field_name === 'rewards_choice_segment');
+    expect(rewardsField?.default_visibility).toBeNull();
+  });
+
+  test('should hide different fields for non-CC products', () => {
+    mockStore.getState.mockReturnValue({
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{ product_category: 'LOAN' }],
+            applicants: [{}]
+          }
+        }]
+      }
+    });
+
+    const customFieldset = [{
+      fields: [
+        { logical_field_name: 'purpose_of_account', default_visibility: 'Yes' },
+        { logical_field_name: 'estatement', default_visibility: 'Yes' }
+      ]
+    }];
+
+    const result = rulesUtils(customFieldset, mockValidationObj);
+    const purposeField = result[0].fields.find(f => f.logical_field_name === 'purpose_of_account');
+    const estatementField = result[0].fields.find(f => f.logical_field_name === 'estatement');
+    expect(purposeField?.default_visibility).toBe('No');
+    expect(estatementField?.default_visibility).toBe('No');
+  });
+
+  test('should filter out fields with default_visibility No', () => {
+    const result = rulesUtils(mockFieldset, mockValidationObj);
+    const placeOfBirthField = result[0].fields.find(f => f.logical_field_name === 'place_of_birth');
+    expect(placeOfBirthField).toBeUndefined(); // Should be filtered out
+  });
+
+  test('should handle empty input fields', () => {
+    const result = rulesUtils([{ fields: [] }], mockValidationObj);
+    expect(result[0].fields).toEqual([]);
+  });
+
+  test('should handle undefined state values gracefully', () => {
+    mockStore.getState.mockReturnValue({
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{}],
+            applicants: [{}]
+          }
+        }]
+      }
+    });
+
+    expect(() => rulesUtils(mockFieldset, mockValidationObj)).not.toThrow();
+  });
+});
