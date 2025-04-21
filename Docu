@@ -1,338 +1,552 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import OnboardingBeforeStart from './OnboardingBeforeStart';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import Pdf from '../../../../shared/components/pdf/pdf';
+import React, { useEffect, useState } from "react";
+import "./asiaMiles.scss";
+import ccIcon from "../../../preApproval/images/Tier-0-front.jpg";
+import ccIcon1 from "../../../preApproval/images/Tier-1-front.jpg";
+import ccIcon2 from "../../../preApproval/images/Tier-2-front.jpg";
 
-// Mock the dependencies
-jest.mock('../../../../shared/components/pdf/pdf', () => () => <div>Mock PDF Component</div>);
-jest.mock('../../services/preApprovalServices', () => ({
-  getData: jest.fn(),
-  getPDFData: jest.fn(),
-}));
-jest.mock('../../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(() => 'en'),
+
+const Data = {
+  "A00": [
+      {
+          "applyingfor": "You are applying for",
+          "header": "Standard Chartered Cathay Mastercard",
+          "warning": "To apply for Standard Chartered credit card, you need to be 18+ years old, and a Hong Kong resident",
+          "selectcard": "Please select one type of credit card",
+          "benefits": "Benefits here",
+          "myCheck2": "Select",
+          "myCheck1": "Select",
+          "myCheck": "Select",
+          "footermsg": "Your Integrated Deposit Account and Banking Plan application would be handled in the process as well (if applicable)",
+          "nextBtnTxt": "OK, NEXT",
+          "greet": "Great! Let's get you started with the application.",
+          "docreq": "Documents required during the application",
+          "hkidcard": "Hong Kong Identity Card or Passport",
+          "latresadd": "Latest residential address showing your name",
+          "lastpayslip": "Latest 1-month salary slip OR Bank Statements/ Passbook showing your name, account number and salary entries",
+          "eligibility": "Eligibility",
+          "hkresi": "Hong Kong resident",
+          "ageres": "Aged 18 or above",
+          "income": "Annual income of HKD96,000 or above",
+          "existing": "Existing Asia Miles Member",
+          "autosave": "Autosave feature",
+          "footer": "In the event that you exit the application form before completing it, your progress will be saved and we will send an email with the link to resume this application.",
+          "startapp": "Start Application",
+          "navlink1": "https://www.sc.com/hk/deposits/savings-accounts/integrated-deposits-account/"
+      },
+      {
+          "benefit01": "Enjoy up to 60,000 Asia Miles Welcome Offer",
+          "benefit02": "HKD4 = 1 Asia Mile for eligible spending on dining, hotels and overseas category",
+          "benefit03": "First Year Annual Fee Waiver",
+          "benefit11": "Enjoy up to 80,000 Asia Miles Welcome Offer",
+          "benefit12": "HKD3 = 1 Asia Mile for eligible spending on overseas category",
+          "benefit13": "HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+          "benefit14": "Annual fee waiver for Qualified Priority Banking clients",
+          "benefit21": "Enjoy up to 100,000 Asia Miles Welcome Offer",
+          "benefit22": "HKD2 = 1 Asia Mile for eligible spending on overseas category",
+          "benefit23": "HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+          "benefit24": "Annual fee waiver for Qualified Priority Private clients",
+          "cardheader": "Standard Chartered Cathay Mastercard",
+          "cardheader2": "Standard Chartered Cathay Mastercard – Priority Banking",
+          "cardheader3": " Standard Chartered Cathay Mastercard – Priority Private"
+      }
+  ],
+  "A01": [
+      {
+          "applyingfor": "You are applying for",
+          "header": "Standard Chartered Cathay Mastercard",
+          "warning": "To apply for Standard Chartered credit card, you need to be 18+ years old, and a Hong Kong resident",
+          "selectcard": "Please select one type of credit card",
+          "benefits": "Benefits here",
+          "myCheck2": "Select",
+          "myCheck1": "Select",
+          "myCheck": "Select",
+          "footermsg": "Your Integrated Deposit Account and Banking Plan application would be handled in the process as well (if applicable)",
+          "nextBtnTxt": "OK, NEXT",
+          "greet": "Great! Let's get you started with the application.",
+          "docreq": "Documents required during the application",
+          "hkidcard": "Hong Kong Identity Card or Passport",
+          "latresadd": "Latest residential address showing your name",
+          "lastpayslip": "Latest 1-month salary slip OR Bank Statements/ Passbook showing your name, account number and salary entries",
+          "eligibility": "Eligibility",
+          "hkresi": "Hong Kong resident",
+          "ageres": "Aged 18 or above",
+          "income": "Annual income of HKD96,000 or above",
+          "existing": "Existing Asia Miles Member",
+          "autosave": "Autosave feature",
+          "footer": "In the event that you exit the application form before completing it, your progress will be saved and we will send an email with the link to resume this application.",
+          "startapp": "Start Application",
+          "navlink1": "https://www.sc.com/hk/deposits/savings-accounts/integrated-deposits-account/"
+      },
+      {
+          "benefit01": "Enjoy up to 60,000 Asia Miles Welcome Offer",
+          "benefit02": "Extra 5,000 Asia Miles, no spending requirement",
+          "benefit03": "HKD4 = 1 Asia Mile for eligible spending on dining, online and overseas category.",
+          "benefit04": "First Year Annual Fee Waiver",
+          "benefit11": "Enjoy up to 80,000 Asia Miles Welcome Offer",
+          "benefit12": "HKD4 = 1 Asia Mile for eligible spending on dining, online and overseas category",
+          "benefit13": "Complimentary 12-month Marco Polo Club Silver Membership",
+          "benefit14": "Annual fee waiver for Qualified Priority Banking clients",
+          "benefit21": "Enjoy up to 100,000 Asia Miles Welcome Offer",
+          "benefit22": "HKD4 = 1 Asia Mile for eligible spending on dining, online and overseas category",
+          "benefit23": "Complimentary 12-month Marco Polo Club Gold Membership",
+          "benefit24": "Annual fee waiver for Qualified Priority Private clients",
+          "cardheader": "Standard Chartered Cathay Mastercard",
+          "cardheader2": "Standard Chartered Cathay Mastercard � Priority Banking",
+          "cardheader3": "Standard Chartered Cathay Mastercard � Priority Private"
+      }
+  ],
+  "A02": [
+      {
+          "applyingfor": "You are applying for",
+          "header": "Standard Chartered Cathay Mastercard",
+          "warning": "To apply for Standard Chartered credit card, you need to be 18+ years old, and a Hong Kong resident",
+          "selectcard": "Please select one type of credit card",
+          "benefits": "Benefits here",
+          "myCheck2": "Select",
+          "myCheck1": "Select",
+          "myCheck": "Select",
+          "footermsg": "<p>Your Integrated Deposit Account and Banking Plan application would be handled in the process as well (if applicable)<br/><strong>“New Cardholder”</strong> means an applicant who does not currently hold and has not cancelled any Standard Chartered Credit Card in the past 6 months from the date of approval of his/her current application for a principal card of an Eligible Card.<br/><strong>“Existing Cardholder”</strong> means an applicant who currently holds or has cancelled any Standard Chartered Credit Card (except the Eligible Card) in the past 6 months from the date of approval of his/her current application for a principal card of an Eligible Card.",
+          "nextBtnTxt": "OK, NEXT",
+          "greet": "Great! Let's get you started with the application.",
+          "docreq": "Documents required during the application",
+          "hkidcard": "Hong Kong Identity Card or Passport",
+          "latresadd": "Latest residential address showing your name",
+          "lastpayslip": "Latest 1-month salary slip OR Bank Statements/ Passbook showing your name, account number and salary entries",
+          "eligibility": "Eligibility",
+          "hkresi": "Hong Kong resident",
+          "ageres": "Aged 18 or above",
+          "income": "Annual income of HKD96,000 or above",
+          "existing": "Existing Asia Miles Member",
+          "autosave": "Autosave feature",
+          "footer": "In the event that you exit the application form before completing it, your progress will be saved and we will send an email with the link to resume this application.",
+          "startapp": "Start Application",
+          "navlink1": "https://www.sc.com/hk/deposits/savings-accounts/integrated-deposits-account/"
+      },
+      {
+          "benefit01": "New Cardholder to enjoy up to 60,000 Asia Miles Welcome Offer",
+          "benefit02": "New Cardholder to earn extra 19,000 Asia Miles, existing cardholder to earn 9,000 Asia Miles. No spending requirement",
+          "benefit03": "HKD4 = 1 Asia Mile for eligible spending on dining, hotels and overseas category",
+          "benefit04": "First Year Annual Fee Waiver",
+          "benefit11": "New Cardholder to enjoy up to 80,000 Asia Miles Welcome Offer",
+          "benefit12": "New Cardholder to earn extra 19,000 Asia Miles, existing cardholder to earn 9,000 Asia Miles. No spending requirement",
+          "benefit13": "HKD3 = 1 Asia Mile for eligible spending on overseas category",
+          "benefit14": "HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+          "benefit15": "Annual fee waiver for Qualified Priority Banking clients",
+          "benefit21": "New Cardholder to enjoy up to 100,000 Asia Miles Welcome Offer",
+          "benefit22": "New Cardholder to earn extra 19,000 Asia Miles, existing cardholder to earn 9,000 Asia Miles. No spending requirement",
+          "benefit23": "HKD2 = 1 Asia Mile for eligible spending on overseas category",
+          "benefit24": "HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+          "benefit25": "Annual fee waiver for Qualified Priority Private clients",
+          "cardheader": "Standard Chartered Cathay Mastercard",
+          "cardheader2": "Standard Chartered Cathay Mastercard - Priority Banking",
+          "cardheader3": "Standard Chartered Cathay Mastercard - Priority Private"
+      }
+  ],
+  "A03": [
+      {
+          "applyingfor": "You are applying for",
+          "header": "Standard Chartered Cathay Mastercard",
+          "warning": "To apply for Standard Chartered credit card, you need to be 18+ years old, and a Hong Kong resident",
+          "selectcard": "Please select one type of credit card",
+          "benefits": "Benefits here",
+          "myCheck2": "Select",
+          "myCheck1": "Select",
+          "myCheck": "Select",
+          "footermsg": "<p>Your Integrated Deposit Account and Banking Plan application would be handled in the process as well (if applicable)<br/><strong>“New Cardholder”</strong> means an applicant who does not currently hold and has not cancelled any Standard Chartered Credit Card in the past 6 months from the date of approval of his/her current application for a principal card of an Eligible Card.<br/><strong>“Existing Cardholder”</strong> means an applicant who currently holds or has cancelled any Standard Chartered Credit Card (except the Eligible Card) in the past 6 months from the date of approval of his/her current application for a principal card of an Eligible Card.</p>",
+          "nextBtnTxt": "OK, NEXT",
+          "greet": "Great! Let's get you started with the application.",
+          "docreq": "Documents required during the application",
+          "hkidcard": "Hong Kong Identity Card or Passport",
+          "latresadd": "Latest residential address showing your name",
+          "lastpayslip": "Latest 1-month salary slip OR Bank Statements/ Passbook showing your name, account number and salary entries",
+          "eligibility": "Eligibility",
+          "hkresi": "Hong Kong resident",
+          "ageres": "Aged 18 or above",
+          "income": "Annual income of HKD96,000 or above",
+          "existing": "Existing Asia Miles Member",
+          "autosave": "Autosave feature",
+          "footer": "In the event that you exit the application form before completing it, your progress will be saved and we will send an email with the link to resume this application.",
+          "startapp": "Start Application",
+          "navlink1": "https://www.sc.com/hk/deposits/savings-accounts/integrated-deposits-account/"
+      },
+      {
+          "benefit01": "New Cardholder to enjoy up to 60,000 Asia Miles Welcome Offer",
+          "benefit02": "HKD4 = 1 Asia Mile for eligible spending on dining, hotels and overseas category",
+          "benefit03": "First Year Annual Fee Waiver",
+          "benefit04": "",
+          "benefit11": "New Cardholder to enjoy up to 80,000 Asia Miles Welcome Offer",
+          "benefit12": "New Cardholder to receive Cathay x Samsonite suitcase (20 inch), existing cardholder to earn 5,000 Asia Miles. No spending requirement",
+          "benefit13": "HKD3 = 1 Asia Mile for eligible spending on overseas category",
+          "benefit14": "HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+          "benefit15": "Annual fee waiver for Qualified Priority Banking clients",
+          "benefit21": "New Cardholder to enjoy up to 100,000 Asia Miles Welcome Offer",
+          "benefit22": "New Cardholder to receive Cathay x Samsonite suitcase (20 inch), existing cardholder to earn 5,000 Asia Miles. No spending requirement",
+          "benefit23": "HKD2 = 1 Asia Mile for eligible spending on overseas category",
+          "benefit24": "HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+          "benefit25": "Annual fee waiver for Qualified Priority Private clients",
+          "cardheader": "Standard Chartered Cathay Mastercard",
+          "cardheader2": "Standard Chartered Cathay Mastercard - Priority Banking",
+          "cardheader3": "Standard Chartered Cathay Mastercard - Priority Private"
+      }
+  ],
+  "A04": [
+      {
+          "applyingfor": "You are applying for",
+          "header": "Standard Chartered Cathay Mastercard",
+          "warning": "To apply for Standard Chartered credit card, you need to be 18+ years old, and a Hong Kong resident",
+          "selectcard": "Please select one type of credit card",
+          "benefits": "Benefits here",
+          "myCheck2": "Select",
+          "myCheck1": "Select",
+          "myCheck": "Select",
+          "footermsg": "<p>Your Integrated Deposit Account and Banking Plan application would be handled in the process as well (if applicable)<br/><strong>“New Cardholder”</strong> means an applicant who does not currently hold and has not cancelled any Standard Chartered Credit Card in the past 6 months from the date of approval of his/her current application for a principal card of an Eligible Card.<br/><strong>“Existing Cardholder”</strong> means an applicant who currently holds or has cancelled any Standard Chartered Credit Card (except the Eligible Card) in the past 6 months from the date of approval of his/her current application for a principal card of an Eligible Card.</p>",
+          "nextBtnTxt": "OK, NEXT",
+          "greet": "Great! Let's get you started with the application.",
+          "docreq": "Documents required during the application",
+          "hkidcard": "Hong Kong Identity Card or Passport",
+          "latresadd": "Latest residential address showing your name",
+          "lastpayslip": "Latest 1-month salary slip OR Bank Statements/ Passbook showing your name, account number and salary entries",
+          "eligibility": "Eligibility",
+          "hkresi": "Hong Kong resident",
+          "ageres": "Aged 18 or above",
+          "income": "Annual income of HKD96,000 or above",
+          "existing": "Existing Asia Miles Member",
+          "autosave": "Autosave feature",
+          "footer": "In the event that you exit the application form before completing it, your progress will be saved and we will send an email with the link to resume this application.",
+          "startapp": "Start Application",
+          "navlink1": "https://www.sc.com/hk/deposits/savings-accounts/integrated-deposits-account/"
+      },
+      {
+          "benefit01": "New Cardholder to enjoy up to 60,000 Asia Miles Welcome Offer",
+          "benefit02": "New Cardholder to earn extra 9,000 Asia Miles, existing cardholder to earn 4,000 Asia Miles. No spending requirement",
+          "benefit03": "HKD4 = 1 Asia Mile for eligible spending on dining, hotels and overseas category",
+          "benefit04": "First Year Annual Fee Waiver",
+          "benefit11": "New Cardholder to enjoy up to 80,000 Asia Miles Welcome Offer",
+          "benefit12": "New Cardholder to earn extra 9,000 Asia Miles, existing cardholder to earn 4,000 Asia Miles. No spending requirement",
+          "benefit13": "HKD3 = 1 Asia Mile for eligible spending on overseas category",
+          "benefit14": "HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+          "benefit15": "Annual fee waiver for Qualified Priority Banking clients",
+          "benefit21": "New Cardholder to enjoy up to 100,000 Asia Miles Welcome Offer",
+          "benefit22": "New Cardholder to earn extra 9,000 Asia Miles, existing cardholder to earn 4,000 Asia Miles. No spending requirement",
+          "benefit23": "HKD2 = 1 Asia Mile for eligible spending on overseas category",
+          "benefit24": "HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+          "benefit25": "Annual fee waiver for Qualified Priority Private clients",
+          "cardheader": "Standard Chartered Cathay Mastercard",
+          "cardheader2": "Standard Chartered Cathay Mastercard - Priority Banking",
+          "cardheader3": "Standard Chartered Cathay Mastercard - Priority Private"
+      }
+  ]
+}
+
+
+const cardData = [
+  {
+    id: "t0",
+    title: "Standard Chartered Cathay Mastercard",
+    description: [
+      "1. Enjoy up to 60,000 Asia Miles Welcome Offer",
+      "2. HKD4 = 1 Asia Mile for eligible spending on dining, hotels, and overseas category",
+      "3. First Year Annual Fee Waiver",
+    ],
+    image: ccIcon,
   },
-}));
-jest.mock('react-redux', () => ({
-  ...jest.requireActual('react-redux'),
-  useSelector: jest.fn(),
-  useDispatch: jest.fn(),
-}));
+  {
+    id: "t1",
+    title: "Standard Chartered Cathay Mastercard – Priority Banking",
+    description: [
+      "1. Enjoy up to 80,000 Asia Miles Welcome Offer",
+      "2. HKD3 = 1 Asia Mile for eligible spending on overseas category",
+      "3. HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+      "4. Annual fee waiver for Qualified Priority Banking clients",
+    ],
+    image: ccIcon1,
+  },
+  {
+    id: "t2",
+    title: "Standard Chartered Cathay Mastercard – Priority Private",
+    description: [
+      "1. Enjoy up to 100,000 Asia Miles Welcome Offer",
+      "2. HKD2 = 1 Asia Mile for eligible spending on overseas category",   //A01 not there
+      "3. HKD4 = 1 Asia Mile for eligible spending on dining and hotels category",
+      "4. Annual fee waiver for Qualified Priority Private clients", //all
+    ],
+    image: ccIcon2,
+  },
+];
 
-describe('OnboardingBeforeStart Component', () => {
-  const mockStore = configureStore();
-  let store: any;
-  const mockDispatch = jest.fn();
-  const mockOnScrollEnd = jest.fn();
-  const mockNextPage = jest.fn();
+const AsiaMiles: React.FC = () => {
+  const [selectedCard, setSelectedCard] = useState(null);
 
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageId: 'ad-9a',
-          stageInfo: {
-            products: [{
-              campaign: 'HKPIL23PLSTP10'
-            }]
-          }
-        }]
-      },
-      preApproval: {
-        formConfigmetaData: {
-          products: [{
-            campaign: 'HKPIL23PLSTP10'
-          }]
+  function buttonclick() {
+    startapp();
+  }
+  
+  function startapp() {
+    var url = window.location.href;
+    var hash = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+    var language = "en";
+    var scb_token = "";
+    var source = "";
+    var offerCode = "";
+    
+    for (var i = 0; i < hash.length; i++) {
+      if (hash[i].indexOf("scbAccessToken") != -1) {
+        scb_token = hash[i].split('=')[1];
+      }
+      else if (hash[i].indexOf("source") != -1) {
+        source = hash[i].split('=')[1];
+      }
+      if (hash[i].indexOf("lang") != -1) {
+        language = hash[i].split('=')[1];
+      }
+      if (hash[i].indexOf("offer") != -1) {
+        offerCode = hash[i].split('=')[1];
+      }
+    }
+    if (scb_token != null) {
+      sessionStorage.setItem("landingURL", window.location.href);
+    }
+    var rand = Math.floor((1 + Math.random()) * 0x10000);
+    //T0 Product
+    if (selectedCard === "t0") {
+      if (scb_token.length > 0) { //With SCB token
+        if (offerCode == "A00") {
+          window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A01") {
+          window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CO00&cardType=3268&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A02") {
+          window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT30&cardType=3268&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A03") {
+          window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A04") {
+          window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT40&cardType=3268&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A05") {
+          window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT70&cardType=3268&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else {
+          window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
         }
       }
-    });
-
-    (useSelector as jest.Mock).mockImplementation((callback) => callback(store.getState()));
-    (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
-
-    // Mock getData response
-    const mockGetData = require('../../services/preApprovalServices').getData;
-    mockGetData.mockResolvedValue({
-      data: {
-        products: {
-          HKPIL23PLSTP10: [{ pdfURL: 'https://example.com/kfs.pdf' }]
-        },
-        productsMob: {
-          HKPIL23PLSTP10: [{ pdfURL: 'https://example.com/kfs-mobile.pdf' }]
-        },
-        CampaignTnC: {
-          HKPIL23PLSTP10: [{ pdfURL: 'https://example.com/tnc.pdf' }]
-        },
-        CampaignTnCMob: {
-          HKPIL23PLSTP10: [{ pdfURL: 'https://example.com/tnc-mobile.pdf' }]
-        },
-        tncLinkCampaignCode: {
-          HKPIL23PLSTP10: [{
-            pdfLinks: [
-              { Title: 'II. Personal Loan Terms', url: 'https://example.com/loan-terms.pdf' },
-              { Title: 'III. Client Terms', url: 'https://example.com/client-terms.pdf' }
-            ]
-          }]
+      else  if (offerCode == "A00") {
+        window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT20&cardType=3268&affiliation=2132&channelName=ibk_pre_am +&lang=" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A01") { //Without SCB token
+        window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CO00&cardType=3268&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A02") {
+        window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT30&cardType=3268&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A03") {
+        window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A04") {
+        window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT40&cardType=3268&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A05") {
+        window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT70&cardType=3268&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else {
+       window.open("index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+    }
+    //T1 Product
+    if (selectedCard === "t1") {
+      if (scb_token.length > 0) { //With SCB token
+        if (offerCode == "A00") {
+          window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT01&cardType=3269&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+       else if (offerCode == "A01") {
+        window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CO01&cardType=3269&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A02") {
+          window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT31&cardType=3269&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A03") {
+          window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CS11&cardType=3269&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A04") {
+          window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CP41&cardType=3269&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A05") {
+          window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT71&cardType=3269&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else {
+          window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT01&cardType=3269&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
         }
       }
-    });
-
-    // Mock getPDFData response
-    const mockGetPDFData = require('../../services/preApprovalServices').getPDFData;
-    mockGetPDFData.mockResolvedValue('mock-pdf-data');
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('renders spinner initially', () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    expect(screen.getByTestId('spinner')).toBeInTheDocument();
-  });
-
-  it('renders PDF viewer for stage 0 after loading', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByText('Mock PDF Component')).toBeInTheDocument();
-    });
-  });
-
-  it('renders terms and conditions table for stage 1', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={1} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByText('II. Personal Loan Terms')).toBeInTheDocument();
-      expect(screen.getByText('III. Client Terms')).toBeInTheDocument();
-    });
-  });
-
-  it('displays download button for KFS document', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByText('Download')).toBeInTheDocument();
-    });
-  });
-
-  it('triggers download when download button is clicked', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      const downloadButton = screen.getByText('Download');
-      fireEvent.click(downloadButton);
-      
-      // Verify that the download functionality was triggered
-      expect(require('../../services/preApprovalServices').getPDFData).toHaveBeenCalled();
-    });
-  });
-
-  it('shows scroll down button when isVisible is true', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('next-arrow')).toBeInTheDocument();
-    });
-  });
-
-  it('shows accept button when isVisible is false', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={false} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByText('Accept')).toBeInTheDocument();
-    });
-  });
-
-  it('calls nextPage when accept button is clicked', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={false} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      const acceptButton = screen.getByText('Accept');
-      fireEvent.click(acceptButton);
-      expect(mockNextPage).toHaveBeenCalled();
-    });
-  });
-
-  it('handles PDF download for different campaign types', async () => {
-    // Test for PIL campaign
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageId: 'ad-9a',
-          stageInfo: {
-            products: [{
-              campaign: 'HKPIL23PLSTP10'
-            }]
-          }
-        }]
-      },
-      preApproval: {
-        formConfigmetaData: {
-          products: [{
-            campaign: 'HKPIL23PLSTP10'
-          }]
+      else  if (offerCode == "A00") {
+        window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT01&cardType=3269&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A01") { //Without SCB token
+        window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CO01&cardType=3269&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A02") {
+        window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT31&cardType=3269&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A03") {
+        window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CS11&cardType=3269&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A04") {
+        window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT41&cardType=3269&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A05") {
+        window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT71&cardType=3269&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else {
+        window.open("index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT00&cardType=3269&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+    }
+    //T2 Product
+    if (selectedCard === 't2') {
+      if (scb_token.length > 0) { //With SCB token
+        if (offerCode == "A00") {
+          window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT02&cardType=3270&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A01") {
+          window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CO02&cardType=3270&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A02") {
+          window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT32&cardType=3270&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A03") {
+          window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CS12&cardType=3270&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A04") {
+          window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT42&cardType=3270&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else if (offerCode == "A05") {
+          window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT72&cardType=3270&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+        }
+        else {
+          window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT72&cardType=3270&affiliation=2132&channelName=ibk_pre_am +&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
+          // window.open("/onboarding/hk-uat/www/rtoForms/index.html?rand=" + rand + "#/onboarding?country=HK&sourceName=asiamiles&products={'product_category':'CC','product_type':'1313','campaign':'HKSOZ02MCWB000','name':'Standard Chartered Cathay Mastercard – Priority Private'}&channelName=ibk_pre_am&cardType=3270&affiliation=2132&pageId=pd-1&premium=CT02&scbAccessToken=" + scb_token + "&lang=" + language + "&source=" + source, "_self");
         }
       }
-    });
-
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={1} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      const downloadLinks = screen.getAllByText('Download');
-      fireEvent.click(downloadLinks[0]);
-      // Verify the correct PDF was selected for download
-    });
-  });
-
-  it('handles Chinese language content', async () => {
-    // Mock Chinese language
-    require('../../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue('zh');
-    
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={false} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByText('接受')).toBeInTheDocument(); // Chinese text for "Accept"
-    });
-  });
-
-  it('handles mobile user agent correctly', async () => {
-    // Mock mobile user agent
-    Object.defineProperty(window.navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
-      writable: true
-    });
-
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      // Verify mobile-specific behavior
-      expect(require('../../services/preApprovalServices').getData).toHaveBeenCalledWith(expect.any(String));
-    });
-  });
-
-  it('calls onScrollEnd when scrolled to bottom', async () => {
-    const { container } = render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true} 
-          onScrollEnd={mockOnScrollEnd} 
-          stageID={0} 
-          nextPage={mockNextPage} 
-        />
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      const scrollContainer = container.querySelector('.react-pdf__Page__canvas');
-      if (scrollContainer) {
-        // Simulate scroll to bottom
-        fireEvent.scroll(scrollContainer, { target: { scrollTop: 1000, scrollHeight: 1000, clientHeight: 500 } });
-        expect(mockOnScrollEnd).toHaveBeenCalledWith(false);
+      else  if (offerCode == "A00") {
+        window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT02&cardType=3270&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+        }
+      else if (offerCode == "A01") { //Without SCB token
+        window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CO02&cardType=3270&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
       }
-    });
-  });
-});
+      else if (offerCode == "A02") {
+        window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT32&cardType=3270&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A03") {
+        window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CS12&cardType=3270&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A04") {
+        window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT42&cardType=3270&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else if (offerCode == "A05") {
+        window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT72&cardType=3270&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+      else {
+        window.open("index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT00&cardType=3270&affiliation=2132&channelName=ibk_pre_am +lang" + language + "&source=" + source, "_self");
+      }
+    }
+  }
+
+  // useEffect(() => {
+  //   asiaMilesJson();
+  // }, []);
+
+  const handleSelectCard = (id: any) => {
+    setSelectedCard(id);
+  };
+
+  return (
+    <>
+      <div className="header-container">
+        <header className="header">
+          <div className="column01">
+            <div className="col-sm">
+              <p id="applyingfor">You are applying for</p>
+              <span id="header">Standard Chartered Cathay Mastercard</span>
+            </div>
+            <div className="column2">
+              <hr />
+              <p className="credit">
+                To apply for Standard Chartered credit card, you need to be 18+
+                years old, and a Hong Kong resident
+              </p>
+            </div>
+          </div>
+        </header>
+      </div>
+      <div className="credit-card-selector">
+        <div className="col-smtr">
+          <p className="select-maincard">Please select one type of credit card</p>
+        </div>
+        <div className="cards-container">
+          {cardData.map((card:any) => (
+            <div
+              key={card.id}
+              className={`card ${selectedCard === card.id ? "selected" : ""}`}
+              // onClick={() => handleSelectCard(card?.id)}
+            >
+              <div className="main-image">
+                <img src={card.image} />
+              </div>
+              <div className="card-content-main">
+                <h3 className="card-content-title">{card.title}</h3>
+                <div className="card-content">
+                  <ul>
+                    {card.description.map((item:any, index:any) => (
+                      <li key={index} className="card-content-text">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="button-container">
+                    {selectedCard === card.id ? (
+                      <div className="selected-label">
+                        <span className="tick">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#007bff"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </span>{" "}
+                        Selected
+                      </div>
+                    ) : (
+                      <div className="select-button" onClick={() => handleSelectCard(card?.id)}>Select</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="footermsg">
+          Your Integrated Deposit Account and Banking Plan application would be
+          handled in the process as well&nbsp;(if applicable)
+        </p>
+        <button
+          className="continue-button"
+          disabled={selectedCard === null}
+          onClick={() => buttonclick()}
+        >
+          OK, NEXT
+        </button>
+      </div>
+    </>
+  );
+}
+
+export default AsiaMiles;
+
+
+Please write an test cases using react and jest
