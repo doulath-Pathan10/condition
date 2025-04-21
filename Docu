@@ -316,3 +316,5 @@ const OnboardingBeforeStart: React.FC<any> = ({
 };
 
 export default OnboardingBeforeStart;
+
+Please write an test cases using react and jest
