@@ -1,292 +1,867 @@
-import rulesUtils from './rules.utils';
-import { FieldsetModel, KeyWithAnyModel } from '../../utils/model/common-model';
-import { store } from '../../utils/store/store';
+import { store } from "../../../utils/store/store";
+import PreApprovalUtil from "./preApprovalUtils";
+import { dispatchError, dispatchLoader } from "../../../services/common-service";
+import { adpayload } from "./payload";
+import { CONSTANTS } from "../../../utils/common/constants";
+import axios from "axios";
+import { StoreModel } from "../../../utils/model/common-model";
+import { useSelector } from "react-redux";
+import { getUrl } from "../../../utils/common/change.utils";
+import { getData } from "./preApprovalServices";
+import { stagesAction } from "../../../utils/store/stages-slice";
+export type AppDispatch = typeof store.dispatch;
 
-// Mock the Redux store
-jest.mock('../../utils/store/store', () => ({
-  getState: jest.fn()
-}));
-
-const mockStore = store as jest.Mocked<typeof store>;
-
-describe('rulesUtils Function - Comprehensive Tests', () => {
-  const baseFieldset: FieldsetModel[] = [{
-    fields: [
-      { logical_field_name: 'monthly_installment_mortgage_payment', default_visibility: 'Yes', editable: true, mandatory: 'No' },
-      { logical_field_name: 'embossed_name', default_visibility: 'Yes', editable: true },
-      { logical_field_name: 'place_of_birth', default_visibility: 'Yes', editable: true },
-      { logical_field_name: 'office_phone_number', default_visibility: 'Yes', editable: true },
-      { logical_field_name: 'currency', default_visibility: 'Yes', editable: true },
-      { logical_field_name: 'rewards_choice_segment', default_visibility: 'Yes', editable: true },
-      { logical_field_name: 'estatement_fee', default_visibility: 'Yes', editable: true }
-    ]
-  }];
-
-  const baseValidationObj = {
-    nonEditable: [['monthly_installment_mortgage_payment']],
-    hidden: []
+export const postSaveData = (): any => {
+  const stageSelector = JSON.parse(JSON.stringify(store.getState()?.stages?.stages?.[0]));
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const channelRefNo = stageSelector?.stageInfo?.application?.channel_reference;
+  const next_page_values = JSON.parse(
+    JSON.stringify(store.getState().preApproval.nextStages)
+  );
+  const saveUrl = `${application + channelRefNo}`;
+  let url = baseUrl + saveUrl;
+  let currentStageData = JSON.parse(JSON.stringify(PreApprovalUtil.getFormConfigPayload() ||{}));
+  if(stageSelector.stageId === CONSTANTS.STAGE_NAMES.FFD_1 || stageSelector.stageId === CONSTANTS.STAGE_NAMES.FFD_2) {
+    currentStageData["applicant_documents"]= stageSelector.stageInfo.applicant_documents
+  }
+  currentStageData.stage['next_page_values']=next_page_values;
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
+    },
+    body: JSON.stringify(currentStageData),
   };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    // Reset to default mock state
-    mockDefaultState();
-  });
-
-  function mockDefaultState() {
-    mockStore.getState.mockReturnValue({
-      stages: {
-        stages: [{
-          stageInfo: {
-            products: [{
-              product_category: 'CC',
-              product_type: '1313',
-              campaign: 'HKSOZ01MCWB000'
-            }],
-            applicants: [{
-              casaSegment: 'Y',
-              asiaMilesCard: false,
-              full_name_a_1: 'John Doe',
-              tax_resident_of_any_country_region_a_1: 'HK'
-            }]
-          }
-        }]
-      }
-    });
+  const productCategory = store.getState().stages.stages[0].stageInfo.products[0].product_category;
+  if(productCategory === "CC") {
+    currentStageData.stage.stage_id = "AD";
+    currentStageData.applicants['password_a_1']= '';
   }
 
-  // Test group 1: Basic functionality
-  describe('Basic Functionality', () => {
-    test('should return filtered fields array', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      expect(result).toBeDefined();
-      expect(Array.isArray(result)).toBe(true);
-      expect(result[0]).toHaveProperty('fields');
-      expect(result[0].fields.length).toBeLessThanOrEqual(baseFieldset[0].fields.length);
+  return axios
+    ?.post(url, JSON.stringify(currentStageData), { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      //console.log("clientResponse", error);
+      dispatchError(error);
+      return Promise.resolve(error);
     });
+};
 
-    test('should handle empty fields array', () => {
-      const result = rulesUtils([{ fields: [] }], baseValidationObj);
-      expect(result[0].fields).toEqual([]);
-    });
+export const postPeserveData = (): any => {
+  const documentsData = JSON.parse(JSON.stringify(store.getState().stages.dynamicDocumentsUpload.documentData));
+  const transactionData = JSON.parse(JSON.stringify(store.getState().stages.dynamicDocumentsUpload.HKIDQRCodeData));
+  const stageSelector = JSON.parse(JSON.stringify(store.getState()?.stages?.stages?.[0]));
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const channelRefNo = stageSelector?.stageInfo?.application?.channel_reference;
+  const next_page_values = JSON.parse(
+    JSON.stringify(store.getState()?.preApproval?.nextStages)
+  );
+  const saveUrl = `${application + channelRefNo}`;
+  let url = baseUrl + saveUrl;
+  debugger
+  let currentStageData = JSON.parse(JSON.stringify(PreApprovalUtil.getFormConfigPayload() ||{}));
+  if(stageSelector.stageId === "doc-3") {
+    if(documentsData && documentsData.length > 0 && documentsData[0].docId) {
+      currentStageData.applicants["ekycdocId"] = documentsData[0].docId;
+      currentStageData.applicants["ekycdocumentName"] = documentsData[0].documentName;
+    }
+    if(transactionData && transactionData.transactionId && transactionData.result) {
+      currentStageData.applicants["zoloz_transaction_id"] = transactionData.transactionId;
+      currentStageData.applicants["zoloz_value"] = transactionData.result.resultMessage;
+    }
+    currentStageData.applicants["address_match_flag"] = "N";
+    currentStageData.applicants["adsuccess"] = "true";
+    currentStageData.applicants["disb_flag"] = "Success_NoATM";
+    currentStageData.applicants["client_pl_consent4_a_1"] = null;
+    currentStageData.application["alipay_ref_number"] = "";
+    currentStageData.application["application_status"] = "Saved";
+    currentStageData.application["request_id"] = stageSelector.stageInfo.application.request_id;
+    currentStageData.application.version = null;
+    currentStageData.status["status-code"] = "200";
+    currentStageData["preapproved"] = null;
+    currentStageData["service_response"] = null;
+    currentStageData["temp_login_data"] = null;
+    currentStageData["status_data"] = null;
+    delete currentStageData.application.error;
+    delete currentStageData.application.response_action;
+    delete currentStageData.application.response_type;
+    delete currentStageData.customerDetails;
+    delete currentStageData.dedupeList;
+    delete currentStageData.preApprovedData;
+    delete currentStageData.stage.stage_params.authenticate_method;
+    delete currentStageData.stage.stage_params.authentication_required;
+    delete currentStageData.stage.stage_params.cuco_required;
+    delete currentStageData.stage.stage_params.staff_category;
+    currentStageData.products = [{
+      "name": stageSelector.stageInfo.products[0].name,
+      "relation_type_code": stageSelector.stageInfo.products[0].relation_type_code,
+      "insta_account_no": null,
+      "campaign": stageSelector.stageInfo.products[0].campaign,
+      "product_sequence_number": stageSelector.stageInfo.products[0].product_sequence_number,
+      "product_type": stageSelector.stageInfo.products[0].product_type,
+      "product_category": stageSelector.stageInfo.products[0].product_category,
+      "is_joint_allowed": null,
+      "is_supplementary": null,
+      "status": null,
+      "error": null,
+      "acct_details": null,
+      "offer_details": stageSelector.stageInfo.products[0].offer_details,
+      "bundle_name": null,
+      "product_image": null,
+      "company_category": null,
+      "assessment_type": null,
+      "segment": null,
+      "account_number": null,
+      "account_product_code": null,
+      "existing_loan_amount": null,
+      "existing_tenor": null,
+      "existing_loan_EMI": null,
+      "existing_loan_outstanding_amount": null,
+      "existing_loan_outstanding_tenor": null,
+      "disbursementDetails": null,
+      "card_activation_status": null,
+      "offer": null,
+      "handling_fee": null,
+      "product_minimum": null,
+      "first_Repayment_Date": null
+    }];
+    currentStageData.applicant_documents= [{
+      "document_list": stageSelector.stageInfo.applicant_documents[0].document_list,
+      "applicant_sequence_number": 1,
+      "journey_type": stageSelector.stageInfo.applicant_documents[0].journey_type,
+      "icdd_reference_no_availability": null,
+      "email_id_change": null,
+      "mobile_no_change": null,
+      "last_updated_credit_limit_date_flag": null,
+      "staff_category": null
+    }]
+  }
+  currentStageData.application.is_save_to_pega = "YES";
+  currentStageData.stage['next_page_values']=next_page_values;
+  currentStageData.stage['stage_status'] = "incomplete";
+  currentStageData.stage['page_id'] = stageSelector.stageId;
+  currentStageData.stage['stage_id'] = (stageSelector.stageId.match(/^[a-zA-Z]+/)[0].toUpperCase() === "RP" || stageSelector.stageId.match(/^[a-zA-Z]+/)[0].toUpperCase() === "LD") ? "FFD" : stageSelector.stageId.match(/^[a-zA-Z]+/)[0].toUpperCase();
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
+    },
+    body: JSON.stringify(currentStageData),
+  };
 
-    test('should handle undefined props', () => {
-      expect(() => rulesUtils(undefined as any, baseValidationObj)).toThrow();
+  return axios
+    ?.post(url, JSON.stringify(currentStageData), { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      return Promise.reject(error);
     });
+};
 
-    test('should handle undefined validationObj', () => {
-      expect(() => rulesUtils(baseFieldset, undefined as any)).toThrow();
+export const getResumeRequest = (appRef: string | null): any => {
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const saveUrl = `${application + appRef}`;
+  const url = baseUrl + saveUrl;
+
+  return axios.get(url)
+      .then((response: any) => {
+        return Promise.resolve(response);
+      })
+      .catch((error) => {
+        dispatchError(error);
+        return Promise.reject(error);  
+      });
+  };
+
+
+export const postDocSaveData = (documentData: any, transactionData: any): any => {
+  const documentsData = JSON.parse(JSON.stringify(store.getState().stages.dynamicDocumentsUpload.documentData));
+  const stageSelector = JSON.parse(
+    JSON.stringify(store.getState().stages.stages[0])
+  );
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const channelRefNo = stageSelector.stageInfo.application.channel_reference;
+  const saveUrl = `${application + channelRefNo}`;
+  let url = baseUrl + saveUrl;
+  let currentStageData = JSON.parse(JSON.stringify(PreApprovalUtil.getFormConfigPayload()));
+  if(documentsData && documentsData.length > 0 && documentsData[0].docId) {
+    currentStageData.applicants["ekycdocId"] = documentsData[0].docId;
+    currentStageData.applicants["ekycdocumentName"] = documentsData[0].documentName;
+  }
+  if(transactionData && transactionData.transactionId && transactionData.result) {
+    currentStageData.applicants["zoloz_transaction_id"] = transactionData.transactionId;
+    currentStageData.applicants["zoloz_value"] = transactionData.result.resultMessage;
+  }
+  currentStageData.applicants["address_match_flag"] = "N";
+  currentStageData.applicants["adsuccess"] = "true";
+  currentStageData.applicants["disb_flag"] = "Success_NoATM";
+  currentStageData.applicants["client_pl_consent4_a_1"] = null;
+  currentStageData.application["alipay_ref_number"] = "";
+  currentStageData.application["application_status"] = "Saved";
+  currentStageData.application["request_id"] = stageSelector.stageInfo.application.request_id;
+  currentStageData.application.version = null;
+  currentStageData.status["status-code"] = "200";
+  currentStageData["preapproved"] = null;
+  currentStageData["service_response"] = null;
+  currentStageData["temp_login_data"] = null;
+  currentStageData["status_data"] = null;
+  delete currentStageData.application.error;
+  delete currentStageData.application.response_action;
+  delete currentStageData.application.response_type;
+  delete currentStageData.customerDetails;
+  delete currentStageData.dedupeList;
+  delete currentStageData.preApprovedData;
+  delete currentStageData.stage.stage_params.authenticate_method;
+  delete currentStageData.stage.stage_params.authentication_required;
+  delete currentStageData.stage.stage_params.cuco_required;
+  delete currentStageData.stage.stage_params.staff_category;
+  currentStageData.products = [{
+    "name": stageSelector.stageInfo.products[0].name,
+    "relation_type_code": stageSelector.stageInfo.products[0].relation_type_code,
+    "insta_account_no": null,
+    "campaign": stageSelector.stageInfo.products[0].campaign,
+    "product_sequence_number": stageSelector.stageInfo.products[0].product_sequence_number,
+    "product_type": stageSelector.stageInfo.products[0].product_type,
+    "product_category": stageSelector.stageInfo.products[0].product_category,
+    "is_joint_allowed": null,
+    "is_supplementary": null,
+    "status": null,
+    "error": null,
+    "acct_details": null,
+    "offer_details": stageSelector.stageInfo.products[0].offer_details,
+    "bundle_name": null,
+    "product_image": null,
+    "company_category": null,
+    "assessment_type": null,
+    "segment": null,
+    "account_number": null,
+    "account_product_code": null,
+    "existing_loan_amount": null,
+    "existing_tenor": null,
+    "existing_loan_EMI": null,
+    "existing_loan_outstanding_amount": null,
+    "existing_loan_outstanding_tenor": null,
+    "disbursementDetails": null,
+    "card_activation_status": null,
+    "offer": null,
+    "handling_fee": null,
+    "product_minimum": null,
+    "first_Repayment_Date": null
+  }];
+  currentStageData.applicant_documents= [{
+    "document_list": stageSelector.stageInfo.applicant_documents[0].document_list,
+    "applicant_sequence_number": 1,
+    "journey_type": stageSelector.stageInfo.applicant_documents[0].journey_type,
+    "icdd_reference_no_availability": null,
+    "email_id_change": null,
+    "mobile_no_change": null,
+    "last_updated_credit_limit_date_flag": null,
+    "staff_category": null
+  }]
+
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
+    },
+    body: JSON.stringify(currentStageData),
+  };
+
+
+  return axios
+    .post(url, JSON.stringify(currentStageData), { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      return Promise.resolve(error);
     });
+};
+export const getCASADetails = (): any => {
+  const randomNumber = Math.random();
+  const url = `${process.env.REACT_APP_CASA_SEGMENT}?rnd=${randomNumber}`;
+   getData(url).then(async (res: any) => {
+    return await Promise.resolve(res);
+  })
+}
+
+export const postBasicData = (): any => {
+  const stageSelector = JSON.parse(
+    JSON.stringify(store.getState().stages.stages[0])
+  );
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const channelRefNo = stageSelector.stageInfo.application.channel_reference;
+  const basicData = `${process.env.REACT_APP_RTOB_BASIC_DATA_END_POINT}`;
+  const saveUrl = `${application + channelRefNo}`;
+  var url = baseUrl + saveUrl + basicData;
+  var currentStageData = JSON.parse(JSON.stringify(PreApprovalUtil.getFormConfigPayload()));
+  const productCategory = store.getState().stages.stages[0].stageInfo.products[0].product_category;
+  const product_type = store.getState().stages.stages[0].stageInfo.products[0].product_type;
+  if (productCategory === "CC") {
+    currentStageData.applicants["affiliation_a_1"] = getUrl.getParameterByName("affiliation");
+    currentStageData.applicants["card_type_a_1"] = getUrl.getParameterByName("cardType");
+    currentStageData.applicants["premium_a_1"] = getUrl.getParameterByName("premium");
+    currentStageData.applicants['preimumMGM_resume_a_1'] = getUrl.getParameterByName("campaign") + "undefined" + getUrl.getParameterByName("premium");
+  }
+
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
+    },
+    body: JSON.stringify(currentStageData),
+  };
+
+
+  return axios
+    .post(url, JSON.stringify(currentStageData), { headers: options.headers })
+    .then((response: any) => {
+      return Promise.resolve(response);
+    })
+    .catch((error: any) => {
+      //console.log("clientResponse", error);
+      return Promise.resolve(error);
+    });
+};
+
+export const postAditionalData = (): any => {
+  const stageSelector = JSON.parse(
+    JSON.stringify(store.getState().stages.stages[0])
+  );
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const additionalData = `${process.env.REACT_APP_RTOB_ADDITIONAL_DATA_END_POINT}`;
+  const channelRefNo = stageSelector.stageInfo.application.channel_reference;
+  const saveUrl = `${application + channelRefNo}`;
+  var url = baseUrl + saveUrl + additionalData; 
+  var currentStageData= JSON.parse(JSON.stringify(PreApprovalUtil.getADFormConfigPayload() || {}));
+ 
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
+    },
+    body: JSON.stringify(currentStageData),
+  };
+
+
+  return axios
+    .post(url, JSON.stringify(currentStageData), { headers: options.headers })
+    .then((response: any) => {
+      return Promise.resolve(response);
+    })
+    .catch((error: any) => {
+      dispatchError(error);
+      //console.log("clientResponse", error);
+      return Promise.resolve(error);
+    });
+};
+
+export const postDocuments = (channelReference: any, file: any): any => {
+  const imageOrder = JSON.parse(JSON.stringify(store.getState().preApproval.incomeProofDocumentUpload));
+  
+  const documentJson: any = {
+    origin: "front-line-supporting-document",
+    documentCategoryCode: "R0005",
+    documentTypeCode: "A023",
+    applicantId: 1,
+    imageOrder: imageOrder?.length + 1,
+    period: 0,
+    isWatermarkRequired: "Y",
+    documentOptionSequence: "undefined",
+  };
+
+
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const endPoint = `${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+
+  const url = baseUrl + application + channelReference + endPoint;
+
+
+  let data = new FormData();
+  data.append("file", file);
+  data.append("documentJson", JSON.stringify(documentJson));
+
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "multipart/form-data",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
+    },
+    body: JSON.stringify(data),
+  };
+const docaxios = axios.create({
+    headers: options.headers,
   });
 
-  // Test group 2: Editability rules
-  describe('Field Editability', () => {
-    test('should set editable=false for nonEditable fields', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
-      expect(field?.editable).toBe(false);
+   return docaxios
+   .post(url, data, options)
+   .then((response: any) => {
+          return Promise.resolve(response);
+        })
+        .catch((error: any) => {
+          dispatchError(error);
+          //console.log("clientResponse", error);
+          return Promise.resolve(error);
+        });
+
+  }
+
+export const postQRCodeZOLO = (channelReference: any, docType: any): any => {
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const endPoint = `${process.env.REACT_APP_RTOB_QRCODE_SMART_HKID_END_POINT}`
+
+  const url = baseUrl + application + channelReference + endPoint;
+  const payload = {
+    docType: docType,
+    qrCodeFlag: "Y",
+    h5ModeConfig: {
+      completeCallbackUrl: "https://pt.sc.com/onboarding/hk/zolozThankYou.html?scbToken=" + channelReference + "&lang=en",
+      interruptCallbackUrl: "https://pt.sc.com/onboarding/hk/zoloz-error.html?scbToken=" + channelReference + "&lang=en",
+      locale: ""
+    }
+  }
+
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
+    },
+    body: JSON.stringify(payload),
+  };
+
+  return axios
+    .post(url, options.body, { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      //console.log("clientResponse", error);
+      return Promise.resolve(error);
     });
+};
 
-    test('should keep editable=true for fields not in nonEditable list', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'office_phone_number');
-      expect(field?.editable).toBe(true);
+export const postZOLOCheck = (channelReference: any, transactionId: any, docType: any): any => {
+  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const endPoint = `${process.env.REACT_APP_RTOB_ZOLO_CHECK_RESULT_END_POINT}`;
+
+  const url = baseUrl + application + channelReference + endPoint;
+  const payload = {
+    transactionId: transactionId,
+    isReturnImage: "Y",
+    first_name_a_1: stageSelector.applicants.first_name_a_1,
+    last_name_a_1: stageSelector.applicants.last_name_a_1,
+    date_of_birth_a_1: stageSelector.applicants.date_of_birth_a_1,
+    HKID_a_1: stageSelector.applicants.HKID_a_1,
+    product_type: stageSelector.applicants.product_type,
+    product_category: stageSelector.applicants.product_category,
+    hkid_type: docType,
+    cos_ref_number: stageSelector.application.cos_ref_number
+  }
+
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
+    },
+    body: JSON.stringify(payload),
+  };
+
+  return axios
+    .post(url, options.body, { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      //console.log("clientResponse", error);
+      return Promise.resolve(error);
     });
+};
 
-    test('should handle empty nonEditable array', () => {
-      const result = rulesUtils(baseFieldset, { nonEditable: [], hidden: [] });
-      baseFieldset[0].fields.forEach(originalField => {
-        const resultField = result[0].fields.find(f => f.logical_field_name === originalField.logical_field_name);
-        if (resultField) {
-          expect(resultField.editable).toBe(true);
-        }
-      });
-    });
-  });
 
-  // Test group 3: Visibility rules
-  describe('Field Visibility', () => {
-    test('should set default_visibility=null for default_visibility_no_field fields', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
-      expect(field?.default_visibility).toBeNull();
-    });
+// export const postAcknowledge = (channelReference: any): any => {
 
-    test('should hide place_of_birth for CC products', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'place_of_birth');
-      expect(field).toBeUndefined(); // Should be filtered out
-    });
+//   const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+//   const application =`${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+//   const endPoint = `${process.env.REACT_APP_RTOB_ACKNOWLEDGE_END_POINT}` 
+//   const documents =  `${process.env. REACT_APP_RTOB_DOCUMENTS_END_POINT}` 
 
-    test('should hide currency for CC product_type 1313 with casaSegment Y', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'currency');
-      expect(field?.default_visibility).toBe('No');
-    });
+//   const url = baseUrl + application + channelReference +documents+ endPoint
+//     const payload={
+//       applicationRefNo: "HK20241111900057",
+//       documents:[{
+//             docId: "7d59d78392a369a2b41415b285951542357969b0c4e61c7d91b9505d79fc465b",
+//             country: "HK",
+//             documentStatus: "Accepted",
+//             appId: "041115563f21312024",
+//             documentCategoryCode: "R0001",
+//             errorDescription: null,
+//             errorCode: null,
+//             responseStatus: "SUCCESS",
+//             documentTypeCode: "A001",
+//             documentOptionSequence: "1",
+//             imageOrder: "1",
+//             applicantId: "1",
+//             period: 0,
+//             documentName: "HKID_Front_Page1731321390083",
+//             document_id: "7d59d78392a369a2b41415b285951542357969b0c4e61c7d91b9505d79fc465b",
+//             document_status: "Accepted",
+//             document_sequence_number: "1",
+//             uploaded_to_filenet: "Y",
+//             document_option_sequence: "1",
+//             document_category_code: "R0001",
+//             document_type_code: "A001",
+//             document_name: "HKID_Front_Page1731321390083.png"
+//         },
+//         {
+//             docId: "38d983dd5913639923530e85d262ab9a9c2498991a20e0b2d347423bbda85ec8",
+//             country: "HK",
+//             documentStatus: "Accepted",
+//             appId: "041115563f21312024",
+//             documentCategoryCode: "R0006",
+//             errorDescription: null,
+//             errorCode: null,
+//             responseStatus: "SUCCESS",
+//             documentTypeCode: "A039",
+//             documentOptionSequence: "1",
+//             imageOrder: "1",
+//             applicantId: "1",
+//             period: 0,
+//             documentName: "Selfie_Image1731321390121"
+//         }
+//     ],
+//     optionsSelected:[
+//       {
+//           applicantId: 1,
+//           options: [
+//               {
+//                   documentCategoryCode: "R0001",
+//                   documentTypeCode: "A001",
+//                   documentOptionSequence: "1"
+//               }
+//           ]
+//       }
+//   ],
+//   stage:"Zoloz_ACK"
 
-    test('should add estatement_fee to hidden fields for CC products', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'estatement_fee');
-      expect(field?.default_visibility).toBeNull();
-    });
-  });
+//   }
 
-  // Test group 4: Product-specific rules
-  describe('Product-Specific Rules', () => {
-    test('should add embossed_name to hidden fields when name > 19 chars (CC)', () => {
-      mockStore.getState.mockReturnValue({
-        stages: {
-          stages: [{
-            stageInfo: {
-              products: [{ product_category: 'CC' }],
-              applicants: [{
-                full_name_a_1: 'Very Long Name That Exceeds 19 Chars',
-                casaSegment: 'N'
-              }]
-            }
-          }]
-        }
-      });
+//   const options = {
+//     method: "POST",
+//     url,
+//     headers: {
+//       "Content-Type":"application/json;charset=UTF-8",
+//       "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
+//     },
+//     body:JSON.stringify(payload),
+//   };
 
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'embossed_name');
-      expect(field?.default_visibility).toBeNull();
-    });
+//   return axios
+//     .post(url, options.body, { headers: options.headers })
+//     .then((response:any) => {
+//       return Promise.resolve(response);
+//     })
+//     .catch((error:any) => {
+//       dispatchError(error);
+//       //console.log("clientResponse", error);
+//       return Promise.resolve(error);
+//     });
+// };
 
-    test('should add rewards_choice_segment for specific campaigns', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'rewards_choice_segment');
-      expect(field?.default_visibility).toBeNull();
-    });
-
-    test('should hide different fields for non-CC products', () => {
-      mockStore.getState.mockReturnValue({
-        stages: {
-          stages: [{
-            stageInfo: {
-              products: [{ product_category: 'LOAN' }],
-              applicants: [{}]
-            }
-          }]
-        }
-      });
-
-      const customFieldset = [{
-        fields: [
-          { logical_field_name: 'purpose_of_account', default_visibility: 'Yes' },
-          { logical_field_name: 'estatement', default_visibility: 'Yes' }
+export const postZolozAcknowledge = (channelReference: any, documentsList?: any): any => {
+  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
+  const channel_reference = stageSelector.application.channel_reference
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const endPoint = `${process.env.REACT_APP_RTOB_ACKNOWLEDGE_END_POINT}`;
+  const documents = `${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}`;
+  const url = baseUrl + application + channel_reference + documents + endPoint;
+  url.replace('";', "");
+  const payload = {
+    applicationRefNo: stageSelector.application.application_reference,
+    documents: documentsList,
+    optionsSelected: [
+      {
+        applicantId: 1,
+        options: [
+          {
+            documentCategoryCode: "R0001",
+            documentTypeCode: "A001",
+            documentOptionSequence: "1"
+          }
         ]
-      }];
+      }
+    ],
+    stage: "Zoloz_ACK"
+  }
 
-      const result = rulesUtils(customFieldset, baseValidationObj);
-      expect(result[0].fields.find(f => f.logical_field_name === 'purpose_of_account')).toBeUndefined();
-      expect(result[0].fields.find(f => f.logical_field_name === 'estatement')).toBeUndefined();
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
+    },
+    body: JSON.stringify(payload),
+  };
+
+  return axios
+    .post(url, options.body, { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      //console.log("clientResponse", error);
+      return Promise.resolve(error);
     });
-  });
+};
 
-  // Test group 5: Mandatory fields
-  describe('Mandatory Fields', () => {
-    test('should set mandatory=Yes for mandatory fields', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'office_phone_number');
-      expect(field?.mandatory).toBe('Yes');
+export const postFinalAcknowledge = (channelReference: any): any => {
+  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
+  const docSelector = JSON.parse(JSON.stringify(store.getState().preApproval.incomeProofDocumentUpload || {}));
+  const uploadedDocSelector = JSON.parse(JSON.stringify(store.getState().stages.dynamicDocumentsUpload.uploadedDocuments || {}));
+  let documentsList:any= [];
+  for(let i in uploadedDocSelector) {
+    // delete docSelector[i].file;
+    // delete docSelector[i].filename;
+    // delete docSelector[i].filesize;
+    uploadedDocSelector[i]["documentStatus"]= "Accepted";
+    documentsList.push(uploadedDocSelector[i])
+  }
+  console.log(documentsList);
+  const channel_reference = stageSelector.application.channel_reference
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const endPoint = `${process.env.REACT_APP_RTOB_ACKNOWLEDGE_END_POINT}`
+  const documents = `${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}`
+
+  const url = baseUrl + application + channel_reference + documents + endPoint;
+  url.replace('";', "");
+  const payload = {
+    applicationRefNo: stageSelector.application.application_reference,
+    documents: documentsList,
+    optionsSelected: [
+      {
+        applicantId: 1,
+        options: []
+      }
+    ],
+    stage: "Final_ACK"
+  }
+
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
+    },
+    body: JSON.stringify(payload),
+  };
+
+  return axios
+    .post(url, options.body, { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      //console.log("clientResponse", error);
+      return Promise.resolve(error);
     });
+};
 
-    test('should not modify mandatory for non-mandatory fields', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const field = result[0].fields.find(f => f.logical_field_name === 'embossed_name');
-      expect(field?.mandatory).toBeUndefined();
+export const postPdfPreview = (channelReference: any): any => {
+  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
+  const stageId = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageId));
+  const channel_reference = stageSelector.application.channel_reference
+  const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_DYNAMIC_DOCUMENT}${channel_reference}${process.env.REACT_APP_RTOB_PDF_PREVIEW}`;
+  url.replace('";', "");
+  const payload = {
+    appInRefNumber: stageSelector.application.application_reference,
+    template_name:  stageId === CONSTANTS.STAGE_NAMES.ACD_4 ? "all_in_one" : stageSelector.products[0].product_category==="CC" && stageId === CONSTANTS.STAGE_NAMES.DOC_3 ? "ekyc_report" : stageSelector.products[0].product_category==="CC" && stageId !== CONSTANTS.STAGE_NAMES.DOC_3 ? "all_in_one" : stageId === CONSTANTS.STAGE_NAMES.LD_1 ? "repayment_schedule" : "ekyc_report",
+    action: "generate",
+    page_id: "HK_ALIPAY_AOF_ENG.thy",
+  };
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
+    },
+    body: JSON.stringify(payload),
+  };
+
+  return axios
+    .post(url, options.body, { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      return Promise.resolve(error);
     });
-  });
+};
 
-  // Test group 6: Edge cases
-  describe('Edge Cases', () => {
-    test('should handle missing stageInfo', () => {
-      mockStore.getState.mockReturnValue({
-        stages: {
-          stages: [{}] // No stageInfo
-        }
-      });
+export const postTMXUserSession = (channelReference: any): any => {
 
-      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
+  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
+
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application =`${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const endPoint = `${process.env.REACT_APP_RTOB_VERIFY_TMX_USER_SESSION}` 
+
+  const url = baseUrl + application + channelReference+ endPoint
+    const payload = {
+      session_id_tmx: PreApprovalUtil.generateUUID(),
+      cos_ref_number: stageSelector.application.cos_ref_number,
+    };
+ 
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
+    },
+    body: JSON.stringify(payload),
+  };
+
+  return axios
+    .post(url, options.body, { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      //console.log("clientResponse", error);
+      return Promise.resolve(error);
     });
+};
 
-    test('should handle missing products array', () => {
-      mockStore.getState.mockReturnValue({
-        stages: {
-          stages: [{
-            stageInfo: {
-              // No products array
-              applicants: [{}]
-            }
-          }]
-        }
-      });
+export const postFulFilmentData = (payload: any): any => {
 
-      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
+  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0]));
+  const channel_reference = stageSelector.stageInfo.application.channel_reference
+  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
+  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
+  const endPoint = `${process.env.REACT_APP_RTOB_FULFILMENT_DATA}`
+
+  const url = baseUrl + application + channel_reference + endPoint
+
+  payload = JSON.parse(JSON.stringify(payload));
+  payload.stage.page_id = stageSelector.stageId;
+  payload.stage.workflow_stage_id = stageSelector.stageId.split("-")[0].toUpperCase();
+  payload.stage.stage_id = stageSelector.stageId.replace("-", "").toUpperCase();
+  payload.stage.stage_status = "incomplete";
+  payload.status_data = null;
+  payload.preapproved = null;
+  payload.stage.stage_params = {
+    "is_dedupe_required": false,
+    "current_applicant": 0,
+    "eb_status": null
+  };
+  payload.temp_login_data = null;
+  payload.service_response = null;
+  payload.application.service_type = stageSelector.stageId.replace("-", "").toUpperCase();
+  payload.application.alipay_ref_number = null;
+  payload.application.ext_acceptance_reference_number = null;
+  payload.application.ext_authentication_reference_number = null;
+  payload.application.stage_wise = null;
+  payload.application.version = null;
+  payload.application.source_system_name = '3';
+  payload.application.page_wise = null;
+  payload["applicant_bureau_details"] = null;
+  payload.applicants = payload.applicants.length > 0 ? payload.applicants[0] : payload.applicants;
+  payload.applicants["repayment_account_bank_code_a_1"]= payload.applicants.oth_bank_name_a_1;
+  payload.applicants["repayment_account_number_a_1"]= payload.applicants.oth_bank_number_a_1;
+  payload.applicants["draw_down_amount_a_1"]= payload.applicants.requested_loan_amount_a_1;
+  payload.applicants["repayment_oth_bank_name_a_1"]= null;
+  payload.applicants["repayment_oth_bank_number_a_1"]= null;
+  payload.applicants["repayment_scb_bank_number_a_1"]= null;
+  payload.applicants["repayment_select_account_a_1"]= null;
+  // payload.applicants["net-disbursement-amount"]= payload.applicants.requested_loan_amount_a_1;
+  payload.client = {
+    "journey": "prelogin_ntc_or_ntp",
+    "auth-type": "manual",
+    "login-type": "prelogin"
+  }
+  delete payload.application.page_status;
+  delete payload.application.is_save_to_pega;
+  delete payload.application.armcode;
+  delete payload.application.arm_code;
+  delete payload.application.journey_type_hk;
+  delete payload.application.is_td_with_casa;
+  delete payload.application.notification_required;
+  delete payload.application.sub_segment;
+  delete payload.application.segment;
+  delete payload.application.closing_id;
+  delete payload.application.error;
+  delete payload.application.response_type;
+  delete payload.application.response_action;
+  delete payload.applicants.client_pl_consent4_a_1;
+  delete payload.customerDetails;
+
+  const options = {
+    method: "POST",
+    url,
+    headers: {
+      "Content-Type": "application/json;charset=UTF-8",
+      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channel_reference),
+    },
+    body: JSON.stringify(payload),
+  };
+
+  return axios
+    .post(url, options.body, { headers: options.headers })
+    .then((response) => {
+      return Promise.resolve(response);
+    })
+    .catch((error) => {
+      dispatchError(error);
+      //console.log("clientResponse", error);
+      return Promise.resolve(error);
     });
+};
 
-    test('should handle missing applicants array', () => {
-      mockStore.getState.mockReturnValue({
-        stages: {
-          stages: [{
-            stageInfo: {
-              products: [{}],
-              // No applicants array
-            }
-          }]
-        }
-      });
 
-      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
-    });
 
-    test('should handle empty product object', () => {
-      mockStore.getState.mockReturnValue({
-        stages: {
-          stages: [{
-            stageInfo: {
-              products: [{}], // Empty product object
-              applicants: [{}]
-            }
-          }]
-        }
-      });
 
-      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
-    });
+export { getData };
 
-    test('should handle empty applicant object', () => {
-      mockStore.getState.mockReturnValue({
-        stages: {
-          stages: [{
-            stageInfo: {
-              products: [{}],
-              applicants: [{}] // Empty applicant object
-            }
-          }]
-        }
-      });
-
-      expect(() => rulesUtils(baseFieldset, baseValidationObj)).not.toThrow();
-    });
-  });
-
-  // Test group 7: Filtering behavior
-  describe('Result Filtering', () => {
-    test('should filter out fields with default_visibility=No', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const placeOfBirthField = result[0].fields.find(f => f.logical_field_name === 'place_of_birth');
-      expect(placeOfBirthField).toBeUndefined();
-    });
-
-    test('should include fields with default_visibility=Yes or null', () => {
-      const result = rulesUtils(baseFieldset, baseValidationObj);
-      const mortgageField = result[0].fields.find(f => f.logical_field_name === 'monthly_installment_mortgage_payment');
-      const officePhoneField = result[0].fields.find(f => f.logical_field_name === 'office_phone_number');
-      
-      expect(mortgageField).toBeDefined(); // visibility=null
-      expect(officePhoneField).toBeDefined(); // visibility=Yes
-    });
-  });
-});
+Please write an test cases using react and jest
