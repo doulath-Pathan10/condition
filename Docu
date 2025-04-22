@@ -113,3 +113,285 @@ describe('API Services', () => {
 
   // Test cases will go here
 });
+  describe('postSaveData', () => {
+    it('should make a POST request with correct data for CC product', async () => {
+      const mockResponse = { data: { success: true } };
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      const result = await postSaveData();
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'https://test-api.com/application/test-ref-123',
+        JSON.stringify({
+          mockPayload: true,
+          stage: {
+            next_page_values: ['next-stage-1', 'next-stage-2'],
+            stage_id: 'AD'
+          },
+          applicants: {
+            password_a_1: ''
+          }
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Sc-Client-Context': 'mock-meta-data'
+          }
+        }
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should handle errors', async () => {
+      const mockError = new Error('Request failed');
+      mockedAxios.post.mockRejectedValue(mockError);
+
+      const result = await postSaveData();
+
+      expect(result).toEqual(mockError);
+      expect(require('../../../services/common-service').dispatchError).toHaveBeenCalledWith(mockError);
+    });
+  });
+  describe('postPeserveData', () => {
+    it('should make a POST request with preserved data', async () => {
+      const mockResponse = { data: { success: true } };
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      // Update mock state for doc-3 stage
+      require('../../../utils/store/store').store.getState.mockReturnValue({
+        stages: {
+          stages: [{
+            stageId: 'doc-3',
+            stageInfo: {
+              application: {
+                channel_reference: 'test-ref-123',
+                application_reference: 'app-ref-123',
+                cos_ref_number: 'cos-ref-123',
+                request_id: 'req-id-123'
+              },
+              products: [{
+                product_category: 'CC',
+                product_type: 'CreditCard',
+                name: 'Test Product',
+                relation_type_code: 'P',
+                campaign: 'TEST',
+                product_sequence_number: 1,
+                offer_details: {}
+              }],
+              applicants: {
+                first_name_a_1: 'John',
+                last_name_a_1: 'Doe',
+                date_of_birth_a_1: '1990-01-01',
+                HKID_a_1: 'A1234567'
+              },
+              applicant_documents: [{
+                document_list: [],
+                applicant_sequence_number: 1,
+                journey_type: 'test'
+              }]
+            }
+          }],
+          dynamicDocumentsUpload: {
+            documentData: [{ docId: 'doc-123', documentName: 'test-doc' }],
+            HKIDQRCodeData: { transactionId: 'txn-123', result: { resultMessage: 'success' } }
+          }
+        },
+        preApproval: {
+          nextStages: ['next-stage-1', 'next-stage-2']
+        }
+      });
+
+      const result = await postPeserveData();
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'https://test-api.com/application/test-ref-123',
+        expect.any(String),
+        {
+          headers: {
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Sc-Client-Context': 'mock-meta-data'
+          }
+        }
+      );
+      
+      const requestBody = JSON.parse(mockedAxios.post.mock.calls[0][1]);
+      expect(requestBody.applicants.ekycdocId).toBe('doc-123');
+      expect(requestBody.stage.stage_id).toBe('DOC');
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should reject on error', async () => {
+      const mockError = new Error('Request failed');
+      mockedAxios.post.mockRejectedValue(mockError);
+
+      await expect(postPeserveData()).rejects.toEqual(mockError);
+      expect(require('../../../services/common-service').dispatchError).toHaveBeenCalledWith(mockError);
+    });
+  });
+  describe('getResumeRequest', () => {
+    it('should make a GET request to resume application', async () => {
+      const mockResponse = { data: { application: 'resumed' } };
+      mockedAxios.get.mockResolvedValue(mockResponse);
+
+      const result = await getResumeRequest('app-ref-123');
+
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        'https://test-api.com/application/app-ref-123'
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should reject on error', async () => {
+      const mockError = new Error('Request failed');
+      mockedAxios.get.mockRejectedValue(mockError);
+
+      await expect(getResumeRequest('app-ref-123')).rejects.toEqual(mockError);
+      expect(require('../../../services/common-service').dispatchError).toHaveBeenCalledWith(mockError);
+    });
+  });
+  describe('postBasicData', () => {
+    it('should make a POST request with basic data', async () => {
+      const mockResponse = { data: { success: true } };
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      // Mock URL parameters
+      jest.spyOn(require('../../../utils/common/change.utils').getUrl, 'getParameterByName')
+        .mockImplementation((param: string) => `mock-${param}`);
+
+      const result = await postBasicData();
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'https://test-api.com/application/test-ref-123/basic',
+        JSON.stringify({
+          mockPayload: true,
+          applicants: {
+            affiliation_a_1: 'mock-affiliation',
+            card_type_a_1: 'mock-cardType',
+            premium_a_1: 'mock-premium',
+            preimumMGM_resume_a_1: 'mock-campaignundefinedmock-premium'
+          }
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Sc-Client-Context': 'mock-meta-data'
+          }
+        }
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
+  describe('postDocuments', () => {
+    it('should upload a document with FormData', async () => {
+      const mockResponse = { data: { success: true } };
+      mockedAxios.post.mockResolvedValue(mockResponse);
+      
+      const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
+      
+      const result = await postDocuments('test-ref-123', mockFile);
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'https://test-api.com/application/test-ref-123/documents',
+        expect.any(FormData),
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Sc-Client-Context': 'mock-meta-data'
+          }
+        }
+      );
+      
+      expect(result).toEqual(mockResponse);
+    });
+  });
+  describe('postQRCodeZOLO', () => {
+    it('should request ZOLO QR code', async () => {
+      const mockResponse = { data: { qrCode: 'test-qr' } };
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      const result = await postQRCodeZOLO('test-ref-123', 'HKID');
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'https://test-api.com/application/test-ref-123/qrcode',
+        JSON.stringify({
+          docType: 'HKID',
+          qrCodeFlag: 'Y',
+          h5ModeConfig: {
+            completeCallbackUrl: 'https://pt.sc.com/onboarding/hk/zolozThankYou.html?scbToken=test-ref-123&lang=en',
+            interruptCallbackUrl: 'https://pt.sc.com/onboarding/hk/zoloz-error.html?scbToken=test-ref-123&lang=en',
+            locale: ''
+          }
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Sc-Client-Context': 'mock-meta-data'
+          }
+        }
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
+  describe('postFinalAcknowledge', () => {
+    it('should send final acknowledge with documents', async () => {
+      const mockResponse = { data: { success: true } };
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      const result = await postFinalAcknowledge('test-ref-123');
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'https://test-api.com/application/test-ref-123/documents/acknowledge',
+        JSON.stringify({
+          applicationRefNo: 'app-ref-123',
+          documents: [{ docId: 'uploaded-123', documentName: 'uploaded-doc', documentStatus: 'Accepted' }],
+          optionsSelected: [{
+            applicantId: 1,
+            options: []
+          }],
+          stage: 'Final_ACK'
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Sc-Client-Context': 'mock-meta-data'
+          }
+        }
+      );
+      expect(result).toEqual(mockResponse);
+    });
+  });
+  describe('postFulFilmentData', () => {
+    it('should post fulfilment data with transformed payload', async () => {
+      const mockResponse = { data: { success: true } };
+      mockedAxios.post.mockResolvedValue(mockResponse);
+
+      const mockPayload = {
+        stage: {},
+        application: {},
+        applicants: [{
+          oth_bank_name_a_1: 'Test Bank',
+          oth_bank_number_a_1: '123456',
+          requested_loan_amount_a_1: 10000
+        }]
+      };
+
+      const result = await postFulFilmentData(mockPayload);
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'https://test-api.com/application/test-ref-123/fulfilment',
+        expect.any(String),
+        {
+          headers: {
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Sc-Client-Context': 'mock-meta-data'
+          }
+        }
+      );
+
+      const requestBody = JSON.parse(mockedAxios.post.mock.calls[0][1]);
+      expect(requestBody.stage.page_id).toBe('test-stage');
+      expect(requestBody.applicants.repayment_account_bank_code_a_1).toBe('Test Bank');
+      expect(requestBody.applicants.draw_down_amount_a_1).toBe(10000);
+      expect(result).toEqual(mockResponse);
+    });
+  });
