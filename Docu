@@ -253,3 +253,7 @@ const DucumentUploadMainSCR = () => {
 };
 
 export default DucumentUploadMainSCR;
+
+
+Please write an test cases using react and jest including branches with 100 percent coverage 
+
