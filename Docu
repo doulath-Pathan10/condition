@@ -1,397 +1,112 @@
-// apiServices.test.tsx
-import axios from 'axios';
+import { AxiosError } from "axios";
+import "./document-type-dynamic.scss";
+import React from "react";
+import { useDispatch, useSelector } from "react-redux";
+import "../documentUploadMain/document-upload-main-scr.scss";
+import DocumentUpload from "../documentUpload/document-upload";
+import { StoreModel } from "../../../../../utils/model/common-model";
+import { stagesAction } from "../../../../../utils/store/stages-slice";
+import { postQRCodeZOLO } from "../../../services/preApprovalPostServices";
+import ColorIdentityProof from "../colourIdentityProof/colour-Identity-Proof";
 import {
-  postSaveData,
-  postPeserveData,
-  getResumeRequest,
-  postDocSaveData,
-  postBasicData,
-  postAditionalData,
-  postDocuments,
-  postQRCodeZOLO,
-  postZOLOCheck,
-  postZolozAcknowledge,
-  postFinalAcknowledge,
-  postPdfPreview,
-  postTMXUserSession,
-  postFulFilmentData
-} from './apiServices';
+  dispatchError,
+  dispatchLoader,
+} from "../../../../../services/common-service";
+import { errorAction } from "../../../../../utils/store/error-slice";
 
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const DocumentTypeDynamic: React.FC<any> = ({
+  setShowContinueBtn,
+  setHKIDVersion,
+  HKIDVersion,
+  setHKIDQRCodeData
+}) => {
+  const dispatch = useDispatch();
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
+  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
+  const documentList = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.applicant_documents[0].document_list);
+  const HKIDVersionValue = useSelector((state: any) => state.stages.dynamicDocumentsUpload.HKIDVersionValue);
 
-// Mock store
-jest.mock('../../../utils/store/store', () => ({
-  store: {
-    getState: jest.fn(),
-    dispatch: jest.fn()
-  }
-}));
-
-// Mock environment variables
-process.env.REACT_APP_RTOB_BASE_URL = 'https://test-api.com';
-process.env.REACT_APP_RTOB_APPLICATION_END_POINT = '/application/';
-process.env.REACT_APP_RTOB_BASIC_DATA_END_POINT = '/basic';
-process.env.REACT_APP_RTOB_ADDITIONAL_DATA_END_POINT = '/additional';
-process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT = '/documents';
-process.env.REACT_APP_RTOB_QRCODE_SMART_HKID_END_POINT = '/qrcode';
-process.env.REACT_APP_RTOB_ZOLO_CHECK_RESULT_END_POINT = '/zoloz-check';
-process.env.REACT_APP_RTOB_ACKNOWLEDGE_END_POINT = '/acknowledge';
-process.env.REACT_APP_RTOB_DYNAMIC_DOCUMENT = '/dynamic-doc';
-process.env.REACT_APP_RTOB_PDF_PREVIEW = '/pdf-preview';
-process.env.REACT_APP_RTOB_VERIFY_TMX_USER_SESSION = '/tmx-session';
-process.env.REACT_APP_RTOB_FULFILMENT_DATA = '/fulfilment';
-process.env.REACT_APP_CASA_SEGMENT = '/casa-segment';
-
-// Mock other dependencies
-jest.mock('../../../services/common-service', () => ({
-  dispatchError: jest.fn(),
-  dispatchLoader: jest.fn()
-}));
-
-jest.mock('./preApprovalUtils', () => ({
-  getFormConfigPayload: jest.fn(() => ({ mockPayload: true })),
-  getADFormConfigPayload: jest.fn(() => ({ mockADPayload: true })),
-  getAckMetaData: jest.fn(() => 'mock-meta-data'),
-  generateUUID: jest.fn(() => 'mock-uuid')
-}));
-
-jest.mock('./preApprovalServices', () => ({
-  getData: jest.fn()
-}));
-
-describe('API Services', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    
-    // Mock store state
-    require('../../../utils/store/store').store.getState.mockReturnValue({
-      stages: {
-        stages: [{
-          stageId: 'test-stage',
-          stageInfo: {
-            application: {
-              channel_reference: 'test-ref-123',
-              application_reference: 'app-ref-123',
-              cos_ref_number: 'cos-ref-123',
-              request_id: 'req-id-123'
-            },
-            products: [{
-              product_category: 'CC',
-              product_type: 'CreditCard',
-              name: 'Test Product',
-              relation_type_code: 'P',
-              campaign: 'TEST',
-              product_sequence_number: 1,
-              offer_details: {}
-            }],
-            applicants: {
-              first_name_a_1: 'John',
-              last_name_a_1: 'Doe',
-              date_of_birth_a_1: '1990-01-01',
-              HKID_a_1: 'A1234567'
-            },
-            applicant_documents: [{
-              document_list: [],
-              applicant_sequence_number: 1,
-              journey_type: 'test'
-            }]
-          }
-        }],
-        dynamicDocumentsUpload: {
-          documentData: [{ docId: 'doc-123', documentName: 'test-doc' }],
-          HKIDQRCodeData: { transactionId: 'txn-123', result: { resultMessage: 'success' } },
-          uploadedDocuments: [{ docId: 'uploaded-123', documentName: 'uploaded-doc' }]
-        }
-      },
-      preApproval: {
-        nextStages: ['next-stage-1', 'next-stage-2'],
-        incomeProofDocumentUpload: []
+  const callQRCodeAPI = () => {
+    dispatch(dispatchLoader(true));
+    postQRCodeZOLO(channel_reference, HKIDVersionValue).then((response: any) => {
+      if (response.status === 200) {
+        setHKIDQRCodeData(response.data);
+        dispatch(stagesAction.updateHKIDQRCodeData(response.data));
+        dispatch(dispatchLoader(false));
       }
-    });
-  });
-
-  // Test cases will go here
-});
-  describe('postSaveData', () => {
-    it('should make a POST request with correct data for CC product', async () => {
-      const mockResponse = { data: { success: true } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const result = await postSaveData();
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'https://test-api.com/application/test-ref-123',
-        JSON.stringify({
-          mockPayload: true,
-          stage: {
-            next_page_values: ['next-stage-1', 'next-stage-2'],
-            stage_id: 'AD'
-          },
-          applicants: {
-            password_a_1: ''
-          }
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json;charset=UTF-8',
-            'Sc-Client-Context': 'mock-meta-data'
-          }
-        }
-      );
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('should handle errors', async () => {
-      const mockError = new Error('Request failed');
-      mockedAxios.post.mockRejectedValue(mockError);
-
-      const result = await postSaveData();
-
-      expect(result).toEqual(mockError);
-      expect(require('../../../services/common-service').dispatchError).toHaveBeenCalledWith(mockError);
-    });
-  });
-  describe('postPeserveData', () => {
-    it('should make a POST request with preserved data', async () => {
-      const mockResponse = { data: { success: true } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      // Update mock state for doc-3 stage
-      require('../../../utils/store/store').store.getState.mockReturnValue({
-        stages: {
-          stages: [{
-            stageId: 'doc-3',
-            stageInfo: {
-              application: {
-                channel_reference: 'test-ref-123',
-                application_reference: 'app-ref-123',
-                cos_ref_number: 'cos-ref-123',
-                request_id: 'req-id-123'
-              },
-              products: [{
-                product_category: 'CC',
-                product_type: 'CreditCard',
-                name: 'Test Product',
-                relation_type_code: 'P',
-                campaign: 'TEST',
-                product_sequence_number: 1,
-                offer_details: {}
-              }],
-              applicants: {
-                first_name_a_1: 'John',
-                last_name_a_1: 'Doe',
-                date_of_birth_a_1: '1990-01-01',
-                HKID_a_1: 'A1234567'
-              },
-              applicant_documents: [{
-                document_list: [],
-                applicant_sequence_number: 1,
-                journey_type: 'test'
-              }]
-            }
-          }],
-          dynamicDocumentsUpload: {
-            documentData: [{ docId: 'doc-123', documentName: 'test-doc' }],
-            HKIDQRCodeData: { transactionId: 'txn-123', result: { resultMessage: 'success' } }
-          }
-        },
-        preApproval: {
-          nextStages: ['next-stage-1', 'next-stage-2']
-        }
+      else {
+        dispatch(dispatchLoader(false));
+        dispatch(
+          errorAction.getError({
+            statusCode: "error",
+            statusText: "no response",
+          })
+        );
+      }
+    })
+      .catch((error: AxiosError) => {
+        dispatchError(error);
       });
+  };
 
-      const result = await postPeserveData();
+  return (
+    <div className="row-start">
+      <div>
+        {fileSectionData === null &&
+          documentList?.map((item: any, index: any) => {
+            return (
+              <div
+                key={index}
+                id="upload_fieldset_{{docCategory.document_category_code}}"
+                className={stageSelector &&
+                  stageSelector[0].stageInfo &&
+                  stageSelector[0].stageInfo.applicant_documents &&
+                  stageSelector[0].stageInfo.applicant_documents[0].document_list[index].document_options[0].document_types[0].uploaded_documents === null ? "form-field doc-select-box-child" : "form-field-checked doc-select-box-child"}
+              >
+                <p
+                  role="button"
+                  title={item.document_category}
+                  className={
+                    stageSelector &&
+                      stageSelector[0].stageInfo &&
+                      stageSelector[0].stageInfo.applicant_documents &&
+                      stageSelector[0].stageInfo.applicant_documents[0]
+                        .document_list[index].document_options[0]
+                        .document_types[0].uploaded_documents === null
+                      ? "doc-add"
+                      : "doc-checked"
+                  }
+                  onClick={() => dispatch(stagesAction.updatefileSectionData(item))}
+                  id="upload_fieldset_{{docCategory.document_category_code}}"
+                ></p>
+                <p
+                  className="doc-field-name"
+                  id="upload_fieldset_{{docCategory.document_category_code}}"
+                >
+                  {item.document_category}
+                </p>
+              </div>
+            );
+          })}
+      </div>
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'https://test-api.com/application/test-ref-123',
-        expect.any(String),
-        {
-          headers: {
-            'Content-Type': 'application/json;charset=UTF-8',
-            'Sc-Client-Context': 'mock-meta-data'
-          }
-        }
-      );
-      
-      const requestBody = JSON.parse(mockedAxios.post.mock.calls[0][1]);
-      expect(requestBody.applicants.ekycdocId).toBe('doc-123');
-      expect(requestBody.stage.stage_id).toBe('DOC');
-      expect(result).toEqual(mockResponse);
-    });
+      {fileSectionData !== null &&
+        fileSectionData?.document_category_code === "R0001" ? (
+        <ColorIdentityProof
+          callQRCodeAPI={callQRCodeAPI}
+          setHKIDVersion={setHKIDVersion}
+          HKIDVersion={HKIDVersion}
+        />
+      ) : (
+        fileSectionData !== null && (
+          <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
+        )
+      )}
+    </div>
+  );
+};
 
-    it('should reject on error', async () => {
-      const mockError = new Error('Request failed');
-      mockedAxios.post.mockRejectedValue(mockError);
+export default DocumentTypeDynamic;
 
-      await expect(postPeserveData()).rejects.toEqual(mockError);
-      expect(require('../../../services/common-service').dispatchError).toHaveBeenCalledWith(mockError);
-    });
-  });
-  describe('getResumeRequest', () => {
-    it('should make a GET request to resume application', async () => {
-      const mockResponse = { data: { application: 'resumed' } };
-      mockedAxios.get.mockResolvedValue(mockResponse);
-
-      const result = await getResumeRequest('app-ref-123');
-
-      expect(mockedAxios.get).toHaveBeenCalledWith(
-        'https://test-api.com/application/app-ref-123'
-      );
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('should reject on error', async () => {
-      const mockError = new Error('Request failed');
-      mockedAxios.get.mockRejectedValue(mockError);
-
-      await expect(getResumeRequest('app-ref-123')).rejects.toEqual(mockError);
-      expect(require('../../../services/common-service').dispatchError).toHaveBeenCalledWith(mockError);
-    });
-  });
-  describe('postBasicData', () => {
-    it('should make a POST request with basic data', async () => {
-      const mockResponse = { data: { success: true } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      // Mock URL parameters
-      jest.spyOn(require('../../../utils/common/change.utils').getUrl, 'getParameterByName')
-        .mockImplementation((param: string) => `mock-${param}`);
-
-      const result = await postBasicData();
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'https://test-api.com/application/test-ref-123/basic',
-        JSON.stringify({
-          mockPayload: true,
-          applicants: {
-            affiliation_a_1: 'mock-affiliation',
-            card_type_a_1: 'mock-cardType',
-            premium_a_1: 'mock-premium',
-            preimumMGM_resume_a_1: 'mock-campaignundefinedmock-premium'
-          }
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json;charset=UTF-8',
-            'Sc-Client-Context': 'mock-meta-data'
-          }
-        }
-      );
-      expect(result).toEqual(mockResponse);
-    });
-  });
-  describe('postDocuments', () => {
-    it('should upload a document with FormData', async () => {
-      const mockResponse = { data: { success: true } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-      
-      const mockFile = new File(['test'], 'test.png', { type: 'image/png' });
-      
-      const result = await postDocuments('test-ref-123', mockFile);
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'https://test-api.com/application/test-ref-123/documents',
-        expect.any(FormData),
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            'Sc-Client-Context': 'mock-meta-data'
-          }
-        }
-      );
-      
-      expect(result).toEqual(mockResponse);
-    });
-  });
-  describe('postQRCodeZOLO', () => {
-    it('should request ZOLO QR code', async () => {
-      const mockResponse = { data: { qrCode: 'test-qr' } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const result = await postQRCodeZOLO('test-ref-123', 'HKID');
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'https://test-api.com/application/test-ref-123/qrcode',
-        JSON.stringify({
-          docType: 'HKID',
-          qrCodeFlag: 'Y',
-          h5ModeConfig: {
-            completeCallbackUrl: 'https://pt.sc.com/onboarding/hk/zolozThankYou.html?scbToken=test-ref-123&lang=en',
-            interruptCallbackUrl: 'https://pt.sc.com/onboarding/hk/zoloz-error.html?scbToken=test-ref-123&lang=en',
-            locale: ''
-          }
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json;charset=UTF-8',
-            'Sc-Client-Context': 'mock-meta-data'
-          }
-        }
-      );
-      expect(result).toEqual(mockResponse);
-    });
-  });
-  describe('postFinalAcknowledge', () => {
-    it('should send final acknowledge with documents', async () => {
-      const mockResponse = { data: { success: true } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const result = await postFinalAcknowledge('test-ref-123');
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'https://test-api.com/application/test-ref-123/documents/acknowledge',
-        JSON.stringify({
-          applicationRefNo: 'app-ref-123',
-          documents: [{ docId: 'uploaded-123', documentName: 'uploaded-doc', documentStatus: 'Accepted' }],
-          optionsSelected: [{
-            applicantId: 1,
-            options: []
-          }],
-          stage: 'Final_ACK'
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json;charset=UTF-8',
-            'Sc-Client-Context': 'mock-meta-data'
-          }
-        }
-      );
-      expect(result).toEqual(mockResponse);
-    });
-  });
-  describe('postFulFilmentData', () => {
-    it('should post fulfilment data with transformed payload', async () => {
-      const mockResponse = { data: { success: true } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const mockPayload = {
-        stage: {},
-        application: {},
-        applicants: [{
-          oth_bank_name_a_1: 'Test Bank',
-          oth_bank_number_a_1: '123456',
-          requested_loan_amount_a_1: 10000
-        }]
-      };
-
-      const result = await postFulFilmentData(mockPayload);
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'https://test-api.com/application/test-ref-123/fulfilment',
-        expect.any(String),
-        {
-          headers: {
-            'Content-Type': 'application/json;charset=UTF-8',
-            'Sc-Client-Context': 'mock-meta-data'
-          }
-        }
-      );
-
-      const requestBody = JSON.parse(mockedAxios.post.mock.calls[0][1]);
-      expect(requestBody.stage.page_id).toBe('test-stage');
-      expect(requestBody.applicants.repayment_account_bank_code_a_1).toBe('Test Bank');
-      expect(requestBody.applicants.draw_down_amount_a_1).toBe(10000);
-      expect(result).toEqual(mockResponse);
-    });
-  });
+Please write an test cases using react and jest including branches with 100 percent coverage
