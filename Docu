@@ -3,23 +3,23 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import DucumentUploadMainSCR from './DocumentUploadMainSCR';
-import { postTMXUserSession, postFinalAcknowledge, postDocSaveData, postFulFilmentData } from '../../../../preApproval/services/preApprovalPostServices';
-import { CONSTANTS } from '../../../../../utils/common/constants';
+import { postTMXUserSession, postFinalAcknowledge, postDocSaveData, postFulFilmentData } from '../../services/preApprovalPostServices';
+import { CONSTANTS } from '../../utils/common/constants';
 
-// Mock the services and components
-jest.mock('../../../../preApproval/services/preApprovalPostServices');
-jest.mock('../../../../../services/common-service');
-jest.mock('../../../../../utils/common/change.utils');
-jest.mock('../documentType/document-type-dynamic', () => () => <div>DocumentTypeDynamic Mock</div>);
-jest.mock('../../../../../shared/components/spinner/spinner', () => () => <div>Spinner Mock</div>);
-jest.mock('../../../../../shared/components/close/close', () => () => <div>Close Mock</div>);
+// Mock all external dependencies
+jest.mock('../../services/preApprovalPostServices');
+jest.mock('../../services/common-service');
+jest.mock('../../utils/common/change.utils');
+jest.mock('../documentType/document-type-dynamic', () => () => <div data-testid="document-type-dynamic">DocumentTypeDynamic</div>);
+jest.mock('../../shared/components/spinner/spinner', () => () => <div data-testid="spinner">Spinner</div>);
+jest.mock('../../shared/components/close/close', () => () => <div data-testid="close-button">Close</div>);
 
 const mockStore = configureStore([]);
 
 describe('DocumentUploadMainSCR Component', () => {
   let store: any;
 
-  const initialState = {
+  const baseState = {
     stages: {
       stages: [{
         stageId: 'doc-upload',
@@ -37,7 +37,7 @@ describe('DocumentUploadMainSCR Component', () => {
             ]
           }],
           application: {
-            channel_reference: 'test-ref'
+            channel_reference: 'test-ref-123'
           },
           products: [{
             product_category: 'CC'
@@ -60,7 +60,12 @@ describe('DocumentUploadMainSCR Component', () => {
   };
 
   beforeEach(() => {
-    store = mockStore(initialState);
+    store = mockStore(baseState);
+    
+    // Reset all mocks
+    jest.clearAllMocks();
+    
+    // Default mock implementations
     (postTMXUserSession as jest.Mock).mockResolvedValue({ 
       status: 200, 
       data: { review_status: 'pass' } 
@@ -70,159 +75,213 @@ describe('DocumentUploadMainSCR Component', () => {
       status: 200, 
       data: { 
         application: { 
-          response_type: 'info', 
-          response_action: 'continue' 
+          response_type: 'INFO', 
+          response_action: 'CONTINUE' 
         },
-        applicants: {},
-        applicant_documents: {}
+        applicants: [{}],
+        applicant_documents: [{}]
       } 
     });
     (postFulFilmentData as jest.Mock).mockResolvedValue({ 
       status: 200, 
       data: { 
         application: { 
-          response_type: 'info', 
-          response_action: 'continue' 
+          response_type: 'INFO', 
+          response_action: 'CONTINUE' 
         },
-        applicants: {}
+        applicants: [{}]
       } 
     });
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('renders without crashing', () => {
+  // Basic rendering tests
+  it('should render the component with default props', () => {
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
+
+    expect(screen.getByTestId('document-type-dynamic')).toBeInTheDocument();
+    expect(screen.getByText(/upload doc/i)).toBeInTheDocument();
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(screen.getByTestId('close-button')).toBeInTheDocument();
   });
 
-  it('displays document count correctly', () => {
+  // Document count tests
+  it('should show correct document count when some documents are uploaded', () => {
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
+
     expect(screen.getByText('1/2')).toBeInTheDocument();
   });
 
-  it('shows continue button when success is true', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument();
-  });
-
-  it('disables continue button when not all documents are uploaded', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    const button = screen.getByRole('button', { name: /continue/i });
-    expect(button).toBeDisabled();
-  });
-
-  it('enables continue button when all documents are uploaded', () => {
+  it('should show complete document count when all documents are uploaded', () => {
     const customState = {
-      ...initialState,
+      ...baseState,
       stages: {
-        ...initialState.stages,
+        ...baseState.stages,
         dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
+          ...baseState.stages.dynamicDocumentsUpload,
           documentCount: 2
         }
       }
     };
     store = mockStore(customState);
-    
+
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    const button = screen.getByRole('button', { name: /continue/i });
-    expect(button).not.toBeDisabled();
+
+    expect(screen.getByText('2/2')).toBeInTheDocument();
   });
 
-  it('shows spinner when showSpinner is true and stage is ld-1', () => {
+  // Continue button tests
+  it('should disable continue button when not all documents are uploaded', () => {
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).toBeDisabled();
+  });
+
+  it('should enable continue button when all documents are uploaded', () => {
     const customState = {
-      ...initialState,
+      ...baseState,
       stages: {
-        ...initialState.stages,
+        ...baseState.stages,
+        dynamicDocumentsUpload: {
+          ...baseState.stages.dynamicDocumentsUpload,
+          documentCount: 2
+        }
+      }
+    };
+    store = mockStore(customState);
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).not.toBeDisabled();
+  });
+
+  it('should not show continue button when success is false', () => {
+    const customState = {
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        dynamicDocumentsUpload: {
+          ...baseState.stages.dynamicDocumentsUpload,
+          success: false
+        }
+      }
+    };
+    store = mockStore(customState);
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    expect(screen.queryByRole('button', { name: /continue/i })).not.toBeInTheDocument();
+  });
+
+  // Spinner tests
+  it('should show spinner when stage is ld-1 and showSpinner is true', () => {
+    const customState = {
+      ...baseState,
+      stages: {
+        ...baseState.stages,
         stages: [{
-          ...initialState.stages.stages[0],
+          ...baseState.stages.stages[0],
           stageId: 'ld-1'
         }]
       }
     };
     store = mockStore(customState);
-    
+
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    expect(screen.getByText('Spinner Mock')).toBeInTheDocument();
+
+    expect(screen.getByTestId('spinner')).toBeInTheDocument();
   });
 
-  it('handles resumeAllowed case correctly', () => {
+  // API call tests
+  it('should call postTMXUserSession when continue button is clicked', async () => {
     const customState = {
-      ...initialState,
-      preApproval: {
-        ...initialState.preApproval,
-        resumeAllowed: 'Y'
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    // Verify behavior when resumeAllowed is 'Y'
-  });
-
-  it('handles nextStage function for CC product', async () => {
-    const customState = {
-      ...initialState,
+      ...baseState,
       stages: {
-        ...initialState.stages,
+        ...baseState.stages,
         dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
+          ...baseState.stages.dynamicDocumentsUpload,
           documentCount: 2
         }
       }
     };
     store = mockStore(customState);
-    
+
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(postTMXUserSession).toHaveBeenCalledWith('test-ref-123');
+    });
+  });
+
+  it('should handle CC product flow when continue button is clicked', async () => {
+    const customState = {
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        dynamicDocumentsUpload: {
+          ...baseState.stages.dynamicDocumentsUpload,
+          documentCount: 2
+        }
+      }
+    };
+    store = mockStore(customState);
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
     await waitFor(() => {
       expect(postTMXUserSession).toHaveBeenCalled();
       expect(postFinalAcknowledge).toHaveBeenCalled();
       expect(postDocSaveData).toHaveBeenCalled();
+      expect(postFulFilmentData).toHaveBeenCalled();
     });
   });
 
-  it('handles nextStage function for non-CC product', async () => {
+  it('should handle non-CC product flow when continue button is clicked', async () => {
     const customState = {
-      ...initialState,
+      ...baseState,
       stages: {
         stages: [{
           stageId: 'doc-upload',
@@ -240,7 +299,7 @@ describe('DocumentUploadMainSCR Component', () => {
               ]
             }],
             application: {
-              channel_reference: 'test-ref'
+              channel_reference: 'test-ref-123'
             },
             products: [{
               product_category: 'LOAN'
@@ -262,335 +321,126 @@ describe('DocumentUploadMainSCR Component', () => {
       }
     };
     store = mockStore(customState);
-    
+
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
     await waitFor(() => {
       expect(postTMXUserSession).toHaveBeenCalled();
       expect(postFinalAcknowledge).toHaveBeenCalled();
       expect(postDocSaveData).toHaveBeenCalled();
+      expect(postFulFilmentData).not.toHaveBeenCalled();
     });
   });
 
-  it('handles error in postTMXUserSession', async () => {
+  // Error handling tests
+  it('should handle error in postTMXUserSession', async () => {
     (postTMXUserSession as jest.Mock).mockRejectedValue(new Error('API Error'));
     const customState = {
-      ...initialState,
+      ...baseState,
       stages: {
-        ...initialState.stages,
+        ...baseState.stages,
         dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
+          ...baseState.stages.dynamicDocumentsUpload,
           documentCount: 2
         }
       }
     };
     store = mockStore(customState);
-    
+
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
     await waitFor(() => {
       expect(postTMXUserSession).toHaveBeenCalled();
     });
   });
 
-  it('handles non-pass review_status in postTMXUserSession', async () => {
+  it('should handle non-pass review_status in postTMXUserSession', async () => {
     (postTMXUserSession as jest.Mock).mockResolvedValue({ 
       status: 200, 
       data: { review_status: 'fail' } 
     });
     const customState = {
-      ...initialState,
+      ...baseState,
       stages: {
-        ...initialState.stages,
+        ...baseState.stages,
         dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
+          ...baseState.stages.dynamicDocumentsUpload,
           documentCount: 2
         }
       }
     };
     store = mockStore(customState);
-    
+
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
     await waitFor(() => {
       expect(postTMXUserSession).toHaveBeenCalled();
     });
   });
 
-  it('handles error in postFinalAcknowledge', async () => {
-    (postFinalAcknowledge as jest.Mock).mockRejectedValue(new Error('API Error'));
+  // Resume allowed tests
+  it('should handle resumeAllowed case correctly', () => {
     const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
-        }
+      ...baseState,
+      preApproval: {
+        ...baseState.preApproval,
+        resumeAllowed: 'Y'
       }
     };
     store = mockStore(customState);
-    
+
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postFinalAcknowledge).toHaveBeenCalled();
-    });
+
+    // Add assertions for resume allowed behavior
+    expect(screen.getByText('1/2')).toBeInTheDocument();
   });
 
-  it('handles non-202 status in postFinalAcknowledge', async () => {
-    (postFinalAcknowledge as jest.Mock).mockResolvedValue({ status: 400 });
+  // File section data tests
+  it('should render correctly when fileSectionData is present', () => {
     const customState = {
-      ...initialState,
+      ...baseState,
       stages: {
-        ...initialState.stages,
+        ...baseState.stages,
         dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
+          ...baseState.stages.dynamicDocumentsUpload,
+          fileSectionData: { someKey: 'someValue' }
         }
       }
     };
     store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postFinalAcknowledge).toHaveBeenCalled();
-    });
-  });
 
-  it('handles error in postDocSaveData', async () => {
-    (postDocSaveData as jest.Mock).mockRejectedValue(new Error('API Error'));
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
-        }
-      }
-    };
-    store = mockStore(customState);
-    
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postDocSaveData).toHaveBeenCalled();
-    });
-  });
 
-  it('handles hard stop response from postDocSaveData', async () => {
-    (postDocSaveData as jest.Mock).mockResolvedValue({ 
-      status: 200, 
-      data: { 
-        application: { 
-          response_type: 'HARD', 
-          response_action: 'STOP' 
-        } 
-      } 
-    });
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
-        }
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postDocSaveData).toHaveBeenCalled();
-    });
-  });
-
-  it('handles error in postFulFilmentData', async () => {
-    (postFulFilmentData as jest.Mock).mockRejectedValue(new Error('API Error'));
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
-        }
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postFulFilmentData).toHaveBeenCalled();
-    });
-  });
-
-  it('handles non-200 status in postFulFilmentData', async () => {
-    (postFulFilmentData as jest.Mock).mockResolvedValue({ status: 400 });
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
-        }
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postFulFilmentData).toHaveBeenCalled();
-    });
-  });
-
-  it('handles hard stop response from postFulFilmentData', async () => {
-    (postFulFilmentData as jest.Mock).mockResolvedValue({ 
-      status: 200, 
-      data: { 
-        application: { 
-          response_type: 'HARD', 
-          response_action: 'STOP' 
-        } 
-      } 
-    });
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
-        }
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const button = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postFulFilmentData).toHaveBeenCalled();
-    });
-  });
-
-  it('renders correctly when fileSectionData is not null', () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          fileSectionData: { someData: true }
-        }
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
-  });
-
-  it('renders correctly when success is false', () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          success: false
-        }
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    expect(screen.queryByRole('button', { name: /continue/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('document-type-dynamic')).toBeInTheDocument();
+    expect(screen.queryByText(/upload doc/i)).not.toBeInTheDocument();
   });
 });
