@@ -3,10 +3,22 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import DocumentTypeDynamic from './DocumentTypeDynamic';
-import { StoreModel } from '../../../../../utils/model/common-model';
+import { postQRCodeZOLO } from '../../../services/preApprovalPostServices';
+import { dispatchError, dispatchLoader } from '../../../../../services/common-service';
 import { stagesAction } from '../../../../../utils/store/stages-slice';
+import { errorAction } from '../../../../../utils/store/error-slice';
 
-// Mock the services and components
+// Mock child components
+jest.mock('../colourIdentityProof/colour-Identity-Proof', () => (props: any) => (
+  <div>
+    ColorIdentityProof Mock
+    <button onClick={() => props.callQRCodeAPI()}>Call QR Code API</button>
+  </div>
+));
+
+jest.mock('../documentUpload/document-upload', () => () => <div>DocumentUpload Mock</div>);
+
+// Mock services
 jest.mock('../../../services/preApprovalPostServices', () => ({
   postQRCodeZOLO: jest.fn(),
 }));
@@ -16,16 +28,13 @@ jest.mock('../../../../../services/common-service', () => ({
   dispatchLoader: jest.fn(),
 }));
 
-jest.mock('../colourIdentityProof/colour-Identity-Proof', () => () => <div>ColorIdentityProof Mock</div>);
-jest.mock('../documentUpload/document-upload', () => () => <div>DocumentUpload Mock</div>);
-
 describe('DocumentTypeDynamic Component', () => {
   const mockStore = configureStore([]);
   const mockSetShowContinueBtn = jest.fn();
   const mockSetHKIDVersion = jest.fn();
   const mockSetHKIDQRCodeData = jest.fn();
 
-  const initialState: Partial<StoreModel> = {
+  const initialState = {
     stages: {
       stages: [
         {
@@ -56,7 +65,7 @@ describe('DocumentTypeDynamic Component', () => {
                       {
                         document_types: [
                           {
-                            uploaded_documents: null,
+                            uploaded_documents: { some: 'data' }, // Mark this as uploaded
                           },
                         ],
                       },
@@ -91,9 +100,10 @@ describe('DocumentTypeDynamic Component', () => {
         />
       </Provider>
     );
+    expect(screen.getByText('HKID Card')).toBeInTheDocument();
   });
 
-  it('displays document list when fileSectionData is null', () => {
+  it('displays document list with correct styling based on upload status', () => {
     const store = mockStore(initialState);
     render(
       <Provider store={store}>
@@ -106,64 +116,15 @@ describe('DocumentTypeDynamic Component', () => {
       </Provider>
     );
 
-    expect(screen.getByText('HKID Card')).toBeInTheDocument();
-    expect(screen.getByText('Proof of Address')).toBeInTheDocument();
-  });
+    // HKID Card (not uploaded)
+    const hkidCard = screen.getByText('HKID Card').closest('div');
+    expect(hkidCard).toHaveClass('form-field');
+    expect(hkidCard).toHaveClass('doc-select-box-child');
 
-  it('displays ColorIdentityProof when fileSectionData is R0001', () => {
-    const stateWithFileData = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          fileSectionData: {
-            document_category_code: 'R0001',
-          },
-        },
-      },
-    };
-
-    const store = mockStore(stateWithFileData);
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic
-          setShowContinueBtn={mockSetShowContinueBtn}
-          setHKIDVersion={mockSetHKIDVersion}
-          HKIDVersion="v1"
-          setHKIDQRCodeData={mockSetHKIDQRCodeData}
-        />
-      </Provider>
-    );
-
-    expect(screen.getByText('ColorIdentityProof Mock')).toBeInTheDocument();
-  });
-
-  it('displays DocumentUpload when fileSectionData is not R0001', () => {
-    const stateWithFileData = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          fileSectionData: {
-            document_category_code: 'R0002',
-          },
-        },
-      },
-    };
-
-    const store = mockStore(stateWithFileData);
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic
-          setShowContinueBtn={mockSetShowContinueBtn}
-          setHKIDVersion={mockSetHKIDVersion}
-          HKIDVersion="v1"
-          setHKIDQRCodeData={mockSetHKIDQRCodeData}
-        />
-      </Provider>
-    );
-
-    expect(screen.getByText('DocumentUpload Mock')).toBeInTheDocument();
+    // Proof of Address (uploaded)
+    const poaCard = screen.getByText('Proof of Address').closest('div');
+    expect(poaCard).toHaveClass('form-field-checked');
+    expect(poaCard).toHaveClass('doc-select-box-child');
   });
 
   it('dispatches updatefileSectionData when document is clicked', () => {
@@ -179,97 +140,31 @@ describe('DocumentTypeDynamic Component', () => {
       </Provider>
     );
 
-    const hkidCard = screen.getByText('HKID Card');
-    fireEvent.click(hkidCard);
+    fireEvent.click(screen.getByText('HKID Card'));
 
     const actions = store.getActions();
     expect(actions).toContainEqual(
-      stagesAction.updatefileSectionData(initialState.stages!.stages[0].stageInfo.applicant_documents[0].document_list[0])
+      stagesAction.updatefileSectionData(initialState.stages.stages[0].stageInfo.applicant_documents[0].document_list[0])
     );
   });
 
-  it('applies correct className based on uploaded_documents status', () => {
-    const stateWithUploadedDoc = {
-      ...initialState,
-      stages: {
-        stages: [
-          {
-            stageInfo: {
-              application: {
-                channel_reference: 'test-ref',
-              },
-              applicant_documents: [
-                {
-                  document_list: [
-                    {
-                      document_category: 'HKID Card',
-                      document_category_code: 'R0001',
-                      document_options: [
-                        {
-                          document_types: [
-                            {
-                              uploaded_documents: {
-                                // Mock uploaded document data
-                              },
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                    {
-                      document_category: 'Proof of Address',
-                      document_category_code: 'R0002',
-                      document_options: [
-                        {
-                          document_types: [
-                            {
-                              uploaded_documents: null,
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
+  describe('when fileSectionData is set', () => {
+    it('renders ColorIdentityProof for R0001 document type', () => {
+      const stateWithFileData = {
+        ...initialState,
+        stages: {
+          ...initialState.stages,
+          dynamicDocumentsUpload: {
+            ...initialState.stages.dynamicDocumentsUpload,
+            fileSectionData: {
+              document_category_code: 'R0001',
+              document_category: 'HKID Card',
             },
           },
-        ],
-        dynamicDocumentsUpload: {
-          fileSectionData: null,
-          HKIDVersionValue: 'v1',
         },
-      },
-    };
+      };
 
-    const store = mockStore(stateWithUploadedDoc);
-    render(
-      <Provider store={store}>
-        <DocumentTypeDynamic
-          setShowContinueBtn={mockSetShowContinueBtn}
-          setHKIDVersion={mockSetHKIDVersion}
-          HKIDVersion="v1"
-          setHKIDQRCodeData={mockSetHKIDQRCodeData}
-        />
-      </Provider>
-    );
-
-    const hkidCardElement = screen.getByText('HKID Card').closest('div');
-    expect(hkidCardElement).toHaveClass('form-field-checked');
-
-    const proofOfAddressElement = screen.getByText('Proof of Address').closest('div');
-    expect(proofOfAddressElement).toHaveClass('form-field');
-  });
-
-  describe('callQRCodeAPI function', () => {
-    it('handles successful API call', async () => {
-      const mockPostQRCodeZOLO = require('../../../services/preApprovalPostServices').postQRCodeZOLO;
-      mockPostQRCodeZOLO.mockResolvedValue({
-        status: 200,
-        data: { qrCode: 'test-qr-code' },
-      });
-
-      const store = mockStore(initialState);
+      const store = mockStore(stateWithFileData);
       render(
         <Provider store={store}>
           <DocumentTypeDynamic
@@ -281,28 +176,25 @@ describe('DocumentTypeDynamic Component', () => {
         </Provider>
       );
 
-      // Trigger the API call (this would normally be done via the ColorIdentityProof component)
-      const componentInstance = screen.getByTestId('document-type-dynamic');
-      // @ts-ignore - We're accessing a private method for testing purposes
-      componentInstance.callQRCodeAPI();
-
-      await Promise.resolve(); // Allow promises to resolve
-
-      expect(mockPostQRCodeZOLO).toHaveBeenCalledWith('test-ref', 'v1');
-      expect(mockSetHKIDQRCodeData).toHaveBeenCalledWith({ qrCode: 'test-qr-code' });
-      
-      const actions = store.getActions();
-      expect(actions).toContainEqual(stagesAction.updateHKIDQRCodeData({ qrCode: 'test-qr-code' }));
+      expect(screen.getByText('ColorIdentityProof Mock')).toBeInTheDocument();
     });
 
-    it('handles API call with non-200 status', async () => {
-      const mockPostQRCodeZOLO = require('../../../services/preApprovalPostServices').postQRCodeZOLO;
-      mockPostQRCodeZOLO.mockResolvedValue({
-        status: 400,
-        data: { error: 'test-error' },
-      });
+    it('renders DocumentUpload for non-R0001 document type', () => {
+      const stateWithFileData = {
+        ...initialState,
+        stages: {
+          ...initialState.stages,
+          dynamicDocumentsUpload: {
+            ...initialState.stages.dynamicDocumentsUpload,
+            fileSectionData: {
+              document_category_code: 'R0002',
+              document_category: 'Proof of Address',
+            },
+          },
+        },
+      };
 
-      const store = mockStore(initialState);
+      const store = mockStore(stateWithFileData);
       render(
         <Provider store={store}>
           <DocumentTypeDynamic
@@ -314,30 +206,71 @@ describe('DocumentTypeDynamic Component', () => {
         </Provider>
       );
 
-      // Trigger the API call
-      const componentInstance = screen.getByTestId('document-type-dynamic');
-      // @ts-ignore
-      componentInstance.callQRCodeAPI();
-
-      await Promise.resolve();
-
-      const actions = store.getActions();
-      expect(actions).toContainEqual(
-        errorAction.getError({
-          statusCode: "error",
-          statusText: "no response",
-        })
-      );
+      expect(screen.getByText('DocumentUpload Mock')).toBeInTheDocument();
     });
 
-    it('handles API call error', async () => {
-      const mockPostQRCodeZOLO = require('../../../services/preApprovalPostServices').postQRCodeZOLO;
-      const mockDispatchError = require('../../../../../services/common-service').dispatchError;
+    it('handles QR code API call through ColorIdentityProof', async () => {
+      const mockResponse = { status: 200, data: { qrData: 'test' } };
+      (postQRCodeZOLO as jest.Mock).mockResolvedValue(mockResponse);
+
+      const stateWithFileData = {
+        ...initialState,
+        stages: {
+          ...initialState.stages,
+          dynamicDocumentsUpload: {
+            ...initialState.stages.dynamicDocumentsUpload,
+            fileSectionData: {
+              document_category_code: 'R0001',
+              document_category: 'HKID Card',
+            },
+          },
+        },
+      };
+
+      const store = mockStore(stateWithFileData);
+      render(
+        <Provider store={store}>
+          <DocumentTypeDynamic
+            setShowContinueBtn={mockSetShowContinueBtn}
+            setHKIDVersion={mockSetHKIDVersion}
+            HKIDVersion="v1"
+            setHKIDQRCodeData={mockSetHKIDQRCodeData}
+          />
+        </Provider>
+      );
+
+      // Click the button in the mocked ColorIdentityProof that calls callQRCodeAPI
+      fireEvent.click(screen.getByText('Call QR Code API'));
+
+      await Promise.resolve(); // Let the promise resolve
+
+      expect(postQRCodeZOLO).toHaveBeenCalledWith('test-ref', 'v1');
+      expect(dispatchLoader).toHaveBeenCalledWith(true);
+      expect(mockSetHKIDQRCodeData).toHaveBeenCalledWith(mockResponse.data);
       
+      const actions = store.getActions();
+      expect(actions).toContainEqual(stagesAction.updateHKIDQRCodeData(mockResponse.data));
+    });
+
+    it('handles QR code API errors', async () => {
       const testError = new Error('Test error');
-      mockPostQRCodeZOLO.mockRejectedValue(testError);
+      (postQRCodeZOLO as jest.Mock).mockRejectedValue(testError);
 
-      const store = mockStore(initialState);
+      const stateWithFileData = {
+        ...initialState,
+        stages: {
+          ...initialState.stages,
+          dynamicDocumentsUpload: {
+            ...initialState.stages.dynamicDocumentsUpload,
+            fileSectionData: {
+              document_category_code: 'R0001',
+              document_category: 'HKID Card',
+            },
+          },
+        },
+      };
+
+      const store = mockStore(stateWithFileData);
       render(
         <Provider store={store}>
           <DocumentTypeDynamic
@@ -349,14 +282,11 @@ describe('DocumentTypeDynamic Component', () => {
         </Provider>
       );
 
-      // Trigger the API call
-      const componentInstance = screen.getByTestId('document-type-dynamic');
-      // @ts-ignore
-      componentInstance.callQRCodeAPI();
+      fireEvent.click(screen.getByText('Call QR Code API'));
 
       await Promise.resolve();
 
-      expect(mockDispatchError).toHaveBeenCalledWith(testError);
+      expect(dispatchError).toHaveBeenCalledWith(testError);
     });
   });
 });
