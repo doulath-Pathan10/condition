@@ -1,326 +1,408 @@
-import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import validateService from "../../../services/validation-service";
-import { KeyWithAnyModel, LovInputModel, StoreModel } from "../../../utils/model/common-model";
-import { fieldError, fieldIdAppend, getUrl, isFieldUpdate, isFieldValueUpdate } from "../../../utils/common/change.utils";
-import "../phone/phone.scss";
-import errorMsg from "../../../assets/_json/error.json";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
-import { lastAction } from "../../../utils/store/last-accessed-slice";
-import { addressSearchRequest, getLovData } from "../../../services/common-service";
-import { fieldErrorAction } from "../../../utils/store/field-error-slice";
+import React from 'react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import AddressSearch from './AddressSearch';
+import { CONSTANTS } from '../../../utils/common/constants';
+import * as commonService from '../../../services/common-service';
 
-export const AddressSearch = (props: KeyWithAnyModel) => {
+// Mock the services
+jest.mock('../../../services/common-service', () => ({
+  addressSearchRequest: jest.fn(),
+  getLovData: jest.fn(),
+}));
 
-  const [lovData, setLovData] = useState<any>([]);
-  const [error, setError] = useState('');
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const fieldErrorSelector = useSelector(
-    (state: StoreModel) => state.fielderror.error
-  );
-  const dispatch = useDispatch();
-  let propsData = props && props.data;
-  const [defaultValue, setDefaultValue] = useState("");
-  const [placeholder, setPlaceHolder] = useState(propsData && props.data.rwb_label_name)
-  const language = getUrl.getLanguageInfo("lang")
-  const regexAlphaNumeric = /^[a-zA-Z0-9 ]+$/;
-  const resregex = /^[A-Za-z\\0-9:().,'+&]+(?: [A-Za-z\\0-9:().,'+&]+)*$/;
-  const regexChinese = /[\u4e00-\u9fa5]/;
-  const userInputSelector = useSelector(
-    (state: StoreModel) => state.stages.userInput
-  );
-  const [suggestedAddresses, setSuggestedAddresses] = useState<any[]>([]);
-  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
-  const resumePage = getUrl.getParameterByName("pageId")
+// Mock the error messages
+jest.mock('../../../assets/_json/error.json', () => ({
+  buildingEstateSplChar: 'Invalid characters in building/estate name',
+  buildingEstateSplChar_CN: '建筑物/屋苑名称中的无效字符',
+  buildingEstateSplChar_HK: '建築物/屋苑名稱中的無效字符',
+  buildingEstateRequired: 'Building/Estate name is required',
+  buildingEstateRequired_CN: '需要建筑物/屋苑名称',
+  buildingEstateRequired_HK: '需要建築物/屋苑名稱',
+  emity: 'Please enter ',
+  emity_CN: '请输入 ',
+  emity_HK: '請輸入 ',
+  patterns: 'Invalid format for ',
+  patterns_CN: '格式无效 ',
+  patterns_HK: '格式無效 ',
+}));
 
-  useEffect(() => {
-    /*istanbul ignore else*/
-    if (userInputSelector && userInputSelector.applicants[0] && userInputSelector.applicants[0][props.data.logical_field_name]) {
-      const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
-      setDefaultValue(displayValue);
+// Mock URL utilities
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn(),
+    getParameterByName: jest.fn(),
+  },
+  fieldError: jest.fn(),
+  fieldIdAppend: jest.fn(),
+  isFieldUpdate: jest.fn(),
+  isFieldValueUpdate: jest.fn(),
+}));
 
-    }
-    /*istanbul ignore else*/
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
-      /*istanbul ignore else*/
-      if (stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"]
-      ) {
-        const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
-        setDefaultValue(displayValue);
-      }
-    }
-  }, []);
+describe('AddressSearch Component', () => {
+  const mockStore = configureStore([]);
+  let store: any;
+  const mockData = {
+    data: {
+      logical_field_name: 'res_building_estate_pt',
+      rwb_label_name: 'Building/Estate',
+      mandatory: 'Yes',
+      length: 100,
+      editable: false,
+    },
+    handleCallback: jest.fn(),
+    handleFieldDispatch: jest.fn(),
+  };
 
-  
-
-  useEffect(() => {
-    /*istanbul ignore else*/
-    if(defaultValue.length > 0 && !resregex.test(defaultValue)) {
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        }));
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateSplChar : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateSplChar_CN : errorMsg.buildingEstateSplChar_HK}`);
-      return
-    }
-    if (fieldError(fieldErrorSelector, props)) {
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`)
-    } else {
-      setError('');
-      dispatch(fieldErrorAction.removeToggleFieldError(props.data.logical_field_name));
-    }
-  }, [fieldErrorSelector]);
-
-  useEffect(() => {
-    /*istanbul ignore else*/
-    if (error === "") {
-      dispatch(ContinueBtnAction.getContinueEnableState(true));
-    } else {
-      dispatch(ContinueBtnAction.getContinueEnableState(false));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps  
-  }, [error, dispatch])
-
-  const changeHandler = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    setDefaultValue(event.target.value);
-    props.handleCallback(props.data, event.target.value);
-    props.handleFieldDispatch(props.data.logical_field_name, event.target.value);
-    setError('');
-    if ((props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") && event.target.value.length === 0) {
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      return;
-    }
-    else if (props?.data?.logical_field_name === "res_building_estate_pt" && !(event.target.value)) {
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateRequired : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateRequired_CN : errorMsg.buildingEstateRequired_HK}`);
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        }));
-      return;
-    }
-    else if(!resregex.test(event.target.value)) {
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        }));
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateSplChar : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateSplChar_CN : errorMsg.buildingEstateSplChar_HK}`);
-      return
-    }
-    else if (event.target.value.length > 2) {
-      const isChinese = regexChinese.test(event.target.value);
-      const isEnglish = regexAlphaNumeric.test(event.target.value);
-      let detectedLanguage = CONSTANTS.LANG_EN;
-      /*istanbul ignore else*/
-      if (isChinese) {
-        detectedLanguage = CONSTANTS.LANG_CN;
-      }
-      /*istanbul ignore else*/
-      if (!isEnglish && !isChinese) {
-        const errorMessage = detectedLanguage === CONSTANTS.LANG_EN
-          ? errorMsg.buildingEstateSplChar
-          : detectedLanguage === CONSTANTS.LANG_CN
-            ? errorMsg.buildingEstateSplChar_CN
-            : errorMsg.buildingEstateSplChar_HK;
-        setError(errorMessage);
-        setError(language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateSplChar : language === CONSTANTS.LANG_CN?errorMsg.buildingEstateSplChar_CN : errorMsg.buildingEstateSplChar_HK)
-        return;
-      }
-      setError("");
-      dispatch(fieldErrorAction.removeToggleFieldError(props.data.logical_field_name));
-      const processAddressSearch = (lang: string) => {
-        dispatch(addressSearchRequest(event.target.value))?.then((res: any) => {
-          
-          const addressLookupResult = res.getElementsByTagName("AddressLookupResult")[0];
-          const suggestedAddress = addressLookupResult?.getElementsByTagName("SuggestedAddress");
-          /*istanbul ignore else*/
-          if (suggestedAddress && suggestedAddress.length > 0) {
-            const estateNamesSet = new Set<string>();
-            const suggestedAddressArray = Array.from(suggestedAddress);
-
-            setSuggestedAddresses(suggestedAddressArray)
-    
-            suggestedAddressArray.forEach((suggestion: any) => {
-              let estateName = '';
-              if (lang === CONSTANTS.LANG_EN) {
-                estateName = suggestion.querySelector('PremisesAddress > EngPremisesAddress > EngEstate > EstateName')?.textContent || '';
-              } else if (lang === CONSTANTS.LANG_CN) {
-                estateName = suggestion.querySelector('PremisesAddress > ChiPremisesAddress > ChiEstate > EstateName')?.textContent || '';
-              } else {
-                estateName = suggestion.querySelector('PremisesAddress > EngPremisesAddress > EngEstate > EstateName')?.textContent || '';
-              }
-              /*istanbul ignore else*/
-
-              if (estateName) {
-                estateNamesSet.add(estateName)
-              }
-            });
-            let newData= Array.from(estateNamesSet)
-            let filteredData: any = newData.filter((estateName: any) => estateName.toLowerCase().includes(event.target.value.toLowerCase()));
-            setLovData(filteredData);
+  beforeEach(() => {
+    store = mockStore({
+      stages: {
+        stages: [{
+          stageId: 'bd-1',
+          stageInfo: {
+            applicants: [{
+              res_building_estate_pt_a_1: 'Test Building',
+            }]
           }
-        });
-      };
-      if (isChinese) {
-        processAddressSearch(detectedLanguage);
-      } else if (isEnglish) {
-        processAddressSearch(detectedLanguage);
+        }],
+        userInput: {
+          applicants: [{
+            res_building_estate_pt: 'Test Building',
+          }]
+        }
+      },
+      fielderror: {
+        error: []
+      },
+      preApproval: {
+        resumeAllowed: 'N'
       }
-    }
-    dispatch(lastAction.getField(fieldName))
-  };
+    });
 
-  useEffect(() => {
-    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0] && (resumeAllowed === "Y" || resumePage === "resume")) {
-      if (props.data.logical_field_name) {
-        var DisplayValue = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"] || "";
-        setDefaultValue(DisplayValue);
+    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    (require('../../../utils/common/change.utils').getUrl.getParameterByName.mockReturnValue(null);
+    (require('../../../utils/common/change.utils').fieldError.mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('renders without crashing', () => {
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    expect(screen.getByLabelText('Building/Estate')).toBeInTheDocument();
+  });
+
+  test('displays initial value from userInputSelector', () => {
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate') as HTMLInputElement;
+    expect(input.value).toBe('Test Building');
+  });
+
+  test('displays initial value from stageSelector when resumeAllowed is Y', () => {
+    store = mockStore({
+      ...store.getState(),
+      preApproval: {
+        resumeAllowed: 'Y'
       }
-    }
-  }, [])
+    });
 
-  const handleEstateSelection = (selectedEstateName: any) => {
-    const matchedAddress = suggestedAddresses.find((suggestion) => {
-      const estateElement = suggestion as Element;
-      
-      // Handle Estate Name (English & Chinese)
-      const estateNameText = language === CONSTANTS.LANG_CN
-        ? estateElement.querySelector('PremisesAddress > ChiPremisesAddress > ChiEstate > EstateName')?.textContent?.trim() || ''
-        : estateElement.querySelector('PremisesAddress > EngPremisesAddress > EngEstate > EstateName')?.textContent?.trim() || '';
-  
-      return estateNameText === selectedEstateName.trim();
-    }) as Element | undefined;
-  
-    if (!matchedAddress) {
-      return;
-    }
-  
-    // Handle Street Name (English & Chinese)
-    const selectedStreetName = language === CONSTANTS.LANG_CN
-      ? matchedAddress.querySelector('PremisesAddress > ChiPremisesAddress > ChiStreet > StreetName')?.textContent?.trim() || ''
-      : matchedAddress.querySelector('PremisesAddress > EngPremisesAddress > EngStreet > StreetName')?.textContent?.trim() || '';
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate') as HTMLInputElement;
+    expect(input.value).toBe('Test Building');
+  });
 
-    // Handle District Name (English & Chinese)
-    const selectedDistrictName = language === CONSTANTS.LANG_CN
-      ? matchedAddress.querySelector('PremisesAddress > ChiPremisesAddress > ChiDistrict > DcDistrict')?.textContent?.trim() || ''
-      : matchedAddress.querySelector('PremisesAddress > EngPremisesAddress > EngDistrict > DcDistrict')?.textContent?.trim() || '';
-  
-    // Handle Region Name (English & Chinese)
-    const selectedRegionName = language === CONSTANTS.LANG_CN
-      ? matchedAddress.querySelector('PremisesAddress > ChiPremisesAddress > Region')?.textContent?.trim() || ''
-      : matchedAddress.querySelector('PremisesAddress > EngPremisesAddress > Region')?.textContent?.trim() || '';
-  
-      if(stageSelector[0].stageId == "bd-1") {
-        props.handleFieldDispatch("res_name_of_Street", selectedStreetName);
-        props.handleFieldDispatch("res_district", selectedDistrictName);
-      
-        const regionCodeMap: Record<string, string> = {
-          HK: "A00",
-          KLN: "A01",
-          NT: "A03"
-        };
-      
-        const regionCode = regionCodeMap[selectedRegionName] || selectedRegionName;
-        props.handleFieldDispatch("res_city", regionCode);
-      } 
-      if(stageSelector[0].stageId == "ad-3") {
-        props.handleFieldDispatch("off_name_of_Street", selectedStreetName);
-        props.handleFieldDispatch("off_district", selectedDistrictName);
-      
-        const regionCodeMap: Record<string, string> = {
-          HK: "A00",
-          KLN: "A01",
-          NT: "A03"
-        };
-      
-        const regionCode = regionCodeMap[selectedRegionName] || selectedRegionName;
-        props.handleFieldDispatch("off_city", regionCode);
-      } 
-  };
+  test('displays error when field is empty and mandatory', () => {
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    
+    expect(screen.getByText('Please enter Building/Estate')).toBeInTheDocument();
+  });
 
-  const bindHandler = (fieldName: string, event: any) => {
-    if ((props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") && event.target.value.length === 0) {
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
-      return;
-    }
-    if(event.target.value.length > 0 && !resregex.test(event.target.value)) {
-      dispatch(
-        fieldErrorAction.getFieldError({
-          fieldName: props.data.logical_field_name,
-        }));
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateSplChar : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateSplChar_CN : errorMsg.buildingEstateSplChar_HK}`);
-      return
-    }
-    if (event.target.validity.valid) {
-      const fieldValue = event.target.value;
-      dispatch(isFieldUpdate(props, fieldValue, fieldName));
-      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
-      props.handleFieldDispatch(props.data.logical_field_name, event.target.value);
-      setError('');
-      dispatch(fieldErrorAction.removeToggleFieldError(props.data.logical_field_name));
-    }
-    if (!event.target.validity.valid) {
-      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateRequired : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateRequired_CN : errorMsg.buildingEstateRequired_HK}`);
-    }
-  };
+  test('displays error when input contains invalid characters', () => {
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    fireEvent.change(input, { target: { value: 'Test@Building' } });
+    
+    expect(screen.getByText('Invalid characters in building/estate name')).toBeInTheDocument();
+  });
 
-  const focusHandler = (fieldName: string, event: React.FocusEvent<HTMLInputElement>) => {
-    dispatch(lastAction.getField(fieldName))
-  }
+  test('displays Chinese error message when language is CN', () => {
+    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
+    
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    fireEvent.change(input, { target: { value: 'Test@Building' } });
+    
+    expect(screen.getByText('建筑物/屋苑名称中的无效字符')).toBeInTheDocument();
+  });
 
-  const noPlaceholder = props.data.logical_field_name === "email";
+  test('displays Hong Kong error message when language is HK', () => {
+    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_HK);
+    
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    fireEvent.change(input, { target: { value: 'Test@Building' } });
+    
+    expect(screen.getByText('建築物/屋苑名稱中的無效字符')).toBeInTheDocument();
+  });
 
-  return (
-    <>
-      {propsData &&
-        <div className="phone">
-          <label htmlFor={props.data.logical_field_name}>
-            {(defaultValue && !error) && <div className="tick-class"></div>}
-            <span style={(defaultValue && !error)?{marginLeft: "2em"}:{marginLeft:'0'}}> {props.data.rwb_label_name}</span>
-            {props.data.logical_field_name === "email" ? '*' :''}
-          </label>
-          <div>
-            <input
-              type="text"
-              name={props.data.logical_field_name + '_1'}
-              aria-label={props.data.logical_field_name}
-              id={props.data.logical_field_name + '_1'}
-              placeholder={noPlaceholder ? "" : placeholder}
-              value={defaultValue}
-              // minLength={props.data.min_length}
-              maxLength={props.data.length}
-              // pattern={props.data.regex}
-              onChange={changeHandler.bind(this, props.data.logical_field_name)}
-              onBlur={bindHandler.bind(this, props.data.logical_field_name)}
-              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
-              onInput={(e) => handleEstateSelection((e.target as HTMLInputElement).value)}
-             
-              disabled={props.data.editable}
-              className={error ? 'input-error' : 'input-no-error'}
-              autoComplete="off"
-              list={props.data.logical_field_name}
-            />
-            <datalist id={props.data.logical_field_name}>
-              {(lovData.length > 0) &&
-                lovData.map((estateName: any, index: any) => {
-                  return (
-                    <option key={index} value={estateName} />
-                  );
-                })
-              }
-            </datalist>
-          </div>
-          {error && (
-            <div className="error-msg">
-              {error}
-            </div>
-          )}
-        </div>
+  test('triggers address search when input is valid and length > 2', async () => {
+    const mockResponse = {
+      getElementsByTagName: jest.fn().mockReturnValue([{
+        getElementsByTagName: jest.fn().mockReturnValue([
+          {
+            querySelector: jest.fn().mockImplementation((selector) => {
+              if (selector.includes('EngEstate')) return { textContent: 'Test Estate' };
+              return null;
+            })
+          }
+        ])
+      }])
+    };
+    
+    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Test' } });
+    });
+    
+    expect(commonService.addressSearchRequest).toHaveBeenCalledWith('Test');
+  });
+
+  test('handles estate selection and dispatches address parts', async () => {
+    const mockResponse = {
+      getElementsByTagName: jest.fn().mockReturnValue([{
+        getElementsByTagName: jest.fn().mockReturnValue([
+          {
+            querySelector: jest.fn().mockImplementation((selector) => {
+              if (selector.includes('EngEstate')) return { textContent: 'Test Estate' };
+              if (selector.includes('EngStreet')) return { textContent: 'Test Street' };
+              if (selector.includes('EngDistrict')) return { textContent: 'Test District' };
+              if (selector.includes('Region')) return { textContent: 'HK' };
+              return null;
+            })
+          }
+        ])
+      }])
+    };
+    
+    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Test' } });
+      fireEvent.change(input, { target: { value: 'Test Estate' } });
+    });
+    
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_name_of_Street', 'Test Street');
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_district', 'Test District');
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_city', 'A00');
+  });
+
+  test('handles Chinese estate selection and dispatches address parts', async () => {
+    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
+    
+    const mockResponse = {
+      getElementsByTagName: jest.fn().mockReturnValue([{
+        getElementsByTagName: jest.fn().mockReturnValue([
+          {
+            querySelector: jest.fn().mockImplementation((selector) => {
+              if (selector.includes('ChiEstate')) return { textContent: '測試屋苑' };
+              if (selector.includes('ChiStreet')) return { textContent: '測試街道' };
+              if (selector.includes('ChiDistrict')) return { textContent: '測試區' };
+              if (selector.includes('Region')) return { textContent: 'KLN' };
+              return null;
+            })
+          }
+        ])
+      }])
+    };
+    
+    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: '測試' } });
+      fireEvent.change(input, { target: { value: '測試屋苑' } });
+    });
+    
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_name_of_Street', '測試街道');
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_district', '測試區');
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_city', 'A01');
+  });
+
+  test('shows tick when field has value and no error', () => {
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    expect(document.querySelector('.tick-class')).toBeInTheDocument();
+  });
+
+  test('disables input when editable is true', () => {
+    const disabledData = {
+      ...mockData,
+      data: {
+        ...mockData.data,
+        editable: true
       }
-    </>
-  );
-};
+    };
+    
+    render(
+      <Provider store={store}>
+        <AddressSearch {...disabledData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    expect(input).toBeDisabled();
+  });
 
-export default AddressSearch;
+  test('handles office address fields when stage is ad-3', async () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        stages: [{
+          stageId: 'ad-3',
+          stageInfo: {
+            applicants: [{
+              res_building_estate_pt_a_1: 'Test Office',
+            }]
+          }
+        }],
+        userInput: {
+          applicants: [{
+            res_building_estate_pt: 'Test Office',
+          }]
+        }
+      }
+    });
+    
+    const mockResponse = {
+      getElementsByTagName: jest.fn().mockReturnValue([{
+        getElementsByTagName: jest.fn().mockReturnValue([
+          {
+            querySelector: jest.fn().mockImplementation((selector) => {
+              if (selector.includes('EngEstate')) return { textContent: 'Test Office' };
+              if (selector.includes('EngStreet')) return { textContent: 'Office Street' };
+              if (selector.includes('EngDistrict')) return { textContent: 'Office District' };
+              if (selector.includes('Region')) return { textContent: 'NT' };
+              return null;
+            })
+          }
+        ])
+      }])
+    };
+    
+    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
+    
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Test Office' } });
+    });
+    
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('off_name_of_Street', 'Office Street');
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('off_district', 'Office District');
+    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('off_city', 'A03');
+  });
 
-Please write an test cases using react and jest including branches with 100 percent coverage
+  test('does not show tick when field has error', () => {
+    (require('../../../utils/common/change.utils').fieldError.mockReturnValue(true);
+    
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    fireEvent.change(input, { target: { value: 'Invalid@Building' } });
+    
+    expect(document.querySelector('.tick-class')).not.toBeInTheDocument();
+  });
+
+  test('handles focus event', () => {
+    render(
+      <Provider store={store}>
+        <AddressSearch {...mockData} />
+      </Provider>
+    );
+    
+    const input = screen.getByLabelText('Building/Estate');
+    fireEvent.focus(input);
+    
+    const actions = store.getActions();
+    expect(actions).toContainEqual(
+      expect.objectContaining({
+        type: 'lastAccessedSlice/getField',
+        payload: 'res_building_estate_pt'
+      })
+    );
+  });
+});
