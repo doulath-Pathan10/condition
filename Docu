@@ -1,77 +1,172 @@
-import { useState, useCallback, useEffect } from 'react';
-import "./pdf.scss";
-import { Document, Page, pdfjs } from 'react-pdf';
-import "react-pdf/dist/esm/Page/AnnotationLayer.css";
-import { PdfModel, StoreModel } from '../../../utils/model/common-model';
-
-
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import { Pdf } from './Pdf';
+import { Document, Page } from 'react-pdf';
 import { useSelector } from 'react-redux';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
-
-export const Pdf = (props: PdfModel) => {
-
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const maxWidth = stageSelector[0].stageId==='rp'? 3000 : 800;
-  const getDeviceType = (): number => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isMobile = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
-    const isTablet = /ipad|tablet|andriod(?!.*mobile)/i.test(userAgent) || (navigator.maxTouchPoints > 1 && window.innerHeight < 1024);
-/*istanbul ignore else*/
-    if (isMobile) {
-      return window.innerWidth - 60;
-    } else if (isTablet) {
-      return Math.min(window.innerWidth, 768) + 100;
-    } else {
-      return Math.min(window.innerWidth, 1200);
-    }
-  };
-
-  const [numPages, setNumPages] = useState(0);
-  const [containerWidth, setContainerWidth] = useState<number>(() => getDeviceType());
-
-  function onDocumentLoadSuccess(props: any) {
-    setNumPages(props.numPages);
+// Mock the react-pdf components
+jest.mock('react-pdf', () => ({
+  Document: jest.fn(({ children }) => <div data-testid="document">{children}</div>),
+  Page: jest.fn(() => <div data-testid="page" />),
+  pdfjs: {
+    GlobalWorkerOptions: {},
+    version: '2.12.313'
   }
+}));
 
-  useEffect(() => {
-    const handleResize = () => {
-      const newWidth = getDeviceType();
-      setContainerWidth(newWidth);
-    }
-    window.addEventListener("resize", handleResize);
+// Mock the useSelector hook
+jest.mock('react-redux', () => ({
+  useSelector: jest.fn()
+}));
 
-    return () => {
-      window.removeEventListener("resize", handleResize)
-    }
-  })
-  // useResizeObserver(containerRef, resizeObserverOptions, onResize);
+// Mock the navigator and window properties
+const mockUserAgent = (agent: string) => {
+  Object.defineProperty(window.navigator, 'userAgent', {
+    value: agent,
+    writable: true
+  });
+};
 
-  return (
-    <>
-    <div >
-      <Document
-        renderMode="svg"
-        file={props.fileName}
-        onLoadSuccess={onDocumentLoadSuccess}
-      >
-        {Array.from(new Array(numPages), (el, index) => (
-          <Page
-            scale={1}
-            renderTextLayer={false}
-            key={`page_${index + 1}`}
-            pageNumber={index + 1}
-            className='pdf-display'
-            width={containerWidth ? Math.min(containerWidth, maxWidth) : maxWidth}
-          />
-        ))}
-      </Document>
-    </div>
-    </>
-  )
-}
-export default Pdf;
+const mockMaxTouchPoints = (points: number) => {
+  Object.defineProperty(window.navigator, 'maxTouchPoints', {
+    value: points,
+    writable: true
+  });
+};
 
-Please write an test cases using react and jest including branches with 100 percent coverage
+describe('Pdf Component', () => {
+  const mockFileName = 'test.pdf';
+  const mockStages = [
+    { stageId: 'rp', otherProps: {} },
+    { stageId: 'other', otherProps: {} }
+  ];
+
+  beforeEach(() => {
+    (useSelector as jest.Mock).mockImplementation((selector) => 
+      selector({ stages: { stages: mockStages } })
+    );
+    window.innerWidth = 1024;
+    mockUserAgent('');
+    mockMaxTouchPoints(0);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders without crashing', () => {
+    render(<Pdf fileName={mockFileName} />);
+    expect(screen.getByTestId('document')).toBeInTheDocument();
+  });
+
+  it('sets up pdf worker correctly', () => {
+    render(<Pdf fileName={mockFileName} />);
+    expect(require('react-pdf').pdfjs.GlobalWorkerOptions.workerSrc).toContain('cdnjs.cloudflare.com');
+  });
+
+  it('renders correct number of pages', () => {
+    const mockOnLoadSuccess = jest.fn(({ numPages }) => {
+      expect(numPages).toBe(5);
+    });
+    
+    (Document as jest.Mock).mockImplementation(({ onLoadSuccess, children }) => {
+      mockOnLoadSuccess({ numPages: 5 });
+      return <div>{children}</div>;
+    });
+
+    render(<Pdf fileName={mockFileName} />);
+    expect(mockOnLoadSuccess).toHaveBeenCalled();
+    expect(screen.getAllByTestId('page').length).toBe(5);
+  });
+
+  describe('getDeviceType', () => {
+    it('returns mobile width for mobile devices', () => {
+      mockUserAgent('iphone');
+      mockMaxTouchPoints(1);
+      window.innerWidth = 400;
+      
+      render(<Pdf fileName={mockFileName} />);
+      expect(Document).toHaveBeenCalledWith(
+        expect.objectContaining({
+          children: expect.anything()
+        }),
+        expect.anything()
+      );
+      
+      // Verify the Page component receives the correct width
+      const pageCalls = (Page as jest.Mock).mock.calls;
+      expect(pageCalls[0][0].width).toBe(400 - 60);
+    });
+
+    it('returns tablet width for tablet devices', () => {
+      mockUserAgent('ipad');
+      mockMaxTouchPoints(2);
+      window.innerWidth = 800;
+      window.innerHeight = 900;
+      
+      render(<Pdf fileName={mockFileName} />);
+      
+      const pageCalls = (Page as jest.Mock).mock.calls;
+      expect(pageCalls[0][0].width).toBe(800 + 100);
+    });
+
+    it('returns desktop width for desktop devices', () => {
+      mockUserAgent('mozilla');
+      mockMaxTouchPoints(0);
+      window.innerWidth = 1400;
+      
+      render(<Pdf fileName={mockFileName} />);
+      
+      const pageCalls = (Page as jest.Mock).mock.calls;
+      expect(pageCalls[0][0].width).toBe(1200); // Math.min(1400, 1200)
+    });
+
+    it('uses maxWidth when stage is rp', () => {
+      (useSelector as jest.Mock).mockImplementation((selector) => 
+        selector({ stages: { stages: [{ stageId: 'rp' }] } })
+      );
+      window.innerWidth = 4000;
+      
+      render(<Pdf fileName={mockFileName} />);
+      
+      const pageCalls = (Page as jest.Mock).mock.calls;
+      expect(pageCalls[0][0].width).toBe(3000); // maxWidth for rp stage
+    });
+  });
+
+  it('handles resize events', () => {
+    const { unmount } = render(<Pdf fileName={mockFileName} />);
+    
+    // Initial width
+    let pageCalls = (Page as jest.Mock).mock.calls;
+    const initialWidth = pageCalls[0][0].width;
+    
+    // Simulate resize
+    window.innerWidth = 800;
+    window.dispatchEvent(new Event('resize'));
+    
+    // Check if width updated
+    pageCalls = (Page as jest.Mock).mock.calls;
+    expect(pageCalls[pageCalls.length - 1][0].width).not.toBe(initialWidth);
+    
+    // Cleanup
+    unmount();
+  });
+
+  it('removes resize event listener on unmount', () => {
+    const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener');
+    const { unmount } = render(<Pdf fileName={mockFileName} />);
+    
+    unmount();
+    
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
+    removeEventListenerSpy.mockRestore();
+  });
+
+  it('renders with renderTextLayer false', () => {
+    render(<Pdf fileName={mockFileName} />);
+    
+    const pageCalls = (Page as jest.Mock).mock.calls;
+    expect(pageCalls[0][0].renderTextLayer).toBe(false);
+  });
+});
