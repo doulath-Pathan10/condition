@@ -1,408 +1,100 @@
 import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import AddressSearch from './AddressSearch';
-import { CONSTANTS } from '../../../utils/common/constants';
-import * as commonService from '../../../services/common-service';
+import "./submission.scss"
+import submissionConstant from "../../../assets/_json/submission.json";
+import { getUrl } from "../../../utils/common/change.utils";
+import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
+import phoneIcon from '../../../assets/_images/icon-sc-small-icon-sc-s-phone-call.png'
+import { useSelector } from "react-redux";
+import { useEffect, useState } from "react";
+import simplyCash_hori from "../../../assets/_images/simply-cash-card-horizontal@2x.jpg";
+import simplyCash_vertical from "../../../assets/_images/Simply Cash-Vertical@2x.jpg";
+import smartCard from "../../preApproval/images/cards/SCB_SMART_CARD_1536x969_Wallet_0114.png";
+import { useNavigate } from "react-router-dom";
 
-// Mock the services
-jest.mock('../../../services/common-service', () => ({
-  addressSearchRequest: jest.fn(),
-  getLovData: jest.fn(),
-}));
 
-// Mock the error messages
-jest.mock('../../../assets/_json/error.json', () => ({
-  buildingEstateSplChar: 'Invalid characters in building/estate name',
-  buildingEstateSplChar_CN: '建筑物/屋苑名称中的无效字符',
-  buildingEstateSplChar_HK: '建築物/屋苑名稱中的無效字符',
-  buildingEstateRequired: 'Building/Estate name is required',
-  buildingEstateRequired_CN: '需要建筑物/屋苑名称',
-  buildingEstateRequired_HK: '需要建築物/屋苑名稱',
-  emity: 'Please enter ',
-  emity_CN: '请输入 ',
-  emity_HK: '請輸入 ',
-  patterns: 'Invalid format for ',
-  patterns_CN: '格式无效 ',
-  patterns_HK: '格式無效 ',
-}));
 
-// Mock URL utilities
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(),
-    getParameterByName: jest.fn(),
-  },
-  fieldError: jest.fn(),
-  fieldIdAppend: jest.fn(),
-  isFieldUpdate: jest.fn(),
-  isFieldValueUpdate: jest.fn(),
-}));
+export const FFDSubmission = () => {
+    const [plSuccessScreen, setPlSuccessScreen] = useState(false);
+    const submissionContent: KeyWithAnyModel = submissionConstant;
+    const language = getUrl.getLanguageInfo("lang");
+    const applicationRefNo = getUrl.getChannelRefNo()?.channelRefNo;
+    const ref_number = "HK24101700230315"
+    const formConfigmetaData = useSelector((state: StoreModel) => state.preApproval.formConfigmetaData);
+    const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+    const productType: string = stageSelector[0].stageInfo?.products[0].product_type;
+    const cardType = getUrl.getParameterByName("cardType");
+    const navigate = useNavigate();
 
-describe('AddressSearch Component', () => {
-  const mockStore = configureStore([]);
-  let store: any;
-  const mockData = {
-    data: {
-      logical_field_name: 'res_building_estate_pt',
-      rwb_label_name: 'Building/Estate',
-      mandatory: 'Yes',
-      length: 100,
-      editable: false,
-    },
-    handleCallback: jest.fn(),
-    handleFieldDispatch: jest.fn(),
-  };
+    let lang = '';
+    if (language === "zh" || language === "zh-hk") {
+        lang = "CN";
+    } else {
+        lang = 'EN'
+    }
 
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageId: 'bd-1',
-          stageInfo: {
-            applicants: [{
-              res_building_estate_pt_a_1: 'Test Building',
-            }]
-          }
-        }],
-        userInput: {
-          applicants: [{
-            res_building_estate_pt: 'Test Building',
-          }]
-        }
-      },
-      fielderror: {
-        error: []
-      },
-      preApproval: {
-        resumeAllowed: 'N'
-      }
-    });
+    
 
-    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    (require('../../../utils/common/change.utils').getUrl.getParameterByName.mockReturnValue(null);
-    (require('../../../utils/common/change.utils').fieldError.mockReturnValue(false);
-  });
+    const backBtn = () => {
+        window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
+    }
+    const nextBtn = () => {
+        navigate('/hk/ffd-casa')
+    }
+    const FFDPathName = window.location.pathname;
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
 
-  test('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    expect(screen.getByLabelText('Building/Estate')).toBeInTheDocument();
-  });
+    return (
+        <div>
+            <div className="ffdDisplayNSTP">
+                {/* ------------------------MOBILE---------------- */}
+                <div className="nstpMobile">
+                    <div className="banner---sucess ffd-2-banner">
+                        {FFDPathName === '/hk/ffd-casa' ? <span className="Main-Text">{submissionContent?.CCProducts?.ffdMainText}</span> : <span className="Main-Text">{submissionContent?.CCProducts?.mainText}</span>}
+                    </div>
+                    <div className="application-content bg-grey" style={{ margin: '8% auto' }}>
+                        <p className="application-f1 font-medium">{submissionContent[lang]?.refNoText} {applicationRefNo ? applicationRefNo : ref_number}</p>
+                        <p className="application-f2 font-sm">{submissionContent[lang]?.refText} </p>
+                    </div>
+                    {productType === '1313' && <div className="row1 success-parent-sec1">
+                        <div className="frog-success-survey">
+                            <div>We'd like your feedback!</div>
+                            {/* <div className="thank-you-page-link-survey"><a target="_blank" href={productLink}>Click here</a></div> */}
+                            <div>to share your experience with us.</div>
+                        </div>
+                    </div>}
+                    <div className="hk-copy-rights">
+                        <p>{submissionContent[lang]?.scbHkCopyRights}</p>
+                    </div>
+                    <p className="done-btn bg-button" onClick={backBtn}>{submissionContent[lang]?.btnMobileText}</p>
+                </div>
+                {/* ----------------------DESKTOP------------------------------------- */}
+                <div className="nstpDesktop">
+                    <div ng-if="ffdDisplay=='NSTP'">
+                        <div className="banner---sucess ffd-2-banner">
+                            {FFDPathName === '/hk/ffd-casa' ? <span className="Main-Text">{submissionContent?.CCProducts?.ffdMainText}</span> : <span className="Main-Text">{submissionContent?.CCProducts?.mainText}</span>}
+                        </div>
+                        <div  style={{ height: '40vh' }}>
+                            <div className="application-content application-next next">
+                                <p className="application-f1">{submissionContent?.CCProducts?.ffdNotifeidText}</p>
+                            </div>
+                            <div className="application-ref-section1 ffd-section-ref">
+                            <div style={{padding:'10px'}} >
+                                <p className="application-f1 font-medium">{submissionContent[lang]?.refNoText} {applicationRefNo ? applicationRefNo : ref_number}</p>
+                                <p className="application-f2 font-sm">{submissionContent[lang]?.contactText} </p>
+                                <b>{submissionContent[lang]?.enquiryContent}</b>
+                                <p className="contact-info">{submissionContent.phone}</p>
+                            </div>
+                        </div>
+                        
+                        </div>
+                        <div>
+                            <p className="done-btn bg-button" onClick={backBtn}>{submissionContent?.CCProducts?.btnPLText}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
 
-  test('displays initial value from userInputSelector', () => {
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate') as HTMLInputElement;
-    expect(input.value).toBe('Test Building');
-  });
-
-  test('displays initial value from stageSelector when resumeAllowed is Y', () => {
-    store = mockStore({
-      ...store.getState(),
-      preApproval: {
-        resumeAllowed: 'Y'
-      }
-    });
-
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate') as HTMLInputElement;
-    expect(input.value).toBe('Test Building');
-  });
-
-  test('displays error when field is empty and mandatory', () => {
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    fireEvent.change(input, { target: { value: '' } });
-    fireEvent.blur(input);
-    
-    expect(screen.getByText('Please enter Building/Estate')).toBeInTheDocument();
-  });
-
-  test('displays error when input contains invalid characters', () => {
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    fireEvent.change(input, { target: { value: 'Test@Building' } });
-    
-    expect(screen.getByText('Invalid characters in building/estate name')).toBeInTheDocument();
-  });
-
-  test('displays Chinese error message when language is CN', () => {
-    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    fireEvent.change(input, { target: { value: 'Test@Building' } });
-    
-    expect(screen.getByText('建筑物/屋苑名称中的无效字符')).toBeInTheDocument();
-  });
-
-  test('displays Hong Kong error message when language is HK', () => {
-    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_HK);
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    fireEvent.change(input, { target: { value: 'Test@Building' } });
-    
-    expect(screen.getByText('建築物/屋苑名稱中的無效字符')).toBeInTheDocument();
-  });
-
-  test('triggers address search when input is valid and length > 2', async () => {
-    const mockResponse = {
-      getElementsByTagName: jest.fn().mockReturnValue([{
-        getElementsByTagName: jest.fn().mockReturnValue([
-          {
-            querySelector: jest.fn().mockImplementation((selector) => {
-              if (selector.includes('EngEstate')) return { textContent: 'Test Estate' };
-              return null;
-            })
-          }
-        ])
-      }])
-    };
-    
-    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'Test' } });
-    });
-    
-    expect(commonService.addressSearchRequest).toHaveBeenCalledWith('Test');
-  });
-
-  test('handles estate selection and dispatches address parts', async () => {
-    const mockResponse = {
-      getElementsByTagName: jest.fn().mockReturnValue([{
-        getElementsByTagName: jest.fn().mockReturnValue([
-          {
-            querySelector: jest.fn().mockImplementation((selector) => {
-              if (selector.includes('EngEstate')) return { textContent: 'Test Estate' };
-              if (selector.includes('EngStreet')) return { textContent: 'Test Street' };
-              if (selector.includes('EngDistrict')) return { textContent: 'Test District' };
-              if (selector.includes('Region')) return { textContent: 'HK' };
-              return null;
-            })
-          }
-        ])
-      }])
-    };
-    
-    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'Test' } });
-      fireEvent.change(input, { target: { value: 'Test Estate' } });
-    });
-    
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_name_of_Street', 'Test Street');
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_district', 'Test District');
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_city', 'A00');
-  });
-
-  test('handles Chinese estate selection and dispatches address parts', async () => {
-    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
-    
-    const mockResponse = {
-      getElementsByTagName: jest.fn().mockReturnValue([{
-        getElementsByTagName: jest.fn().mockReturnValue([
-          {
-            querySelector: jest.fn().mockImplementation((selector) => {
-              if (selector.includes('ChiEstate')) return { textContent: '測試屋苑' };
-              if (selector.includes('ChiStreet')) return { textContent: '測試街道' };
-              if (selector.includes('ChiDistrict')) return { textContent: '測試區' };
-              if (selector.includes('Region')) return { textContent: 'KLN' };
-              return null;
-            })
-          }
-        ])
-      }])
-    };
-    
-    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    await act(async () => {
-      fireEvent.change(input, { target: { value: '測試' } });
-      fireEvent.change(input, { target: { value: '測試屋苑' } });
-    });
-    
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_name_of_Street', '測試街道');
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_district', '測試區');
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('res_city', 'A01');
-  });
-
-  test('shows tick when field has value and no error', () => {
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    expect(document.querySelector('.tick-class')).toBeInTheDocument();
-  });
-
-  test('disables input when editable is true', () => {
-    const disabledData = {
-      ...mockData,
-      data: {
-        ...mockData.data,
-        editable: true
-      }
-    };
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...disabledData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    expect(input).toBeDisabled();
-  });
-
-  test('handles office address fields when stage is ad-3', async () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        stages: [{
-          stageId: 'ad-3',
-          stageInfo: {
-            applicants: [{
-              res_building_estate_pt_a_1: 'Test Office',
-            }]
-          }
-        }],
-        userInput: {
-          applicants: [{
-            res_building_estate_pt: 'Test Office',
-          }]
-        }
-      }
-    });
-    
-    const mockResponse = {
-      getElementsByTagName: jest.fn().mockReturnValue([{
-        getElementsByTagName: jest.fn().mockReturnValue([
-          {
-            querySelector: jest.fn().mockImplementation((selector) => {
-              if (selector.includes('EngEstate')) return { textContent: 'Test Office' };
-              if (selector.includes('EngStreet')) return { textContent: 'Office Street' };
-              if (selector.includes('EngDistrict')) return { textContent: 'Office District' };
-              if (selector.includes('Region')) return { textContent: 'NT' };
-              return null;
-            })
-          }
-        ])
-      }])
-    };
-    
-    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    await act(async () => {
-      fireEvent.change(input, { target: { value: 'Test Office' } });
-    });
-    
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('off_name_of_Street', 'Office Street');
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('off_district', 'Office District');
-    expect(mockData.handleFieldDispatch).toHaveBeenCalledWith('off_city', 'A03');
-  });
-
-  test('does not show tick when field has error', () => {
-    (require('../../../utils/common/change.utils').fieldError.mockReturnValue(true);
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    fireEvent.change(input, { target: { value: 'Invalid@Building' } });
-    
-    expect(document.querySelector('.tick-class')).not.toBeInTheDocument();
-  });
-
-  test('handles focus event', () => {
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockData} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate');
-    fireEvent.focus(input);
-    
-    const actions = store.getActions();
-    expect(actions).toContainEqual(
-      expect.objectContaining({
-        type: 'lastAccessedSlice/getField',
-        payload: 'res_building_estate_pt'
-      })
-    );
-  });
-});
+Please write an test cases using react and jest including branches with 100 percent coverage
