@@ -1,269 +1,77 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureMockStore from 'redux-mock-store';
-import thunk from 'redux-thunk';
-import Zoloz from './Zoloz';
-import { CONSTANTS } from '../../../../../utils/common/constants';
+import { useState, useCallback, useEffect } from 'react';
+import "./pdf.scss";
+import { Document, Page, pdfjs } from 'react-pdf';
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import { PdfModel, StoreModel } from '../../../utils/model/common-model';
 
-// Create mock store
-const middlewares = [thunk];
-const mockStore = configureMockStore(middlewares);
 
-// Mock the services
-jest.mock('../../../services/preApprovalPostServices', () => ({
-  postDocuments: jest.fn(),
-  postZOLOCheck: jest.fn(),
-  postZolozAcknowledge: jest.fn(),
-  postPdfPreview: jest.fn(),
-  postQRCodeZOLO: jest.fn(() => Promise.resolve({ 
-    status: 200, 
-    data: { qrCode: 'testQRCode', transactionId: 'trans123' } 
-  })),
-}));
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+import { useSelector } from 'react-redux';
 
-jest.mock('../../../../preApproval/services/preApprovalServices', () => ({
-  getImagePreview: jest.fn(() => Promise.resolve({ 
-    status: 200, 
-    data: new Blob() 
-  })),
-}));
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
-describe('Zoloz Component', () => {
-  const mockSetHKIDVersion = jest.fn();
-  let store: any;
+export const Pdf = (props: PdfModel) => {
 
-  const baseState = {
-    stages: {
-      stages: [{
-        stageInfo: {
-          application: {
-            channel_reference: 'test123',
-            language: CONSTANTS.LANG_EN
-          },
-          applicant_documents: [{
-            document_list: [{
-              document_category: 'R0001',
-              document_options: [{
-                document_types: [{
-                  uploaded_documents: []
-                }]
-              }]
-            }]
-          }]
-        },
-        dynamicDocumentsUpload: {
-          showUploadFileSuccess: false,
-          HKIDQRCodeData: { qrCode: 'testQRCode', transactionId: 'trans123' },
-          HKIDVersionValue: 'A001',
-          fileSectionData: { document_category: 'R0001' },
-          documentCount: 0
-        }
-      }]
-    },
-    preApproval: {
-      imgPrevURL: 'testImageURL',
-      documentZoloCheckRes: [{
-        docId: 'doc123',
-        documentName: 'testDoc.png',
-        documentTypeCode: 'A001',
-        documentCategoryCode: 'R0001',
-        responseStatus: 'SUCCESS'
-      }]
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const maxWidth = stageSelector[0].stageId==='rp'? 3000 : 800;
+  const getDeviceType = (): number => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isMobile = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+    const isTablet = /ipad|tablet|andriod(?!.*mobile)/i.test(userAgent) || (navigator.maxTouchPoints > 1 && window.innerHeight < 1024);
+/*istanbul ignore else*/
+    if (isMobile) {
+      return window.innerWidth - 60;
+    } else if (isTablet) {
+      return Math.min(window.innerWidth, 768) + 100;
+    } else {
+      return Math.min(window.innerWidth, 1200);
     }
   };
 
-  beforeEach(() => {
-    store = mockStore(baseState);
-    jest.clearAllMocks();
-  });
+  const [numPages, setNumPages] = useState(0);
+  const [containerWidth, setContainerWidth] = useState<number>(() => getDeviceType());
 
-  it('should render the component with QR code section', () => {
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
+  function onDocumentLoadSuccess(props: any) {
+    setNumPages(props.numPages);
+  }
 
-    expect(screen.getByText('Colour Identity Proof')).toBeInTheDocument();
-    expect(screen.getByText('Submit')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /submit/i })).toBeInTheDocument();
-  });
+  useEffect(() => {
+    const handleResize = () => {
+      const newWidth = getDeviceType();
+      setContainerWidth(newWidth);
+    }
+    window.addEventListener("resize", handleResize);
 
-  it('should render success section when showUploadFileSuccess is true', () => {
-    const successState = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          ...baseState.stages.stages[0],
-          dynamicDocumentsUpload: {
-            ...baseState.stages.stages[0].dynamicDocumentsUpload,
-            showUploadFileSuccess: true
-          }
-        }]
-      }
-    };
+    return () => {
+      window.removeEventListener("resize", handleResize)
+    }
+  })
+  // useResizeObserver(containerRef, resizeObserverOptions, onResize);
 
-    const successStore = mockStore(successState);
+  return (
+    <>
+    <div >
+      <Document
+        renderMode="svg"
+        file={props.fileName}
+        onLoadSuccess={onDocumentLoadSuccess}
+      >
+        {Array.from(new Array(numPages), (el, index) => (
+          <Page
+            scale={1}
+            renderTextLayer={false}
+            key={`page_${index + 1}`}
+            pageNumber={index + 1}
+            className='pdf-display'
+            width={containerWidth ? Math.min(containerWidth, maxWidth) : maxWidth}
+          />
+        ))}
+      </Document>
+    </div>
+    </>
+  )
+}
+export default Pdf;
 
-    render(
-      <Provider store={successStore}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-
-    expect(screen.getByText('Upload completed')).toBeInTheDocument();
-    expect(screen.getByText('Continue')).toBeInTheDocument();
-  });
-
-  it('should call closeFileUpload when close button is clicked', () => {
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-
-    fireEvent.click(screen.getByText('Close'));
-
-    const actions = store.getActions();
-    expect(actions.some((action: any) => action.type === 'stages/updatefileSectionData')).toBeTruthy();
-    expect(actions.some((action: any) => action.type === 'stages/updateshowUploadFileSuccess')).toBeTruthy();
-  });
-
-  it('should call callSubmit when submit button is clicked', async () => {
-    // Mock successful ZOLO check response
-    const mockPostZOLOCheck = require('../../../services/preApprovalPostServices').postZOLOCheck;
-    mockPostZOLOCheck.mockResolvedValueOnce({
-      status: 200,
-      data: {
-        documents: [{
-          docId: 'doc123',
-          documentName: 'testDoc.png',
-          documentTypeCode: 'A001',
-          documentCategoryCode: 'R0001',
-          responseStatus: 'SUCCESS'
-        }]
-      }
-    });
-
-    // Mock successful acknowledge response
-    const mockPostZolozAcknowledge = require('../../../services/preApprovalPostServices').postZolozAcknowledge;
-    mockPostZolozAcknowledge.mockResolvedValueOnce({
-      data: [{ responseStatus: 'Success' }]
-    });
-
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
-
-    await waitFor(() => {
-      expect(mockPostZOLOCheck).toHaveBeenCalled();
-    });
-  });
-
-  it('should show error popup when no documents are returned', async () => {
-    const mockPostZOLOCheck = require('../../../services/preApprovalPostServices').postZOLOCheck;
-    mockPostZOLOCheck.mockResolvedValueOnce({
-      status: 200,
-      data: { documents: [] }
-    });
-
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
-
-    await waitFor(() => {
-      // Since we're not actually rendering the PopupModel, we verify the state change
-      const actions = store.getActions();
-      expect(actions.some((action: any) => action.type === 'error/getError')).toBeTruthy();
-    });
-  });
-
-  it('should handle API errors', async () => {
-    const mockPostZOLOCheck = require('../../../services/preApprovalPostServices').postZOLOCheck;
-    mockPostZOLOCheck.mockRejectedValueOnce(new Error('API Error'));
-
-    render(
-      <Provider store={store}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
-
-    await waitFor(() => {
-      const actions = store.getActions();
-      expect(actions.some((action: any) => action.type === 'error/getError')).toBeTruthy();
-    });
-  });
-
-  it('should update store when continue button is clicked', async () => {
-    const successState = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          ...baseState.stages.stages[0],
-          dynamicDocumentsUpload: {
-            ...baseState.stages.stages[0].dynamicDocumentsUpload,
-            showUploadFileSuccess: true
-          }
-        }]
-      }
-    };
-
-    const successStore = mockStore(successState);
-
-    render(
-      <Provider store={successStore}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-
-    fireEvent.click(screen.getByText('Continue'));
-
-    await waitFor(() => {
-      const actions = successStore.getActions();
-      expect(actions.some((action: any) => action.type === 'stages/updateDocumentCount')).toBeTruthy();
-      expect(mockSetHKIDVersion).toHaveBeenCalledWith('');
-    });
-  });
-
-  it('should render different language text', () => {
-    const cnState = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          ...baseState.stages.stages[0],
-          stageInfo: {
-            ...baseState.stages.stages[0].stageInfo,
-            application: {
-              ...baseState.stages.stages[0].stageInfo.application,
-              language: CONSTANTS.LANG_CN
-            }
-          }
-        }]
-      }
-    };
-
-    const cnStore = mockStore(cnState);
-
-    render(
-      <Provider store={cnStore}>
-        <Zoloz setHKIDVersion={mockSetHKIDVersion} />
-      </Provider>
-    );
-
-    expect(screen.getByText('提交')).toBeInTheDocument();
-  });
-});
+Please write an test cases using react and jest including branches with 100 percent coverage
