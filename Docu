@@ -1,100 +1,263 @@
 import React from 'react';
-import "./submission.scss"
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { BrowserRouter as Router } from 'react-router-dom';
+import configureStore from 'redux-mock-store';
+import FFDSubmission from './FFDSubmission';
 import submissionConstant from "../../../assets/_json/submission.json";
-import { getUrl } from "../../../utils/common/change.utils";
-import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
-import phoneIcon from '../../../assets/_images/icon-sc-small-icon-sc-s-phone-call.png'
-import { useSelector } from "react-redux";
-import { useEffect, useState } from "react";
-import simplyCash_hori from "../../../assets/_images/simply-cash-card-horizontal@2x.jpg";
-import simplyCash_vertical from "../../../assets/_images/Simply Cash-Vertical@2x.jpg";
-import smartCard from "../../preApproval/images/cards/SCB_SMART_CARD_1536x969_Wallet_0114.png";
-import { useNavigate } from "react-router-dom";
 
+// Mock the URL utilities
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn(),
+    getChannelRefNo: jest.fn(),
+    getParameterByName: jest.fn(),
+  }
+}));
 
+// Mock window.location
+const mockWindowLocation = {
+  pathname: '/hk/ffd-casa',
+  href: '',
+  assign: jest.fn(),
+};
+Object.defineProperty(window, 'location', {
+  value: mockWindowLocation,
+  writable: true,
+});
 
-export const FFDSubmission = () => {
-    const [plSuccessScreen, setPlSuccessScreen] = useState(false);
-    const submissionContent: KeyWithAnyModel = submissionConstant;
-    const language = getUrl.getLanguageInfo("lang");
-    const applicationRefNo = getUrl.getChannelRefNo()?.channelRefNo;
-    const ref_number = "HK24101700230315"
-    const formConfigmetaData = useSelector((state: StoreModel) => state.preApproval.formConfigmetaData);
-    const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-    const productType: string = stageSelector[0].stageInfo?.products[0].product_type;
-    const cardType = getUrl.getParameterByName("cardType");
-    const navigate = useNavigate();
+describe('FFDSubmission Component', () => {
+  const mockStore = configureStore([]);
+  let store: any;
 
-    let lang = '';
-    if (language === "zh" || language === "zh-hk") {
-        lang = "CN";
-    } else {
-        lang = 'EN'
-    }
+  beforeEach(() => {
+    store = mockStore({
+      preApproval: {
+        formConfigmetaData: {}
+      },
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{
+              product_type: '1313'
+            }]
+          }
+        }]
+      }
+    });
 
+    // Default mocks
+    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
+    (require('../../../utils/common/change.utils').getUrl.getChannelRefNo as jest.Mock).mockReturnValue({ channelRefNo: 'TEST123' });
+    (require('../../../utils/common/change.utils').getUrl.getParameterByName as jest.Mock).mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('renders without crashing', () => {
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
     
+    expect(screen.getByText(submissionConstant.CCProducts.ffdMainText)).toBeInTheDocument();
+  });
 
-    const backBtn = () => {
-        window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
-    }
-    const nextBtn = () => {
-        navigate('/hk/ffd-casa')
-    }
-    const FFDPathName = window.location.pathname;
+  test('displays reference number from URL', () => {
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(/TEST123/)).toBeInTheDocument();
+  });
 
+  test('displays fallback reference number when not in URL', () => {
+    (require('../../../utils/common/change.utils').getUrl.getChannelRefNo as jest.Mock).mockReturnValue({ channelRefNo: null });
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(/HK24101700230315/)).toBeInTheDocument();
+  });
 
-    return (
-        <div>
-            <div className="ffdDisplayNSTP">
-                {/* ------------------------MOBILE---------------- */}
-                <div className="nstpMobile">
-                    <div className="banner---sucess ffd-2-banner">
-                        {FFDPathName === '/hk/ffd-casa' ? <span className="Main-Text">{submissionContent?.CCProducts?.ffdMainText}</span> : <span className="Main-Text">{submissionContent?.CCProducts?.mainText}</span>}
-                    </div>
-                    <div className="application-content bg-grey" style={{ margin: '8% auto' }}>
-                        <p className="application-f1 font-medium">{submissionContent[lang]?.refNoText} {applicationRefNo ? applicationRefNo : ref_number}</p>
-                        <p className="application-f2 font-sm">{submissionContent[lang]?.refText} </p>
-                    </div>
-                    {productType === '1313' && <div className="row1 success-parent-sec1">
-                        <div className="frog-success-survey">
-                            <div>We'd like your feedback!</div>
-                            {/* <div className="thank-you-page-link-survey"><a target="_blank" href={productLink}>Click here</a></div> */}
-                            <div>to share your experience with us.</div>
-                        </div>
-                    </div>}
-                    <div className="hk-copy-rights">
-                        <p>{submissionContent[lang]?.scbHkCopyRights}</p>
-                    </div>
-                    <p className="done-btn bg-button" onClick={backBtn}>{submissionContent[lang]?.btnMobileText}</p>
-                </div>
-                {/* ----------------------DESKTOP------------------------------------- */}
-                <div className="nstpDesktop">
-                    <div ng-if="ffdDisplay=='NSTP'">
-                        <div className="banner---sucess ffd-2-banner">
-                            {FFDPathName === '/hk/ffd-casa' ? <span className="Main-Text">{submissionContent?.CCProducts?.ffdMainText}</span> : <span className="Main-Text">{submissionContent?.CCProducts?.mainText}</span>}
-                        </div>
-                        <div  style={{ height: '40vh' }}>
-                            <div className="application-content application-next next">
-                                <p className="application-f1">{submissionContent?.CCProducts?.ffdNotifeidText}</p>
-                            </div>
-                            <div className="application-ref-section1 ffd-section-ref">
-                            <div style={{padding:'10px'}} >
-                                <p className="application-f1 font-medium">{submissionContent[lang]?.refNoText} {applicationRefNo ? applicationRefNo : ref_number}</p>
-                                <p className="application-f2 font-sm">{submissionContent[lang]?.contactText} </p>
-                                <b>{submissionContent[lang]?.enquiryContent}</b>
-                                <p className="contact-info">{submissionContent.phone}</p>
-                            </div>
-                        </div>
-                        
-                        </div>
-                        <div>
-                            <p className="done-btn bg-button" onClick={backBtn}>{submissionContent?.CCProducts?.btnPLText}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
+  test('displays English content by default', () => {
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(submissionConstant.EN.refNoText)).toBeInTheDocument();
+  });
 
-Please write an test cases using react and jest including branches with 100 percent coverage
+  test('displays Chinese content when language is zh', () => {
+    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(submissionConstant.CN.refNoText)).toBeInTheDocument();
+  });
+
+  test('displays Chinese content when language is zh-hk', () => {
+    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh-hk');
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(submissionConstant.CN.refNoText)).toBeInTheDocument();
+  });
+
+  test('displays feedback section for product type 1313', () => {
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText("We'd like your feedback!")).toBeInTheDocument();
+  });
+
+  test('does not display feedback section for other product types', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{
+              product_type: '9999'
+            }]
+          }
+        }]
+      }
+    });
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.queryByText("We'd like your feedback!")).not.toBeInTheDocument();
+  });
+
+  test('navigates to home page when back button is clicked (mobile)', () => {
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    const backButton = screen.getByText(submissionConstant.EN.btnMobileText);
+    fireEvent.click(backButton);
+    
+    expect(window.location.href).toBe(process.env.REACT_APP_HOME_PAGE_URL);
+  });
+
+  test('navigates to home page when back button is clicked (desktop)', () => {
+    // Mock desktop view by changing pathname
+    mockWindowLocation.pathname = '/some-other-path';
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    const backButton = screen.getByText(submissionConstant.CCProducts.btnPLText);
+    fireEvent.click(backButton);
+    
+    expect(window.location.href).toBe(process.env.REACT_APP_HOME_PAGE_URL);
+  });
+
+  test('displays different main text for FFD-CASA path', () => {
+    mockWindowLocation.pathname = '/hk/ffd-casa';
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(submissionConstant.CCProducts.ffdMainText)).toBeInTheDocument();
+  });
+
+  test('displays standard main text for non-FFD-CASA path', () => {
+    mockWindowLocation.pathname = '/some-other-path';
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(submissionConstant.CCProducts.mainText)).toBeInTheDocument();
+  });
+
+  test('displays contact information in desktop view', () => {
+    mockWindowLocation.pathname = '/some-other-path';
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(submissionConstant.EN.contactText)).toBeInTheDocument();
+    expect(screen.getByText(submissionConstant.phone)).toBeInTheDocument();
+  });
+
+  test('displays notification text in desktop view', () => {
+    mockWindowLocation.pathname = '/some-other-path';
+    
+    render(
+      <Provider store={store}>
+        <Router>
+          <FFDSubmission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(submissionConstant.CCProducts.ffdNotifeidText)).toBeInTheDocument();
+  });
+});
