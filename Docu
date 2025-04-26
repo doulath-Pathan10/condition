@@ -1,14 +1,14 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import LoanDisbursement from './LoanDisbursement';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
+import LoanDisbursement from './LoanDisbursement';
 import { StoreModel } from '../../../../utils/model/common-model';
 import { getOffer2, getOfferCalulated } from '../../services/preApprovalServices';
 import { postPdfPreview } from '../../services/preApprovalPostServices';
 import { CONSTANTS } from '../../../../utils/common/constants';
 
-// Mock the services
+// Mock all external dependencies
 jest.mock('../../services/preApprovalServices');
 jest.mock('../../services/preApprovalPostServices');
 jest.mock('../../../../services/common-service');
@@ -18,52 +18,46 @@ const mockStore = configureStore([]);
 
 describe('LoanDisbursement Component', () => {
   let store: any;
-  const initialState: StoreModel = {
+  
+  const baseState: StoreModel = {
     stages: {
-      stages: [
-        {
-          stageInfo: {
-            products: [
-              {
-                product_category: 'PL',
-                product_type: '1258',
-                offer_details: [
-                  {
-                    approved_amount: 50000,
-                    approved_amount_currency: 'HKD',
-                    approved_tenor: 12,
-                    apr: '1.5',
-                    flatRate: '0.5',
-                    repaymentAmount: '4200',
-                    offer_status: '1001',
-                    bestOffer: 'N',
-                    service_type: 'ACD3'
-                  },
-                  {
-                    approved_amount: 100000,
-                    approved_amount_currency: 'HKD',
-                    approved_tenor: 24,
-                    apr: '1.8',
-                    flatRate: '0.6',
-                    repaymentAmount: '4500',
-                    offer_status: '1003',
-                    bestOffer: 'Y',
-                    service_type: 'ACD4'
-                  }
-                ]
-              }
-            ],
-            applicants: [{
-              requested_loan_amount_a_1: '50000',
-              requested_loan_tenor_a_1: '12'
-            }],
-            application: {
-              channel_reference: 'test-ref',
-              downsell: false
-            }
+      stages: [{
+        stageInfo: {
+          products: [{
+            product_category: 'PL',
+            product_type: '1258',
+            offer_details: [{
+              approved_amount: 50000,
+              approved_amount_currency: 'HKD',
+              approved_tenor: 12,
+              apr: '1.5',
+              flatRate: '0.5',
+              repaymentAmount: '4200',
+              offer_status: '1001',
+              bestOffer: 'N',
+              service_type: 'ACD3'
+            }, {
+              approved_amount: 100000,
+              approved_amount_currency: 'HKD',
+              approved_tenor: 24,
+              apr: '1.8',
+              flatRate: '0.6',
+              repaymentAmount: '4500',
+              offer_status: '1003',
+              bestOffer: 'Y',
+              service_type: 'ACD4'
+            }]
+          }],
+          applicants: [{
+            requested_loan_amount_a_1: '50000',
+            requested_loan_tenor_a_1: '12'
+          }],
+          application: {
+            channel_reference: 'test-ref',
+            downsell: false
           }
         }
-      ],
+      }],
       userInput: {
         downshell: false
       }
@@ -73,24 +67,21 @@ describe('LoanDisbursement Component', () => {
   };
 
   beforeEach(() => {
-    store = mockStore(initialState);
+    store = mockStore(baseState);
+    
+    // Default mock implementations
     (getOffer2 as jest.Mock).mockResolvedValue({
       status: 200,
       data: {
-        products: [
-          {
-            offer_details: [
-              {
-                offer_status: '1001',
-                service_type: 'ACD3'
-              },
-              {
-                offer_status: '1003',
-                service_type: 'ACD4'
-              }
-            ]
-          }
-        ],
+        products: [{
+          offer_details: [{
+            offer_status: '1001',
+            service_type: 'ACD3'
+          }, {
+            offer_status: '1003',
+            service_type: 'ACD4'
+          }]
+        }],
         application: {
           response_type: 'INFO',
           response_action: 'SUCCESS',
@@ -105,6 +96,7 @@ describe('LoanDisbursement Component', () => {
         fieldmetadata: {}
       }
     });
+
     (getOfferCalulated as jest.Mock).mockResolvedValue({
       status: 200,
       data: {
@@ -115,6 +107,7 @@ describe('LoanDisbursement Component', () => {
         repayment_amount: '4200'
       }
     });
+
     (postPdfPreview as jest.Mock).mockResolvedValue({
       status: 200,
       data: {
@@ -122,176 +115,27 @@ describe('LoanDisbursement Component', () => {
         docId: 'test-doc-id'
       }
     });
+
+    // Mock getLanguageInfo to return English by default
+    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders without crashing', () => {
+  it('should render the component with initial English content', () => {
     render(
       <Provider store={store}>
         <LoanDisbursement />
       </Provider>
     );
-    expect(screen.getByText(/Congratulations!/i)).toBeInTheDocument();
+
+    expect(screen.getByText('Congratulations!')).toBeInTheDocument();
+    expect(screen.getByText('Your preliminary assessment is completed.')).toBeInTheDocument();
   });
 
-  it('displays initial loan amount and tenor', () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    
-    expect(screen.getByText('HKD 50000')).toBeInTheDocument();
-    expect(screen.getByText('12 Months')).toBeInTheDocument();
-  });
-
-  it('handles loan amount change via slider', async () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    
-    const slider = screen.getByRole('slider');
-    fireEvent.change(slider, { target: { value: '60000' } });
-    
-    await waitFor(() => {
-      expect(getOfferCalulated).toHaveBeenCalled();
-    });
-  });
-
-  it('handles tenor change', async () => {
-    render(
-      <Provider store={store>
-        <LoanDisbursement />
-      </Provider>
-    );
-    
-    const tenorButton = screen.getByText('24 Months');
-    fireEvent.click(tenorButton);
-    
-    await waitFor(() => {
-      expect(getOfferCalulated).toHaveBeenCalled();
-    });
-  });
-
-  it('displays spinner when calculating offer', async () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    
-    const tenorButton = screen.getByText('24 Months');
-    fireEvent.click(tenorButton);
-    
-    expect(screen.getByTestId('spinner__container')).toBeInTheDocument();
-  });
-
-  it('handles next stage with best offer', async () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-    
-    await waitFor(() => {
-      expect(getOffer2).toHaveBeenCalled();
-      expect(postPdfPreview).toHaveBeenCalled();
-    });
-  });
-
-  it('handles next stage with regular offer', async () => {
-    // Modify store to test different offer status
-    const modifiedStore = mockStore({
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        stages: [
-          {
-            stageInfo: {
-              ...initialState.stages.stages[0].stageInfo,
-              products: [
-                {
-                  ...initialState.stages.stages[0].stageInfo.products[0],
-                  offer_details: [
-                    {
-                      ...initialState.stages.stages[0].stageInfo.products[0].offer_details[0],
-                      offer_status: '1004',
-                      bestOffer: 'Y'
-                    },
-                    {
-                      ...initialState.stages.stages[0].stageInfo.products[0].offer_details[1],
-                      offer_status: '1002',
-                      bestOffer: 'N'
-                    }
-                  ]
-                }
-              ]
-            }
-          }
-        ]
-      }
-    });
-
-    render(
-      <Provider store={modifiedStore}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-    
-    await waitFor(() => {
-      expect(getOffer2).toHaveBeenCalled();
-    });
-  });
-
-  it('handles API error in calculateOffer', async () => {
-    (getOfferCalulated as jest.Mock).mockRejectedValue(new Error('API Error'));
-    
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    
-    const tenorButton = screen.getByText('24 Months');
-    fireEvent.click(tenorButton);
-    
-    await waitFor(() => {
-      // Verify error handling
-      expect(screen.queryByTestId('spinner__container')).not.toBeInTheDocument();
-    });
-  });
-
-  it('handles API error in nextStage', async () => {
-    (getOffer2 as jest.Mock).mockRejectedValue(new Error('API Error'));
-    
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-    
-    await waitFor(() => {
-      // Verify error handling
-      expect(getOffer2).toHaveBeenCalled();
-    });
-  });
-
-  it('displays different content for Chinese language', () => {
-    // Mock getLanguageInfo to return Chinese
+  it('should render Chinese content when language is set to Chinese', () => {
     (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
     
     render(
@@ -299,125 +143,208 @@ describe('LoanDisbursement Component', () => {
         <LoanDisbursement />
       </Provider>
     );
-    
-    expect(screen.getByText(/恭喜/i)).toBeInTheDocument();
+
+    expect(screen.getByText('恭喜')).toBeInTheDocument();
   });
 
-  it('filters tenor options based on product type', () => {
+  it('should display initial loan amount and tenor from store', () => {
     render(
       <Provider store={store}>
         <LoanDisbursement />
       </Provider>
     );
-    
-    // For product type 1258, 72 and 84 months should not be displayed
-    expect(screen.queryByText('72 Months')).not.toBeInTheDocument();
-    expect(screen.queryByText('84 Months')).not.toBeInTheDocument();
+
+    expect(screen.getByText('HKD 50000')).toBeInTheDocument();
+    expect(screen.getByText('12 Months')).toBeInTheDocument();
   });
 
-  it('displays different layout for offer_status 1004', () => {
-    const modifiedStore = mockStore({
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        stages: [
-          {
-            stageInfo: {
-              ...initialState.stages.stages[0].stageInfo,
-              products: [
-                {
-                  ...initialState.stages.stages[0].stageInfo.products[0],
-                  offer_details: [
-                    {
-                      ...initialState.stages.stages[0].stageInfo.products[0].offer_details[0],
-                      offer_status: '1004',
-                      bestOffer: 'Y'
-                    }
-                  ]
-                }
-              ]
-            }
-          }
-        ]
-      }
-    });
-
+  it('should update loan amount when slider is changed', async () => {
     render(
-      <Provider store={modifiedStore}>
+      <Provider store={store}>
         <LoanDisbursement />
       </Provider>
     );
-    
-    expect(screen.getByText('Preliminary approved loan amount')).toBeInTheDocument();
-    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+
+    const slider = screen.getByRole('slider');
+    fireEvent.change(slider, { target: { value: '60000' } });
+
+    await waitFor(() => {
+      expect(getOfferCalulated).toHaveBeenCalledWith({
+        requested_tenure: '12',
+        requested_amount: '60000'
+      });
+    });
   });
 
-  it('handles downsell scenario', async () => {
-    const modifiedStore = mockStore({
-      ...initialState,
+  it('should update tenor when a different tenor is selected', async () => {
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const tenorButton = screen.getByText('24 Months');
+    fireEvent.click(tenorButton);
+
+    await waitFor(() => {
+      expect(getOfferCalulated).toHaveBeenCalledWith({
+        requested_tenure: '24',
+        requested_amount: '50000'
+      });
+    });
+  });
+
+  it('should show spinner while calculating offer', async () => {
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const tenorButton = screen.getByText('24 Months');
+    fireEvent.click(tenorButton);
+
+    expect(screen.getByTestId('spinner__container')).toBeInTheDocument();
+    
+    await waitFor(() => {
+      expect(screen.queryByTestId('spinner__container')).not.toBeInTheDocument();
+    });
+  });
+
+  it('should handle API error during offer calculation', async () => {
+    (getOfferCalulated as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const tenorButton = screen.getByText('24 Months');
+    fireEvent.click(tenorButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('spinner__container')).not.toBeInTheDocument();
+    });
+  });
+
+  it('should proceed to next stage with best offer when continue is clicked', async () => {
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const continueButton = screen.getByText('Continue');
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(getOffer2).toHaveBeenCalled();
+      expect(postPdfPreview).toHaveBeenCalled();
+    });
+  });
+
+  it('should handle downsell scenario correctly', async () => {
+    const downsellState = {
+      ...baseState,
       stages: {
-        ...initialState.stages,
-        stages: [
-          {
-            stageInfo: {
-              ...initialState.stages.stages[0].stageInfo,
-              application: {
-                ...initialState.stages.stages[0].stageInfo.application,
-                downsell: true
-              }
+        ...baseState.stages,
+        stages: [{
+          stageInfo: {
+            ...baseState.stages.stages[0].stageInfo,
+            application: {
+              ...baseState.stages.stages[0].stageInfo.application,
+              downsell: true
             }
           }
-        ],
+        }],
         userInput: {
           downshell: true
         }
       }
-    });
+    };
+    store = mockStore(downsellState);
 
     render(
-      <Provider store={modifiedStore}>
+      <Provider store={store}>
         <LoanDisbursement />
       </Provider>
     );
-    
+
     const continueButton = screen.getByText('Continue');
     fireEvent.click(continueButton);
-    
+
     await waitFor(() => {
       expect(getOffer2).toHaveBeenCalled();
     });
   });
 
-  it('handles hard stop response from API', async () => {
+  it('should handle different offer statuses (1004)', async () => {
+    const status1004State = {
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        stages: [{
+          stageInfo: {
+            ...baseState.stages.stages[0].stageInfo,
+            products: [{
+              ...baseState.stages.stages[0].stageInfo.products[0],
+              offer_details: [{
+                ...baseState.stages.stages[0].stageInfo.products[0].offer_details[0],
+                offer_status: '1004',
+                bestOffer: 'Y'
+              }]
+            }]
+          }
+        }]
+      }
+    };
+    store = mockStore(status1004State);
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    expect(screen.getByText('Preliminary approved loan amount')).toBeInTheDocument();
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+  });
+
+  it('should filter tenor options based on product type', () => {
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    // For product type 1258, 72 and 84 months should not be displayed
+    expect(screen.queryByText('72 Months')).not.toBeInTheDocument();
+    expect(screen.queryByText('84 Months')).not.toBeInTheDocument();
+  });
+
+  it('should handle hard stop response from API', async () => {
     (getOffer2 as jest.Mock).mockResolvedValue({
       status: 200,
       data: {
-        products: [
-          {
-            offer_details: [
-              {
-                offer_status: '1002',
-                service_type: 'ACD3',
-                reason_code_descriptions: [
-                  {
-                    reason_code: 'ERROR1',
-                    reason_description: 'Test error'
-                  }
-                ]
-              }
-            ]
-          }
-        ],
+        products: [{
+          offer_details: [{
+            offer_status: '1002',
+            service_type: 'ACD3',
+            reason_code_descriptions: [{
+              reason_code: 'ERROR1',
+              reason_description: 'Test error'
+            }]
+          }]
+        }],
         application: {
           response_type: 'HARD',
           response_action: 'STOP',
           error: {
-            application_error: [
-              {
-                error_description: 'Test error',
-                rtobCode: 'ERROR1'
-              }
-            ],
+            application_error: [{
+              error_description: 'Test error',
+              rtobCode: 'ERROR1'
+            }],
             applicant_error: [],
             product_error: []
           }
@@ -430,12 +357,109 @@ describe('LoanDisbursement Component', () => {
         <LoanDisbursement />
       </Provider>
     );
-    
+
     const continueButton = screen.getByText('Continue');
     fireEvent.click(continueButton);
-    
+
     await waitFor(() => {
       expect(getOffer2).toHaveBeenCalled();
     });
+  });
+
+  it('should handle API error in nextStage', async () => {
+    (getOffer2 as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const continueButton = screen.getByText('Continue');
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(getOffer2).toHaveBeenCalled();
+    });
+  });
+
+  it('should handle PDF preview API error', async () => {
+    (postPdfPreview as jest.Mock).mockRejectedValue(new Error('PDF Error'));
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const continueButton = screen.getByText('Continue');
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(postPdfPreview).toHaveBeenCalled();
+    });
+  });
+
+  it('should handle case when offer_details has only one offer', async () => {
+    const singleOfferState = {
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        stages: [{
+          stageInfo: {
+            ...baseState.stages.stages[0].stageInfo,
+            products: [{
+              ...baseState.stages.stages[0].stageInfo.products[0],
+              offer_details: [baseState.stages.stages[0].stageInfo.products[0].offer_details[0]]
+            }]
+          }
+        }]
+      }
+    };
+    store = mockStore(singleOfferState);
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    const continueButton = screen.getByText('Continue');
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(getOffer2).toHaveBeenCalled();
+    });
+  });
+
+  it('should handle case when bestOffer is Y and offer_status is 1004', async () => {
+    const bestOfferState = {
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        stages: [{
+          stageInfo: {
+            ...baseState.stages.stages[0].stageInfo,
+            products: [{
+              ...baseState.stages.stages[0].stageInfo.products[0],
+              offer_details: [{
+                ...baseState.stages.stages[0].stageInfo.products[0].offer_details[0],
+                offer_status: '1004',
+                bestOffer: 'Y'
+              }]
+            }]
+          }
+        }]
+      }
+    };
+    store = mockStore(bestOfferState);
+
+    render(
+      <Provider store={store}>
+        <LoanDisbursement />
+      </Provider>
+    );
+
+    expect(screen.getByText('Preliminary approved loan amount')).toBeInTheDocument();
   });
 });
