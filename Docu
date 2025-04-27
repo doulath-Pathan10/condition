@@ -1,465 +1,570 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import LoanDisbursement from './LoanDisbursement';
-import { StoreModel } from '../../../../utils/model/common-model';
-import { getOffer2, getOfferCalulated } from '../../services/preApprovalServices';
-import { postPdfPreview } from '../../services/preApprovalPostServices';
-import { CONSTANTS } from '../../../../utils/common/constants';
+import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import validateService from "../../../services/validation-service";
+import { fieldError, isFieldUpdate, fieldIdAppend, getUrl } from "../../../utils/common/change.utils";
+import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
+import "./dates.scss";
+import errorMsg from "../../../assets/_json/error.json";
+import { userAgeAction } from "../../../utils/store/age-slice";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { lastAction } from "../../../utils/store/last-accessed-slice";
+import { fieldErrorAction } from "../../../utils/store/field-error-slice";
+import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
+// import 'font-awesome/css/font-awesome.min.css';
 
-// Mock all external dependencies
-jest.mock('../../services/preApprovalServices');
-jest.mock('../../services/preApprovalPostServices');
-jest.mock('../../../../services/common-service');
-jest.mock('../../../../utils/common/change.utils');
+export const Dates = (props: KeyWithAnyModel) => {
+  const [date, setDate] = useState({ DD: "", MM: "", YYYY: "" });
+  const [dateVal, setDateVal] = useState("");
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const [tickMark, setTickMark] = useState(false);
+  const [error, setError] = useState('');
+  const dispatch = useDispatch();
+  const fieldErrorSelector = useSelector(
+    (state: StoreModel) => state.fielderror.error
+  );
+  const applicantsSelector = useSelector(
+    (state: StoreModel) => state.stages.userInput.applicants[0]
+  );
+  const inputSelector = useSelector(
+    (state: StoreModel) => state.stages.userInput
+  );
+  const language = getUrl.getLanguageInfo("lang")
 
-const mockStore = configureStore([]);
+  const workType=applicantsSelector.work_type || stageSelector[0]?.stageInfo?.applicants[0]?.work_type_a_1;
+  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
+  const resumePage = getUrl.getParameterByName("pageId")
 
-describe('LoanDisbursement Component', () => {
-  let store: any;
-  
-  const baseState: StoreModel = {
-    stages: {
-      stages: [{
-        stageInfo: {
-          products: [{
-            product_category: 'PL',
-            product_type: '1258',
-            offer_details: [{
-              approved_amount: 50000,
-              approved_amount_currency: 'HKD',
-              approved_tenor: 12,
-              apr: '1.5',
-              flatRate: '0.5',
-              repaymentAmount: '4200',
-              offer_status: '1001',
-              bestOffer: 'N',
-              service_type: 'ACD3'
-            }, {
-              approved_amount: 100000,
-              approved_amount_currency: 'HKD',
-              approved_tenor: 24,
-              apr: '1.8',
-              flatRate: '0.6',
-              repaymentAmount: '4500',
-              offer_status: '1003',
-              bestOffer: 'Y',
-              service_type: 'ACD4'
-            }]
-          }],
-          applicants: [{
-            requested_loan_amount_a_1: '50000',
-            requested_loan_tenor_a_1: '12'
-          }],
-          application: {
-            channel_reference: 'test-ref',
-            downsell: false
-          }
+  useEffect(() => {
+    if (error === "") {
+      dispatch(ContinueBtnAction.getContinueEnableState(true));
+    } else {
+      dispatch(ContinueBtnAction.getContinueEnableState(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps  
+  }, [error, dispatch])
+
+  useEffect(() => {
+    let storeDate = null;
+    /*istanbul ignore else*/
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
+      storeDate = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name+"_a_1"];
+    }
+    /*istanbul ignore else*/
+    if(inputSelector.applicants[0][props.data.logical_field_name]) {
+      storeDate= inputSelector.applicants[0][props.data.logical_field_name]
+    }
+    if (storeDate) {
+      let splitDate = storeDate.split("-");
+      setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    let storeDate = null;
+    /*istanbul ignore else*/
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0] && (resumeAllowed === "Y" || resumePage === "resume")) {
+      storeDate = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name+"_a_1"];
+    }
+    /*istanbul ignore else*/
+    if(stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name]) {
+      storeDate= stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name]
+    }
+    /*istanbul ignore else*/
+    if (storeDate) {
+      let splitDate = storeDate.split("-");
+      setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  let currentDate: Date = new Date();
+  let currentDay = String(currentDate.getDate()).padStart(2, '0');
+  let currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+  let currentYear = currentDate.getFullYear();
+  const formatFutureDate :any= currentYear - (stageSelector[0].stageInfo.products[0].product_category !== "PL" ? 18 : 20) + "-" + currentMonth + "-" + currentDay
+  let calculatePastYears;
+  /*istanbul ignore else*/
+  if(props.data.logical_field_name === "date_of_birth"){
+    const calculatePastYears1 = currentDate.setFullYear(currentDate.getFullYear() -100);
+    currentDate.setDate(currentDate.getDate()+1)
+    calculatePastYears = currentDate.toISOString().split("T")[0]
+    // = currentYear - (stageSelector[0].stageInfo.products[0].product_category !== "PL" ? 18 : 20)
+  } 
+  /*istanbul ignore else*/
+  if(props.data.logical_field_name === "expiry_date"){
+    const calculatePastYears1 = currentDate.setFullYear(currentDate.getFullYear());
+    currentDate.setDate(currentDate.getDate()+1)
+    calculatePastYears = currentDate.toISOString().split("T")[0]
+  }
+  const changeHandler = (
+    data: React.ChangeEvent<HTMLInputElement>,
+    type: string
+  ) => {
+    setError('');
+    let nextfield = null;
+    const { maxLength, value } = data.target;
+    /*istanbul ignore else*/
+    if (value.length >= maxLength) {
+      if (type === 'MM') {
+        if (Number(data.target.value) <= 12) {
+          nextfield = document.querySelector(
+            `input[name=${props.data.logical_field_name}_yyyy]`
+          ) as HTMLInputElement | null;
         }
-      }],
-      userInput: {
-        downshell: false
+      } else if (type === 'DD') {
+        nextfield = document.querySelector(
+          `input[name=${props.data.logical_field_name}_mm]`
+        ) as HTMLInputElement | null;
       }
-    },
-    error: {},
-    lovDesc: {}
-  };
+    }
+      /*istanbul ignore else*/
+    if (nextfield !== null) {
+      nextfield.focus();
+    }
+    const fieldName = props.data.logical_field_name;
+    if (type === 'YYYY') {
 
-  beforeEach(() => {
-    store = mockStore(baseState);
-    
-    // Default mock implementations
-    (getOffer2 as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: {
-        products: [{
-          offer_details: [{
-            offer_status: '1001',
-            service_type: 'ACD3'
-          }, {
-            offer_status: '1003',
-            service_type: 'ACD4'
-          }]
-        }],
-        application: {
-          response_type: 'INFO',
-          response_action: 'SUCCESS',
-          channel_reference: 'test-ref',
-          error: {
-            application_error: [],
-            applicant_error: [],
-            product_error: []
+      date["YYYY"] = data.target.value;
+    } else if (type === 'MM') {
+      date["MM"] = data.target.value;
+    } else if (type === 'DD') {
+      date["DD"] = data.target.value;
+    }
+    else {
+      if (value !== '') {
+        date["YYYY"] = data.target.value.split("-")[0];
+        date["MM"] = data.target.value.split("-")[1];
+        date["DD"] = data.target.value.split("-")[2];
+      }
+      else {
+        date["YYYY"] = '';
+        date["MM"] = '';
+        date["DD"] = '';
+      }
+    }
+
+    const userValue = date["YYYY"] + "-" + date["MM"] + "-" + date["DD"];
+    let splitDate = userValue.split("-");
+    setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
+    setDateVal(userValue);
+    if (Number(date["MM"]) > 12) {
+      setTickMark(false)
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        })
+      );
+      return
+    }
+    let year = Number(date["YYYY"]);
+    let isLeap = ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
+
+    let currentDate :any = new Date();
+    let expiryCheckInputVal = date["DD"] + "-" +  date["MM"]  + "-" +  date["YYYY"] ;
+    let currentDay = currentDate.getDate();
+    let currentMonth = currentDate.getMonth() +1;
+    let currentYear = currentDate.getFullYear();
+    let expirydateCheck = currentDay + "-" + currentMonth + "-" + currentYear
+    const dateInputValue = new Date(expiryCheckInputVal.split("-").reverse().join("-"));
+    const currentExpiryDate = new Date(expirydateCheck.split("-").reverse().join("-"));
+    if (isLeap && Number(date["DD"]) > 29 && date["MM"] === '2') {
+      setTickMark(false)
+      setError('Date is not valid');
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        })
+      );
+      return
+    }
+    if (!isLeap && Number(date["DD"]) > 28 && date["MM"] === '2') {
+      setTickMark(false)
+      setError('Date is not valid');
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        })
+      );
+      return
+    }
+    else if(date['DD'].length === 0 || date['MM'].length === 0 || data.target.value==='0' || date['DD'] === '0' || date['MM'] === '0' ||data.target.value==='00'|| date['MM'] ==='00'|| date['YYYY'].length === 0 ||date['YYYY'].length < 4 ){
+      setTickMark(false)
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+    }
+    else if( props.data.logical_field_name==='expiry_date' && currentExpiryDate > dateInputValue){
+      setTickMark(false)
+      setError(`${props.data.rwb_label_name} ${language === CONSTANTS.LANG_EN ? errorMsg.expiry_future_date : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}`)
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        }));
+    }
+    else {
+      setTickMark(true)
+      setError('');
+      dispatch(
+        fieldErrorAction.removeToggleFieldError(
+          props.data.logical_field_name,
+        ));
+    }
+
+    props.handleCallback(props.data, userValue);
+    props.handleFieldDispatch?.(props?.data?.logical_field_name, userValue);
+    if (date["DD"] !== "" || date["MM"] !== "" || date["YYYY"] !== "") {
+      if (date["YYYY"].length > 3 && date["DD"].length > 1 && date["MM"].length > 1) {
+        if (validateService.isValidDate(userValue)) {
+
+          /* Conditions for expiry date*/
+          if (props.data.logical_field_name === 'expiry_date') {
+            let isGreaterThanThirtyDays = validateService.calculateMonth(userValue);
+            if (!isGreaterThanThirtyDays) {
+              if (applicantsSelector.id_type_cb === "Exit-Entry Permit")
+                setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK}`);
+              else if (applicantsSelector.id_type_cb === "Passport")
+                setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK}`);
+            } else
+              dispatch(isFieldUpdate(props, userValue, fieldName));
           }
-        },
-        applicants: {},
-        fieldmetadata: {}
-      }
-    });
 
-    (getOfferCalulated as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: {
-        response_indicator: 'SOFT',
-        response_action: 'CONTINUE',
-        apr: '1.5',
-        monthly_flat_rate: '0.5',
-        repayment_amount: '4200'
-      }
-    });
-
-    (postPdfPreview as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: {
-        statusCode: 'OK',
-        docId: 'test-doc-id'
-      }
-    });
-
-    // Mock getLanguageInfo to return English by default
-    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('should render the component with initial English content', () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    expect(screen.getByText('Congratulations!')).toBeInTheDocument();
-    expect(screen.getByText('Your preliminary assessment is completed.')).toBeInTheDocument();
-  });
-
-  it('should render Chinese content when language is set to Chinese', () => {
-    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
-    
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    expect(screen.getByText('恭喜')).toBeInTheDocument();
-  });
-
-  it('should display initial loan amount and tenor from store', () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    expect(screen.getByText('HKD 50000')).toBeInTheDocument();
-    expect(screen.getByText('12 Months')).toBeInTheDocument();
-  });
-
-  it('should update loan amount when slider is changed', async () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const slider = screen.getByRole('slider');
-    fireEvent.change(slider, { target: { value: '60000' } });
-
-    await waitFor(() => {
-      expect(getOfferCalulated).toHaveBeenCalledWith({
-        requested_tenure: '12',
-        requested_amount: '60000'
-      });
-    });
-  });
-
-  it('should update tenor when a different tenor is selected', async () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const tenorButton = screen.getByText('24 Months');
-    fireEvent.click(tenorButton);
-
-    await waitFor(() => {
-      expect(getOfferCalulated).toHaveBeenCalledWith({
-        requested_tenure: '24',
-        requested_amount: '50000'
-      });
-    });
-  });
-
-  it('should show spinner while calculating offer', async () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const tenorButton = screen.getByText('24 Months');
-    fireEvent.click(tenorButton);
-
-    expect(screen.getByTestId('spinner__container')).toBeInTheDocument();
-    
-    await waitFor(() => {
-      expect(screen.queryByTestId('spinner__container')).not.toBeInTheDocument();
-    });
-  });
-
-  it('should handle API error during offer calculation', async () => {
-    (getOfferCalulated as jest.Mock).mockRejectedValue(new Error('API Error'));
-
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const tenorButton = screen.getByText('24 Months');
-    fireEvent.click(tenorButton);
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('spinner__container')).not.toBeInTheDocument();
-    });
-  });
-
-  it('should proceed to next stage with best offer when continue is clicked', async () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(getOffer2).toHaveBeenCalled();
-      expect(postPdfPreview).toHaveBeenCalled();
-    });
-  });
-
-  it('should handle downsell scenario correctly', async () => {
-    const downsellState = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          stageInfo: {
-            ...baseState.stages.stages[0].stageInfo,
-            application: {
-              ...baseState.stages.stages[0].stageInfo.application,
-              downsell: true
+          /**Validation for date of birth */
+          else if (props.data.logical_field_name === 'date_of_birth') {
+            let age = validateService.calculateAge(userValue);
+            if(currentExpiryDate < dateInputValue) {
+              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
+              dispatch(
+                fieldErrorAction.getFieldError({
+                  fieldName: props.data.logical_field_name,
+                }));
+              return
+            }
+            if (age > 99) {
+              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
+              dispatch(
+                fieldErrorAction.getFieldError({
+                  fieldName: props.data.logical_field_name,
+                }));
+                return
+            }else if (age < 20 && stageSelector[0].stageInfo.products[0].product_category === "PL") {//min age for PL is 20 
+              dispatch(
+                fieldErrorAction.getFieldError({
+                  fieldName: props.data.logical_field_name,
+                }));
+              return setError(`${language === CONSTANTS.LANG_EN ? errorMsg.plDateOfBirthMin : language === CONSTANTS.LANG_CN ? errorMsg.plDateOfBirthMin_CN : errorMsg.plDateOfBirthMin_HK}`);
+            }else if (age < 18 && stageSelector[0].stageInfo.products[0].product_category !== "PL") {
+              dispatch(
+                fieldErrorAction.getFieldError({
+                  fieldName: props.data.logical_field_name,
+                }));
+              return setError(`${language === CONSTANTS.LANG_EN ? errorMsg.dateOfBirthMin : language === CONSTANTS.LANG_CN ? errorMsg.dateOfBirthMin_CN : errorMsg.dateOfBirthMin_HK}`);
+            }else {
+              dispatch(userAgeAction.addUserAge({ userAge: age }))
+              dispatch(isFieldUpdate(props, userValue, fieldName));
+              dispatch(
+                fieldErrorAction.removeToggleFieldError(
+                  props.data.logical_field_name,
+                ));
             }
           }
-        }],
-        userInput: {
-          downshell: true
-        }
-      }
-    };
-    store = mockStore(downsellState);
-
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(getOffer2).toHaveBeenCalled();
-    });
-  });
-
-  it('should handle different offer statuses (1004)', async () => {
-    const status1004State = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          stageInfo: {
-            ...baseState.stages.stages[0].stageInfo,
-            products: [{
-              ...baseState.stages.stages[0].stageInfo.products[0],
-              offer_details: [{
-                ...baseState.stages.stages[0].stageInfo.products[0].offer_details[0],
-                offer_status: '1004',
-                bestOffer: 'Y'
-              }]
-            }]
-          }
-        }]
-      }
-    };
-    store = mockStore(status1004State);
-
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    expect(screen.getByText('Preliminary approved loan amount')).toBeInTheDocument();
-    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
-  });
-
-  it('should filter tenor options based on product type', () => {
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    // For product type 1258, 72 and 84 months should not be displayed
-    expect(screen.queryByText('72 Months')).not.toBeInTheDocument();
-    expect(screen.queryByText('84 Months')).not.toBeInTheDocument();
-  });
-
-  it('should handle hard stop response from API', async () => {
-    (getOffer2 as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: {
-        products: [{
-          offer_details: [{
-            offer_status: '1002',
-            service_type: 'ACD3',
-            reason_code_descriptions: [{
-              reason_code: 'ERROR1',
-              reason_description: 'Test error'
-            }]
-          }]
-        }],
-        application: {
-          response_type: 'HARD',
-          response_action: 'STOP',
-          error: {
-            application_error: [{
-              error_description: 'Test error',
-              rtobCode: 'ERROR1'
-            }],
-            applicant_error: [],
-            product_error: []
+          else if(props.data.logical_field_name === 'business_est_date'){
+            let age = validateService.calculateAge(userValue);
+            if(age < 0) {
+              setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
+              dispatch(
+                fieldErrorAction.getFieldError({
+                  fieldName: props.data.logical_field_name,
+                }));
+            }
           }
         }
-      }
-    });
+        else {
+          if (props.data.logical_field_name === 'expiry_date') {
+            setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
 
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(getOffer2).toHaveBeenCalled();
-    });
-  });
-
-  it('should handle API error in nextStage', async () => {
-    (getOffer2 as jest.Mock).mockRejectedValue(new Error('API Error'));
-
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(getOffer2).toHaveBeenCalled();
-    });
-  });
-
-  it('should handle PDF preview API error', async () => {
-    (postPdfPreview as jest.Mock).mockRejectedValue(new Error('PDF Error'));
-
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
-
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(postPdfPreview).toHaveBeenCalled();
-    });
-  });
-
-  it('should handle case when offer_details has only one offer', async () => {
-    const singleOfferState = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          stageInfo: {
-            ...baseState.stages.stages[0].stageInfo,
-            products: [{
-              ...baseState.stages.stages[0].stageInfo.products[0],
-              offer_details: [baseState.stages.stages[0].stageInfo.products[0].offer_details[0]]
-            }]
+          } else {
+            setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
           }
-        }]
+        }
+      } 
+      // else {
+      //   if (props.data.logical_field_name === 'expiry_date') {
+      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props.data.rwb_label_name}`);
+
+      //   } else {
+      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      //   }
+      // }
+    }
+    else if (props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") {
+      if (props.data.logical_field_name === 'expiry_date') {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+
+      } else {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
       }
-    };
-    store = mockStore(singleOfferState);
+    }
+  };
 
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
+  const bindHandler = (data: any, type: string) => {
+    /*istanbul ignore else*/
+    if(props.data.logical_field_name==='date_of_birth' && data.target.value===''){
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        })
+      );
+    }
+      /*istanbul ignore else*/
+    if ((type === "DD" || type === "MM") && data.target.value && parseInt(data.target.value) > 0 && (data.target.value).length < 2) {
+      date[type] = `0${data.target.value}`;
+      data.target.value = date[type];
+      changeHandler(data, type);
+    }
+  };
 
-    const continueButton = screen.getByText('Continue');
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(getOffer2).toHaveBeenCalled();
-    });
-  });
-
-  it('should handle case when bestOffer is Y and offer_status is 1004', async () => {
-    const bestOfferState = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          stageInfo: {
-            ...baseState.stages.stages[0].stageInfo,
-            products: [{
-              ...baseState.stages.stages[0].stageInfo.products[0],
-              offer_details: [{
-                ...baseState.stages.stages[0].stageInfo.products[0].offer_details[0],
-                offer_status: '1004',
-                bestOffer: 'Y'
-              }]
-            }]
-          }
-        }]
+  useEffect(() => {
+    /*istanbul ignore else*/
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
+      const storeDate =
+        stageSelector[0].stageInfo.applicants[0][
+        props.data.logical_field_name
+        ];
+        /*istanbul ignore else*/
+      if (storeDate) {
+        let splitDate = storeDate.split("-");
+        setDate({ DD: splitDate[2], MM: splitDate[1], YYYY: splitDate[0] });
       }
-    };
-    store = mockStore(bestOfferState);
+    }
+  }, [stageSelector, props.data && props.data.logical_field_name]);
 
-    render(
-      <Provider store={store}>
-        <LoanDisbursement />
-      </Provider>
-    );
+  useEffect(() => {
+    /*istanbul ignore else*/
+    if (props.data && props.data.logical_field_name === 'expiry_date') {
+      /*istanbul ignore else*/
+      if (applicantsSelector.expiry_date) {
+        setDate({ DD: "", MM: "", YYYY: "" });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicantsSelector.id_type_cb])
 
-    expect(screen.getByText('Preliminary approved loan amount')).toBeInTheDocument();
-  });
-});
+  useEffect(() => {
+    //setErrors(fieldError(fieldErrorSelector, props));
+    /*istanbul ignore else*/
+    if (fieldError(fieldErrorSelector, props)) {
+      /*istanbul ignore else*/
+      if (props.data.logical_field_name === 'expiry_date') {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+
+      }
+      //  else {
+      //   setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      // }
+    } 
+    // else {
+    //   setError('');
+    // }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldErrorSelector]);
+
+  const allowOnlyCharacter = (event: React.KeyboardEvent<HTMLInputElement>, fieldName: string) => {
+    validateService.allowOnlyCharacter(event, fieldName);
+  };
+
+  useEffect(() => {
+    if (error === (language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK))
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK}`);
+    else if (error === (language === CONSTANTS.LANG_EN ? errorMsg.expiry_PASSPORT : language === CONSTANTS.LANG_CN ? errorMsg.expiry_PASSPORT_CN : errorMsg.expiry_PASSPORT_HK))
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.expiry_EEP : language === CONSTANTS.LANG_CN ? errorMsg.expiry_EEP_CN : errorMsg.expiry_EEP_HK}`);
+    if (props.data && props.data.logical_field_name === 'expiry_date') {
+      if (applicantsSelector.expiry_date) {
+        setDate({ DD: "", MM: "", YYYY: "" });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicantsSelector.id_type_cb])
+
+  const focusHandler = (
+    fieldName: string,
+    event: React.FocusEvent<HTMLInputElement>
+  ) => {
+    dispatch(lastAction.getField(fieldName));
+  };
+
+  const keyDownHandler = (fieldName: string, event: React.KeyboardEvent<HTMLInputElement>) => {
+    /*istanbul ignore else*/
+    if(event?.key === 'Tab'){
+      /*istanbul ignore else*/
+      if((props.data.logical_field_name === 'date_of_birth' || props.data.logical_field_name === 'business_est_date') && (date.DD === '' || date.MM === '' || date.YYYY === '')){
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      }
+    }
+  }
+
+  return (
+    <>
+      {(stageSelector[0].stageId === 'ad-2' &&
+        workType === 'E002' || workType === 'E001' || workType === 'E103' || workType === 'E104') &&
+        props && props.data &&
+        <div className="date">
+          <label htmlFor={props.data.logical_field_name} className="text-label tick-enabled">
+            {!error && tickMark &&
+              <div className="tick-class"></div>
+            }
+            <span> {props.data.rwb_label_name}</span>
+          </label>
+          <div className="date__inputs" id={fieldIdAppend(props)}>
+            <input
+              placeholder="DD"
+              minLength={1}
+              maxLength={2}
+              type="tel"
+              value={date.DD}
+              onChange={(event) => changeHandler(event, "DD")}
+              onKeyPress={(event) =>
+                allowOnlyCharacter(event, props.data.logical_field_name)
+              }
+              onBlur={(event) => bindHandler(event, "DD")}
+              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+              disabled={props.data.editable}
+              className={error && 'input-error'}
+              name={props.data.logical_field_name + '_dd'}
+              id={props.data.logical_field_name + '_dd'}
+              onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
+              autoComplete="off"
+            />
+            <span className="date-separators-m"></span>
+            <input
+              placeholder="MM"
+              minLength={1}
+              maxLength={2}
+              type="tel"
+              value={date.MM}
+              onChange={(event) => changeHandler(event, "MM")}
+              onKeyPress={(event) =>
+                allowOnlyCharacter(event, props.data.logical_field_name)
+              }
+              onBlur={(event) => bindHandler(event, "MM")}
+              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+              disabled={props.data.editable}
+              className={error && 'input-error'}
+              name={props.data.logical_field_name + '_mm'}
+              id={props.data.logical_field_name + '_mm'}
+              autoComplete="off"
+            />
+            <span className="date-separators-m"></span>
+            <input
+              // title="year-input"
+              placeholder="YYYY"
+              minLength={4}
+              maxLength={4}
+              type="tel"
+              value={date.YYYY}
+              onChange={(event) => changeHandler(event, "YYYY")}
+              onKeyPress={(event) =>
+                allowOnlyCharacter(event, props.data.logical_field_name)
+              }
+              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+              disabled={props.data.editable}
+              className={error && 'input-error'}
+              name={props.data.logical_field_name + '_yyyy'}
+              id={props.data.logical_field_name + '_yyyy'}
+              autoComplete="off"
+            />
+          </div>
+        </div>
+      }
+      {(workType !== 'S103' && stageSelector[0].stageId === 'pd-1')&&
+        props && props.data &&
+        <div className="date">
+          <label htmlFor={props.data.logical_field_name} className="text-label tick-enabled">
+            {!error && tickMark &&
+              <div className="tick-class"></div>
+            }
+            <span> {props.data.rwb_label_name}</span>
+          </label>
+          <div className="date__inputs" id={fieldIdAppend(props)}>
+            <input
+              placeholder="DD"
+              minLength={1}
+              maxLength={2}
+              type="tel"
+              value={date.DD}
+              onChange={(event) => changeHandler(event, "DD")}
+              onKeyPress={(event) =>
+                allowOnlyCharacter(event, props.data.logical_field_name)
+              }
+              onBlur={(event) => bindHandler(event, "DD")}
+              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+              disabled={props.data.editable}
+              className={error && 'input-error'}
+              name={props.data.logical_field_name + '_dd'}
+              id={props.data.logical_field_name + '_dd'}
+              onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
+              autoComplete="off"
+            />
+            <span className="date-separators-m"></span>
+            <input
+              placeholder="MM"
+              minLength={1}
+              maxLength={2}
+              type="tel"
+              value={date.MM}
+              onChange={(event) => changeHandler(event, "MM")}
+              onKeyPress={(event) =>
+                allowOnlyCharacter(event, props.data.logical_field_name)
+              }
+              onBlur={(event) => bindHandler(event, "MM")}
+              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+              disabled={props.data.editable}
+              className={error && 'input-error'}
+              name={props.data.logical_field_name + '_mm'}
+              id={props.data.logical_field_name + '_mm'}
+              autoComplete="off"
+            />
+            <span className="date-separators-m"></span>
+            <input
+              // title="year-input"
+              placeholder="YYYY"
+              minLength={4}
+              maxLength={4}
+              type="tel"
+              value={date.YYYY}
+              onChange={(event) => changeHandler(event, "YYYY")}
+              onKeyPress={(event) =>
+                allowOnlyCharacter(event, props.data.logical_field_name)
+              }
+              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+              disabled={props.data.editable}
+              className={error && 'input-error'}
+              name={props.data.logical_field_name + '_yyyy'}
+              id={props.data.logical_field_name + '_yyyy'}
+              autoComplete="off"
+            />
+            <span className="date-separators-m"></span>
+            {(props.data.logical_field_name === "date_of_birth" || props.data.logical_field_name === "expiry_date") &&
+              <input
+                className="date_icon"
+                type="date"
+                value={dateVal}
+                max= {props.data.logical_field_name==='date_of_birth'&& formatFutureDate} //future date 
+                min={calculatePastYears as any} //past date
+                onChange={(event) => changeHandler(event, "date")}
+              />
+            }
+          </div>
+        </div>
+        }
+
+      {error && <div className="error-msg">{error}</div>}
+    </>
+  );
+};
+
+export default Dates;
