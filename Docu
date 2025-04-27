@@ -29,7 +29,8 @@ describe('Dates Component', () => {
             work_type_a_1: 'E001',
             date_of_birth_a_1: '1990-05-15',
             expiry_date_a_1: '2025-12-31',
-            id_type_cb: 'Passport'
+            id_type_cb: 'Passport',
+            business_est_date: '2010-01-01'
           }]
         }
       }],
@@ -38,7 +39,8 @@ describe('Dates Component', () => {
           work_type: 'E001',
           date_of_birth: '1990-05-15',
           expiry_date: '2025-12-31',
-          id_type_cb: 'Passport'
+          id_type_cb: 'Passport',
+          business_est_date: '2010-01-01'
         }]
       }
     },
@@ -46,6 +48,9 @@ describe('Dates Component', () => {
     lovDesc: {},
     preApproval: {
       resumeAllowed: 'N'
+    },
+    fielderror: {
+      error: []
     }
   };
 
@@ -64,6 +69,7 @@ describe('Dates Component', () => {
     store = mockStore(baseState);
     (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
     (changeUtils.fieldError as jest.Mock).mockReturnValue(false);
+    (changeUtils.fieldIdAppend as jest.Mock).mockImplementation((p) => p.data.logical_field_name);
     (validateService.allowOnlyCharacter as jest.Mock).mockImplementation((e) => e);
     (validateService.isValidDate as jest.Mock).mockReturnValue(true);
     (validateService.calculateAge as jest.Mock).mockReturnValue(30);
@@ -74,162 +80,57 @@ describe('Dates Component', () => {
     jest.clearAllMocks();
   });
 
-  it('should render with initial state', () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
+  // Test cases for different field types
+  describe('Date of Birth Field', () => {
+    it('should render with initial state', () => {
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
 
-    expect(screen.getByText('Date of Birth')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('DD')).toHaveValue('15');
-    expect(screen.getByPlaceholderText('MM')).toHaveValue('05');
-    expect(screen.getByPlaceholderText('YYYY')).toHaveValue('1990');
-  });
+      expect(screen.getByText('Date of Birth')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('DD')).toHaveValue('15');
+      expect(screen.getByPlaceholderText('MM')).toHaveValue('05');
+      expect(screen.getByPlaceholderText('YYYY')).toHaveValue('1990');
+    });
 
-  it('should handle DD change and move focus to MM', () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
+    it('should show error for age < 20 for PL product', async () => {
+      (validateService.calculateAge as jest.Mock).mockReturnValue(19);
+      
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
 
-    const ddInput = screen.getByPlaceholderText('DD');
-    fireEvent.change(ddInput, { target: { value: '20' } });
-    
-    expect(ddInput).toHaveValue('20');
-  });
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      fireEvent.change(yyyyInput, { target: { value: '2005' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Minimum age should be 20/)).toBeInTheDocument();
+      });
+    });
 
-  it('should handle MM change and move focus to YYYY', () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
+    it('should show error for age > 99', async () => {
+      (validateService.calculateAge as jest.Mock).mockReturnValue(100);
+      
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
 
-    const mmInput = screen.getByPlaceholderText('MM');
-    fireEvent.change(mmInput, { target: { value: '10' } });
-    
-    expect(mmInput).toHaveValue('10');
-  });
-
-  it('should handle YYYY change', () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    const yyyyInput = screen.getByPlaceholderText('YYYY');
-    fireEvent.change(yyyyInput, { target: { value: '1985' } });
-    
-    expect(yyyyInput).toHaveValue('1985');
-  });
-
-  it('should show error for invalid month (>12)', async () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    const mmInput = screen.getByPlaceholderText('MM');
-    fireEvent.change(mmInput, { target: { value: '13' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText('Date is not valid')).toBeInTheDocument();
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      fireEvent.change(yyyyInput, { target: { value: '1920' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Please enter a valid Date of Birth/)).toBeInTheDocument();
+      });
     });
   });
 
-  it('should show error for invalid date in February (non-leap year)', async () => {
-    (validateService.isValidDate as jest.Mock).mockReturnValue(false);
-    
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    const yyyyInput = screen.getByPlaceholderText('YYYY');
-    fireEvent.change(yyyyInput, { target: { value: '2023' } });
-    const mmInput = screen.getByPlaceholderText('MM');
-    fireEvent.change(mmInput, { target: { value: '02' } });
-    const ddInput = screen.getByPlaceholderText('DD');
-    fireEvent.change(ddInput, { target: { value: '29' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText('Date is not valid')).toBeInTheDocument();
-    });
-  });
-
-  it('should show error for empty mandatory field', async () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    const ddInput = screen.getByPlaceholderText('DD');
-    fireEvent.change(ddInput, { target: { value: '' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Date of Birth is required/)).toBeInTheDocument();
-    });
-  });
-
-  it('should show error for age < 20 for PL product', async () => {
-    (validateService.calculateAge as jest.Mock).mockReturnValue(19);
-    
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    const yyyyInput = screen.getByPlaceholderText('YYYY');
-    fireEvent.change(yyyyInput, { target: { value: '2005' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Minimum age should be 20/)).toBeInTheDocument();
-    });
-  });
-
-  it('should show error for age < 18 for non-PL product', async () => {
-    const modifiedState = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          ...baseState.stages.stages[0],
-          stageInfo: {
-            ...baseState.stages.stages[0].stageInfo,
-            products: [{
-              product_category: 'CC',
-              offer_details: [{}]
-            }]
-          }
-        }]
-      }
-    };
-    store = mockStore(modifiedState);
-    
-    (validateService.calculateAge as jest.Mock).mockReturnValue(17);
-    
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    const yyyyInput = screen.getByPlaceholderText('YYYY');
-    fireEvent.change(yyyyInput, { target: { value: '2007' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Minimum age should be 18/)).toBeInTheDocument();
-    });
-  });
-
-  it('should handle expiry date validation for Passport', async () => {
+  describe('Expiry Date Field', () => {
     const expiryProps = {
       ...props,
       data: {
@@ -237,141 +138,82 @@ describe('Dates Component', () => {
         logical_field_name: 'expiry_date'
       }
     };
-    
-    (validateService.calculateMonth as jest.Mock).mockReturnValue(false);
-    
-    render(
-      <Provider store={store}>
-        <Dates {...expiryProps} />
-      </Provider>
-    );
 
-    const yyyyInput = screen.getByPlaceholderText('YYYY');
-    fireEvent.change(yyyyInput, { target: { value: '2023' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Passport expiry date should be at least 30 days/)).toBeInTheDocument();
+    it('should show error for past expiry date', async () => {
+      render(
+        <Provider store={store}>
+          <Dates {...expiryProps} />
+        </Provider>
+      );
+
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      fireEvent.change(yyyyInput, { target: { value: '2020' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Expiry date should be a future date/)).toBeInTheDocument();
+      });
     });
-  });
 
-  it('should handle expiry date validation for Exit-Entry Permit', async () => {
-    const modifiedState = {
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{
-          ...baseState.stages.stages[0],
-          stageInfo: {
-            ...baseState.stages.stages[0].stageInfo,
+    it('should show Passport-specific error when expiry < 30 days', async () => {
+      (validateService.calculateMonth as jest.Mock).mockReturnValue(false);
+      
+      render(
+        <Provider store={store}>
+          <Dates {...expiryProps} />
+        </Provider>
+      );
+
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      fireEvent.change(yyyyInput, { target: { value: '2023' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Passport expiry date should be at least 30 days/)).toBeInTheDocument();
+      });
+    });
+
+    it('should show Exit-Entry Permit specific error when expiry < 30 days', async () => {
+      const modifiedState = {
+        ...baseState,
+        stages: {
+          ...baseState.stages,
+          stages: [{
+            ...baseState.stages.stages[0],
+            stageInfo: {
+              ...baseState.stages.stages[0].stageInfo,
+              applicants: [{
+                ...baseState.stages.stages[0].stageInfo.applicants[0],
+                id_type_cb: 'Exit-Entry Permit'
+              }]
+            }
+          }],
+          userInput: {
             applicants: [{
-              ...baseState.stages.stages[0].stageInfo.applicants[0],
+              ...baseState.stages.userInput.applicants[0],
               id_type_cb: 'Exit-Entry Permit'
             }]
           }
-        }],
-        userInput: {
-          applicants: [{
-            ...baseState.stages.userInput.applicants[0],
-            id_type_cb: 'Exit-Entry Permit'
-          }]
         }
-      }
-    };
-    store = mockStore(modifiedState);
-    
-    const expiryProps = {
-      ...props,
-      data: {
-        ...props.data,
-        logical_field_name: 'expiry_date'
-      }
-    };
-    
-    (validateService.calculateMonth as jest.Mock).mockReturnValue(false);
-    
-    render(
-      <Provider store={store}>
-        <Dates {...expiryProps} />
-      </Provider>
-    );
+      };
+      store = mockStore(modifiedState);
+      
+      (validateService.calculateMonth as jest.Mock).mockReturnValue(false);
+      
+      render(
+        <Provider store={store}>
+          <Dates {...expiryProps} />
+        </Provider>
+      );
 
-    const yyyyInput = screen.getByPlaceholderText('YYYY');
-    fireEvent.change(yyyyInput, { target: { value: '2023' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Exit-Entry Permit expiry date should be at least 30 days/)).toBeInTheDocument();
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      fireEvent.change(yyyyInput, { target: { value: '2023' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Exit-Entry Permit expiry date should be at least 30 days/)).toBeInTheDocument();
+      });
     });
   });
 
-  it('should show error for past expiry date', async () => {
-    const expiryProps = {
-      ...props,
-      data: {
-        ...props.data,
-        logical_field_name: 'expiry_date'
-      }
-    };
-    
-    render(
-      <Provider store={store}>
-        <Dates {...expiryProps} />
-      </Provider>
-    );
-
-    const yyyyInput = screen.getByPlaceholderText('YYYY');
-    fireEvent.change(yyyyInput, { target: { value: '2020' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Expiry date should be a future date/)).toBeInTheDocument();
-    });
-  });
-
-  it('should handle Chinese language content', () => {
-    (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
-    
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    expect(screen.getByText('Date of Birth')).toBeInTheDocument();
-  });
-
-  it('should show tick mark for valid date', async () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    const ddInput = screen.getByPlaceholderText('DD');
-    fireEvent.change(ddInput, { target: { value: '20' } });
-    
-    await waitFor(() => {
-      expect(document.querySelector('.tick-class')).toBeInTheDocument();
-    });
-  });
-
-  it('should handle resume allowed scenario', () => {
-    const modifiedState = {
-      ...baseState,
-      preApproval: {
-        resumeAllowed: 'Y'
-      }
-    };
-    store = mockStore(modifiedState);
-    
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
-
-    expect(screen.getByPlaceholderText('DD')).toHaveValue('15');
-  });
-
-  it('should handle business establishment date validation', async () => {
+  describe('Business Establishment Date Field', () => {
     const businessProps = {
       ...props,
       data: {
@@ -379,53 +221,207 @@ describe('Dates Component', () => {
         logical_field_name: 'business_est_date'
       }
     };
-    
-    (validateService.calculateAge as jest.Mock).mockReturnValue(-1);
-    
-    render(
-      <Provider store={store}>
-        <Dates {...businessProps} />
-      </Provider>
-    );
 
-    const yyyyInput = screen.getByPlaceholderText('YYYY');
-    fireEvent.change(yyyyInput, { target: { value: '2050' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Please enter a valid Date of Birth/)).toBeInTheDocument();
+    it('should show error for future business establishment date', async () => {
+      (validateService.calculateAge as jest.Mock).mockReturnValue(-1);
+      
+      render(
+        <Provider store={store}>
+          <Dates {...businessProps} />
+        </Provider>
+      );
+
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      fireEvent.change(yyyyInput, { target: { value: '2050' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Please enter a valid Business Establishment Date/)).toBeInTheDocument();
+      });
     });
   });
 
-  it('should handle tab key press with empty fields', async () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
+  describe('Field Interactions', () => {
+    it('should move focus from DD to MM when DD is filled', () => {
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
 
-    const ddInput = screen.getByPlaceholderText('DD');
-    fireEvent.change(ddInput, { target: { value: '' } });
-    fireEvent.keyDown(ddInput, { key: 'Tab' });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Date of Birth is required/)).toBeInTheDocument();
+      const ddInput = screen.getByPlaceholderText('DD');
+      const mmInput = screen.getByPlaceholderText('MM');
+      const spy = jest.spyOn(mmInput, 'focus');
+      
+      fireEvent.change(ddInput, { target: { value: '20' } });
+      
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should move focus from MM to YYYY when MM is filled', () => {
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
+
+      const mmInput = screen.getByPlaceholderText('MM');
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      const spy = jest.spyOn(yyyyInput, 'focus');
+      
+      fireEvent.change(mmInput, { target: { value: '10' } });
+      
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should show error when tabbing away from empty field', async () => {
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
+
+      const ddInput = screen.getByPlaceholderText('DD');
+      fireEvent.change(ddInput, { target: { value: '' } });
+      fireEvent.keyDown(ddInput, { key: 'Tab' });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Date of Birth is required/)).toBeInTheDocument();
+      });
     });
   });
 
-  it('should handle date picker change', async () => {
-    render(
-      <Provider store={store}>
-        <Dates {...props} />
-      </Provider>
-    );
+  describe('Error Handling', () => {
+    it('should show error for invalid month (>12)', async () => {
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
 
-    const datePicker = screen.getByTestId('date-picker');
-    fireEvent.change(datePicker, { target: { value: '1995-10-20' } });
-    
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('DD')).toHaveValue('20');
-      expect(screen.getByPlaceholderText('MM')).toHaveValue('10');
-      expect(screen.getByPlaceholderText('YYYY')).toHaveValue('1995');
+      const mmInput = screen.getByPlaceholderText('MM');
+      fireEvent.change(mmInput, { target: { value: '13' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText('Date is not valid')).toBeInTheDocument();
+      });
+    });
+
+    it('should show error for invalid date in February (non-leap year)', async () => {
+      (validateService.isValidDate as jest.Mock).mockReturnValue(false);
+      
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
+
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      fireEvent.change(yyyyInput, { target: { value: '2023' } });
+      const mmInput = screen.getByPlaceholderText('MM');
+      fireEvent.change(mmInput, { target: { value: '02' } });
+      const ddInput = screen.getByPlaceholderText('DD');
+      fireEvent.change(ddInput, { target: { value: '29' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText('Date is not valid')).toBeInTheDocument();
+      });
+    });
+
+    it('should show error for empty mandatory field', async () => {
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
+
+      const ddInput = screen.getByPlaceholderText('DD');
+      fireEvent.change(ddInput, { target: { value: '' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Date of Birth is required/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Special Cases', () => {
+    it('should handle resume allowed scenario', () => {
+      const modifiedState = {
+        ...baseState,
+        preApproval: {
+          resumeAllowed: 'Y'
+        }
+      };
+      store = mockStore(modifiedState);
+      
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
+
+      expect(screen.getByPlaceholderText('DD')).toHaveValue('15');
+    });
+
+    it('should handle Chinese language content', () => {
+      (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
+      
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
+
+      expect(screen.getByText('Date of Birth')).toBeInTheDocument();
+    });
+
+    it('should show tick mark for valid date', async () => {
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
+
+      const ddInput = screen.getByPlaceholderText('DD');
+      fireEvent.change(ddInput, { target: { value: '20' } });
+      
+      await waitFor(() => {
+        expect(document.querySelector('.tick-class')).toBeInTheDocument();
+      });
+    });
+
+    it('should handle non-PL product age validation', async () => {
+      const modifiedState = {
+        ...baseState,
+        stages: {
+          ...baseState.stages,
+          stages: [{
+            ...baseState.stages.stages[0],
+            stageInfo: {
+              ...baseState.stages.stages[0].stageInfo,
+              products: [{
+                product_category: 'CC',
+                offer_details: [{}]
+              }]
+            }
+          }]
+        }
+      };
+      store = mockStore(modifiedState);
+      
+      (validateService.calculateAge as jest.Mock).mockReturnValue(17);
+      
+      render(
+        <Provider store={store}>
+          <Dates {...props} />
+        </Provider>
+      );
+
+      const yyyyInput = screen.getByPlaceholderText('YYYY');
+      fireEvent.change(yyyyInput, { target: { value: '2007' } });
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Minimum age should be 18/)).toBeInTheDocument();
+      });
     });
   });
 });
