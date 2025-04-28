@@ -1,152 +1,214 @@
-import Rules_bd_4 from './Rules_bd_4';
-import rulesUtils from './rules.utils';
+import "./onboarding-before-start.scss";
+import { useState, useEffect, useRef } from "react";
+import Pdf from "../../../../shared/components/pdf/pdf";
+import { getData, getPDFData } from "../../services/preApprovalServices";
+import { CATEGORIES, KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../services/constants";
+import { useDispatch, useSelector } from "react-redux";
+import { StoreModel } from "../../../../utils/model/common-model";
+import Spinner from "../../../../shared/components/spinner/spinner";
+import { preApprovalAction } from "../../store/preApproval-slice";
+import { dispatchLoader } from "../../../../services/common-service";
+import { getUrl } from "../../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../../utils/common/constants";
+import PILPdfUrl1 from "../../../../assets/pdf-file/PIL/hk-personal-loan-terms-pil-aug09.pdf";
+import PILPdfUrl2 from "../../../../assets/pdf-file/PIL/hk-gn175.pdf";
+import PILPdfUrl3 from "../../../../assets/pdf-file/PIL/hk-loans-personal-instalment-loan-eng.pdf";
+import CCPdfUrl1 from "../../../../assets/pdf-file/CC/hk-gn175.pdf";
+import CCPdfUrl2 from "../../../../assets/pdf-file/CC/hk-gn177.pdf";
+import CCPdfUrl3 from "../../../../assets/pdf-file/CC/hk-cc-tncs-downloadnow.pdf";
+import CCPdfUrl4 from "../../../../assets/pdf-file/CC/e-statement-en.pdf";
+import CCPdfUrl5 from "../../../../assets/pdf-file/CC/hk-rewards-tncs-en.pdf";
+import CCPdfUrl6 from "../../../../assets/pdf-file/CC/hk-tnc-credit-card-instalment-plan-en.pdf";
 
-// Mock the rulesUtils function
-jest.mock('./rules.utils', () => jest.fn());
-
-describe('Rules_bd_4', () => {
-  const mockProps = [
-    {
-      fields: [
-        { logical_field_name: 'field1', default_visibility: 'Yes' },
-        { logical_field_name: 'field2', default_visibility: 'Yes' }
-      ]
+const OnboardingBeforeStart: React.FC<any> = ({
+  isVisible,
+  onScrollEnd,
+  stageID,
+  nextPage
+}) => {
+  const listInnerRef = useRef<HTMLDivElement>(null);
+  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+  const [kfsDocPDF, setkfsDocPDF] = useState("");
+  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+  const [pdfName, setPdfName] = useState('')
+  const [showSpinner, setShowSpinner] = useState(true);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const campaignId = stageSelector[0]?.stageInfo?.products[0]?.campaign;
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
+  const dispatch = useDispatch();
+  const language = getUrl.getLanguageInfo("lang");  
+  console.log(process.env.REACT_APP_KFS_DOC_URL)
+  useEffect(() => {
+    setShowSpinner(true);
+    dispatch(dispatchLoader(true));
+    let KFS;
+    if(language==='zh'){
+      KFS=process.env.REACT_APP_KFS_DOC_URL_Chinees
+    }else{
+      KFS=process.env.REACT_APP_KFS_DOC_URL
     }
-  ];
 
-  const mockApplication = {
-    productType: 'CC',
-    campaign: 'TEST_CAMPAIGN'
+    getData(KFS)?.then((response: any) => {
+      const campaignID = formConfigmetaData?.products[0].campaign;
+      let pdfURLNew = "";
+      if (stageID === 0) {
+        const pdfURL = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.productsMob[campaignID] : response.data.products[campaignID];
+        const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        if (window.location.host === "localhost:3000") {
+          pdfURLNew = pdfURL[0].pdfURL.replace(
+            "https://pt.sc.com/",
+            "http://localhost:3000/"
+
+          );
+        } else {
+          pdfURLNew = pdfURL[0].pdfURL;
+        }
+        setPdfName(getPDFName);
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          const pdfurl: any = {};
+          pdfurl.pdf = response;
+          pdfurl.pdfurl = pdfURLNew;
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+      }
+      else if (stageID === 1) {
+        const pdfURLCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.CampaignTnCMob[campaignID] : response.data.CampaignTnC[campaignID];
+        const pdfMap = pdfURLCheck.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        if (window.location.host === "localhost:3000") {
+          pdfURLNew =pdfURLCheck[0]?.pdfURL.replace("https://pt.sc.com/", "http://localhost:3000/");
+        } else {
+          pdfURLNew = pdfURLCheck[0]?.pdfURL;
+        }
+        setPdfName(getPDFName);
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setTandCDocumentPdf(pdfURLNew));
+          dispatch(preApprovalAction.setDownloadPDFData(response));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+      }
+      const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+      setPdfLinkTerms(allPDFLinks);
+    });
+  }, [stageID]);
+
+  useEffect(() => {
+    const listInnerElement = listInnerRef.current;
+        /* istanbul ignore else */
+    if (listInnerElement) {
+      listInnerElement.addEventListener("scroll", scrollToBottom);
+      // Clean-up
+      return () => {
+        listInnerElement.removeEventListener("scroll", scrollToBottom);
+      };
+    }
+    window.history.replaceState("", "", "/hk/before-start")
+  });
+
+ 
+
+ //Added for mock pdf
+  const downloadPdf = (title: any) => {
+    const lin = document.createElement('a');
+    if(campaignId === "HKPIL23PLSTP10" || campaignId === "HKBDC23PESTP10") {
+      if(title === "II. Personal Loan Terms") {
+        lin.href = PILPdfUrl1;
+      } else if(title === "III. Client Terms") {
+        lin.href = PILPdfUrl2;
+      } else if(title === "Welcome Offers"){
+        lin.href = PILPdfUrl3;
+      }
+    } else if(campaignId === "HKSOG20VAWV000" || campaignId === "HKSPG17VAWV000" || campaignId === "HKSPB17VAWV000" || campaignId === "HKSOA16VAWP000" || campaignId === "HKSOA16MCWP000" || campaignId=== "HKSOZ00MCWB000"|| campaignId=== "HKSOZ01MCWB000"|| campaignId=== "HKSOZ02MCWB000") {
+      if(title === "III. Client Terms" || title === "III.Client Terms "){
+        lin.href = CCPdfUrl1;
+      } else if(title === "III. Credit Card Terms"){
+        lin.href = CCPdfUrl2;
+      } else if(title === "VI. Welcome Offers" || title === "IV. Welcome Offers" ||  title === 'VI. Welcome Offers '){
+        lin.href = CCPdfUrl3;
+      } else if(title === "IX.  E-Statement Service" || title === "IX. E-Statement Service" || title === "IX.E-Statement Service" || title === "IX.E-Statement Service "){
+        lin.href = CCPdfUrl4;
+      } else if(title === "X. Points Redemption"){
+        lin.href = CCPdfUrl5;
+      } else if(title === "XI. Credit Card Instalment Plan" || title === "X.Credit Card Installment Plan " || title === "X.Credit Card Installment Plan"){
+        lin.href = CCPdfUrl6;
+      }
+    }
+    const urlParts = lin.href.split("/");
+    const extractedPDFName = urlParts[urlParts.length - 1].split(".")[0];
+    lin.download = extractedPDFName;
+    document.body.appendChild(lin);
+    lin.click();
+    document.body.removeChild(lin);
+  }
+
+  const downloadPDFPreApproval = (e:React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    const lin = document.createElement('a');
+    lin.href = kfsDocPDFDownload;
+    const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+    if (isSafari) {
+      lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
+    } else {
+      lin.download = pdfName;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
+    }
   };
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    (rulesUtils as jest.Mock).mockImplementation((props, validationObj) => ({
-      ...props,
-      validationObj
-    }));
-  });
+  const btnClickScroll = () => {
+    listInnerRef.current?.scrollBy({ top: stageID===0 ? 200 : 5000, behavior: "smooth" });
+  };
 
-  it('should call rulesUtils with empty validationObj when no employeeToggleSelector provided', () => {
-    const result = Rules_bd_4(mockProps, mockApplication);
-    
-    expect(rulesUtils).toHaveBeenCalledTimes(1);
-    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
-      nonEditable: [],
-      hidden: []
-    });
-    expect(result).toEqual({
-      ...mockProps,
-      validationObj: {
-        nonEditable: [],
-        hidden: []
+  const scrollToBottom = () => {
+        /* istanbul ignore else */
+    if (listInnerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      /* istanbul ignore else */
+      if (isNearBottom) {
+        onScrollEnd(false);
       }
-    });
-  });
+    }
+  };
+  var className= "";
+  var isIPHONE = (navigator.userAgent.match('iPad') != null || navigator.userAgent.match('iPhone') != null || navigator.userAgent.match('iPod') != null);
+  var isANDROID = (navigator.userAgent.match('Android') != null);
+  if (isIPHONE) {
+    var isSafari = !!navigator.userAgent.match(/Version\/[\d\.]+.*Safari/);
+    if (isSafari) { 
+      // $('body').addClass("iphoneDeviceSafari"); 
+      className="iphoneDeviceSafari"
+    }
+    else { 
+      // $('body').addClass("iphoneDevice"); 
+      className="iphoneDevice"
+    }
+  } else if (isANDROID) {
+    // $('body').addClass("andriodDevice");
+    className="andriodDevice"
+  } else {
+    // $rootScope.DesktopDevice = true;
+    // $('body').addClass("desktopDevice");
+    className="desktopDevice"
+  }
+};
 
-  it('should call rulesUtils with empty validationObj when employeeToggleSelector has empty deleteFields', () => {
-    const employeeToggleSelector = {
-      deleteFields: []
-    };
-    
-    const result = Rules_bd_4(mockProps, mockApplication, employeeToggleSelector);
-    
-    expect(rulesUtils).toHaveBeenCalledTimes(1);
-    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
-      nonEditable: [],
-      hidden: []
-    });
-    expect(result).toEqual({
-      ...mockProps,
-      validationObj: {
-        nonEditable: [],
-        hidden: []
-      }
-    });
-  });
+export default OnboardingBeforeStart;
 
-  it('should call rulesUtils with hidden fields when employeeToggleSelector has deleteFields', () => {
-    const employeeToggleSelector = {
-      deleteFields: ['field_to_hide']
-    };
-    
-    const result = Rules_bd_4(mockProps, mockApplication, employeeToggleSelector);
-    
-    expect(rulesUtils).toHaveBeenCalledTimes(1);
-    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
-      nonEditable: [],
-      hidden: [['field_to_hide']]
-    });
-    expect(result).toEqual({
-      ...mockProps,
-      validationObj: {
-        nonEditable: [],
-        hidden: [['field_to_hide']]
-      }
-    });
-  });
-
-  it('should handle empty props', () => {
-    const result = Rules_bd_4([], mockApplication);
-    expect(rulesUtils).toHaveBeenCalledWith([], {
-      nonEditable: [],
-      hidden: []
-    });
-    expect(result).toEqual({
-      validationObj: {
-        nonEditable: [],
-        hidden: []
-      }
-    });
-  });
-
-  it('should handle undefined employeeToggleSelector', () => {
-    const result = Rules_bd_4(mockProps, mockApplication, undefined);
-    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
-      nonEditable: [],
-      hidden: []
-    });
-    expect(result).toEqual({
-      ...mockProps,
-      validationObj: {
-        nonEditable: [],
-        hidden: []
-      }
-    });
-  });
-
-  it('should handle null employeeToggleSelector', () => {
-    const result = Rules_bd_4(mockProps, mockApplication, null);
-    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
-      nonEditable: [],
-      hidden: []
-    });
-    expect(result).toEqual({
-      ...mockProps,
-      validationObj: {
-        nonEditable: [],
-        hidden: []
-      }
-    });
-  });
-
-  it('should handle employeeToggleSelector with multiple deleteFields (though only first is used)', () => {
-    const employeeToggleSelector = {
-      deleteFields: ['field1', 'field2']
-    };
-    
-    const result = Rules_bd_4(mockProps, mockApplication, employeeToggleSelector);
-    
-    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
-      nonEditable: [],
-      hidden: [['field1']]
-    });
-    expect(result).toEqual({
-      ...mockProps,
-      validationObj: {
-        nonEditable: [],
-        hidden: [['field1']]
-      }
-    });
-  });
-});
+Please write an test cases using react and jest including branches with 100 percent coverage
