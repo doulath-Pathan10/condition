@@ -1,20 +1,152 @@
-import { KeyWithAnyModel, ValidationObjModel } from '../../utils/model/common-model';
+import Rules_bd_4 from './Rules_bd_4';
 import rulesUtils from './rules.utils';
 
-const Rules_bd_4 = (props: KeyWithAnyModel, application: KeyWithAnyModel, employeeToggleSelector?: any): KeyWithAnyModel => {
-    const validationObj: ValidationObjModel = {
+// Mock the rulesUtils function
+jest.mock('./rules.utils', () => jest.fn());
+
+describe('Rules_bd_4', () => {
+  const mockProps = [
+    {
+      fields: [
+        { logical_field_name: 'field1', default_visibility: 'Yes' },
+        { logical_field_name: 'field2', default_visibility: 'Yes' }
+      ]
+    }
+  ];
+
+  const mockApplication = {
+    productType: 'CC',
+    campaign: 'TEST_CAMPAIGN'
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (rulesUtils as jest.Mock).mockImplementation((props, validationObj) => ({
+      ...props,
+      validationObj
+    }));
+  });
+
+  it('should call rulesUtils with empty validationObj when no employeeToggleSelector provided', () => {
+    const result = Rules_bd_4(mockProps, mockApplication);
+    
+    expect(rulesUtils).toHaveBeenCalledTimes(1);
+    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
+      nonEditable: [],
+      hidden: []
+    });
+    expect(result).toEqual({
+      ...mockProps,
+      validationObj: {
         nonEditable: [],
         hidden: []
+      }
+    });
+  });
+
+  it('should call rulesUtils with empty validationObj when employeeToggleSelector has empty deleteFields', () => {
+    const employeeToggleSelector = {
+      deleteFields: []
     };
+    
+    const result = Rules_bd_4(mockProps, mockApplication, employeeToggleSelector);
+    
+    expect(rulesUtils).toHaveBeenCalledTimes(1);
+    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
+      nonEditable: [],
+      hidden: []
+    });
+    expect(result).toEqual({
+      ...mockProps,
+      validationObj: {
+        nonEditable: [],
+        hidden: []
+      }
+    });
+  });
 
-    if(employeeToggleSelector && employeeToggleSelector.deleteFields.length > 0) {
-        const hidden: Array<string> = [employeeToggleSelector.deleteFields[0]]
-        validationObj.hidden.push(hidden)
-    }
+  it('should call rulesUtils with hidden fields when employeeToggleSelector has deleteFields', () => {
+    const employeeToggleSelector = {
+      deleteFields: ['field_to_hide']
+    };
+    
+    const result = Rules_bd_4(mockProps, mockApplication, employeeToggleSelector);
+    
+    expect(rulesUtils).toHaveBeenCalledTimes(1);
+    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
+      nonEditable: [],
+      hidden: [['field_to_hide']]
+    });
+    expect(result).toEqual({
+      ...mockProps,
+      validationObj: {
+        nonEditable: [],
+        hidden: [['field_to_hide']]
+      }
+    });
+  });
 
-    return rulesUtils(props, validationObj);
-}
+  it('should handle empty props', () => {
+    const result = Rules_bd_4([], mockApplication);
+    expect(rulesUtils).toHaveBeenCalledWith([], {
+      nonEditable: [],
+      hidden: []
+    });
+    expect(result).toEqual({
+      validationObj: {
+        nonEditable: [],
+        hidden: []
+      }
+    });
+  });
 
-export default Rules_bd_4;
+  it('should handle undefined employeeToggleSelector', () => {
+    const result = Rules_bd_4(mockProps, mockApplication, undefined);
+    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
+      nonEditable: [],
+      hidden: []
+    });
+    expect(result).toEqual({
+      ...mockProps,
+      validationObj: {
+        nonEditable: [],
+        hidden: []
+      }
+    });
+  });
 
-Please write an test cases using react and jest including branches with 100 percent coverage
+  it('should handle null employeeToggleSelector', () => {
+    const result = Rules_bd_4(mockProps, mockApplication, null);
+    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
+      nonEditable: [],
+      hidden: []
+    });
+    expect(result).toEqual({
+      ...mockProps,
+      validationObj: {
+        nonEditable: [],
+        hidden: []
+      }
+    });
+  });
+
+  it('should handle employeeToggleSelector with multiple deleteFields (though only first is used)', () => {
+    const employeeToggleSelector = {
+      deleteFields: ['field1', 'field2']
+    };
+    
+    const result = Rules_bd_4(mockProps, mockApplication, employeeToggleSelector);
+    
+    expect(rulesUtils).toHaveBeenCalledWith(mockProps, {
+      nonEditable: [],
+      hidden: [['field1']]
+    });
+    expect(result).toEqual({
+      ...mockProps,
+      validationObj: {
+        nonEditable: [],
+        hidden: [['field1']]
+      }
+    });
+  });
+});
