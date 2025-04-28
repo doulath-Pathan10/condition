@@ -207,6 +207,111 @@ const OnboardingBeforeStart: React.FC<any> = ({
     // $('body').addClass("desktopDevice");
     className="desktopDevice"
   }
+  return (
+    <div>
+      {showSpinner === true ? (
+        <Spinner></Spinner>
+      ) : (
+        <>
+          <div>
+            <button 
+              onClick={(e:React.MouseEvent<HTMLButtonElement>) => {
+                downloadPDFPreApproval(e);
+              }}
+              className="view-pdf"
+              // ng-if="source_sys == 'sc.com' || source_sys == 'asiamiles'" //for future reference
+            >
+              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+            </button>
+          </div>
+          <div className="pdf-view">
+            <div
+              // style={{ maxHeight: stageID == 0 ? "45vh" : "22vh" }}
+              className={stageID == 0 ? "react-pdf__Page__canvas pdf__kfs__page" : "react-pdf__Page__canvas pdf__tnc__page"}
+              ref={listInnerRef}
+            >
+              <Pdf fileName={kfsDocPDF} />
+            </div>
+          </div>
+
+          {stageID == 1 && (
+            <div className="pdf-table">
+              <div className="download-section">
+                <span className="download-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadHeader : language === CONSTANTS.LANG_CN? CONSTANTS.DownloadHeader_CN : CONSTANTS.DownloadHeader_HK}</span>
+                <span className="images"></span>
+              </div>
+
+              <div className="tc-container">
+                <table className="tcTable" border={1}>
+                  <tbody>
+                    {pdfLinkTerms?.map((item: any, index: any) => {
+                      return (
+                        <tr key={index}>
+                          <td className="tcTable__title">{item.Title}</td>
+                          <td className="tcTable__read">
+                            <a
+                              href={item.url}
+                              download
+                              target="_blank"
+                            >
+                             {language === CONSTANTS.LANG_EN ? CONSTANTS.ReadBtn : language === CONSTANTS.LANG_CN? CONSTANTS.ReadBtn_CN : CONSTANTS.ReadBtn_HK}
+                            </a>
+                            <span> / </span>
+                            <span className="tcTable__download"
+                              onClick={() => {
+                                downloadPdf(item.Title);
+                              }}
+                            >
+                              
+                              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="remarks-section">
+                <span className="remarks-section__span">
+                  {" "}
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.Remarks : language === CONSTANTS.LANG_CN? CONSTANTS.Remarks_CN : CONSTANTS.Remarks_HK}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          <div className="footer-button-list app__footer">
+            {isVisible ? (
+              <>
+                <div className="next-arrow" aria-describedby="submitButton">
+                  <footer
+                  // className={`${stageSelector[0].stageId!=='ad-9a'? 'footer-next1 enabled' : 'footer-next enabled'}`}
+                    className="footer-next enabled"
+                    onClick={btnClickScroll}
+                  >
+                    <i className="next-btn"></i>
+                  </footer>
+                </div>
+              </>
+            )
+              :
+              
+                <button
+                  className="pre-approval-accept-button"
+                  onClick={nextPage}
+                >
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.acceptButton : language === CONSTANTS.LANG_CN? CONSTANTS.acceptButton_CN : CONSTANTS.acceptButton_HK}
+                </button>
+
+             
+            }
+
+          </div>
+        </>
+      )}
+    </div>
+  );
 };
 
 export default OnboardingBeforeStart;
