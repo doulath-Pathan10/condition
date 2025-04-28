@@ -1,298 +1,763 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import thunk from 'redux-thunk';
-import Zoloz from './Zoloz';
-import * as services from '../../../services/preApprovalPostServices';
-import { CONSTANTS } from '../../../../../utils/common/constants';
+import React, { useState, useEffect } from "react";
+import "./otp-model.scss";
+import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
+import modelInfo from "../../../assets/_json/model.json";
+import Model from "../model/model";
+import { getUrl } from "../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { useDispatch, useSelector } from "react-redux";
+import { dispatchLoader, lovRequests } from "../../../services/common-service";
+import { stagesAction } from "../../../utils/store/stages-slice";
+import Spinner from "../spinner/spinner";
+import { getData, getDataFormConfig, getDedupeData, getEnquiryData, getGenerateOtp, getRandomChallenge, getVerifyOtp } from "../../../modules/preApproval/services/preApprovalServices";
+import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
+import { urlParamAction } from "../../../utils/store/urlparam-slice";
+import AlertModel from "../../../modules/preApproval/alertModal/alert-modal";
+import PopupModel from "../popup-model/popup-model";
+import PreApprovalUtil from "../../../modules/preApproval/services/preApprovalUtils";
+import { errorAction } from "../../../utils/store/error-slice";
+import { getResumeRequest } from "../../../modules/preApproval/services/preApprovalPostServices";
+import { lovDescAction } from "../../../utils/store/lov-desc-slice";
 
-const middlewares = [thunk];
-const mockStore = configureStore(middlewares);
+const OTPModel = () => {
+  const modelsData: KeyWithAnyModel = modelInfo;
+  const modelData = modelsData.find((model: any) => model.name === "otpSubmit");
+  const [otpModel, setOtpModel] = useState(true);
+  const [seconds, setSeconds] = useState(100);
+  const [modelName, setModelName] = useState("");
+  const [showDidntReceiveOTP, setShowDidntReceiveOTP] = useState(false);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const applicantsSelector = useSelector(
+    (state: StoreModel) => state.stages.userInput.applicants[0]
+  );
+  const otpPrefix = "FBrv - ";
+  const mobile = useSelector((state: StoreModel) => state.stages.userInput.applicants[0]?.mobile_number);
+  const last4Numbers = "*****" + mobile?.slice(mobile.length - 4);
+  const otpList = ['1', '2', '3', '4', '5', '6'];
+  const [otpVal, setOtpVal] = useState([]);
+  const [otpVerify, setOtpVerify] = useState(false);
+  const language = getUrl.getLanguageInfo("lang");
+  const dispatch = useDispatch();
+  const [otpGenResponse, setOtpGenResponse] = useState<KeyWithAnyModel>({});
+  const retryCount = '0';
+  const [show500Model, setShow500Model] = useState(false);
+  const showtooManyAttempt = false;
+  const [showExpiredOTP, setShowExpiredOTP] = useState(false);
+  const [showInvalidOTP, setShowInvalidOTP] = useState(false);
+  const [showDeliveryFailedOTP, setShowDeliveryFailed] = useState(false);
+  const [showAuthenticateErrorOTP, setShowAuthenticateErrorOTP] = useState(false);
+  const showNoMobileNumber = false;
+  const [zeroTimer, setZeroTimer] = useState(false);
+  const [declineModal, setDeclineModal] = useState(false);
+  const [resubmitModal, setResubmitModal] = useState(false);
+  const [otpNotModal, setOtpNotModal] = useState(false);
+  const [modalMsg, setModalMsg] = useState("");
+  const [alertErrorCode, setAlertErrorCode] = useState("");
+  const modelSelector = useSelector((state: StoreModel) => state.model.toggleModel)
+  const formConfigmetaData = useSelector((state: StoreModel) => state.preApproval.formConfigmetaData);
+  const channel_reference_no = formConfigmetaData?.application?.channel_reference;
+  const productData = formConfigmetaData?.products[0];
+  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
 
-// Mock the react-redux hooks
-jest.mock('react-redux', () => ({
-  ...jest.requireActual('react-redux'),
-  useSelector: jest.fn(),
-  useDispatch: jest.fn(),
-}));
+  useEffect(() => {
+    generateOtp()
+  }, [])
 
-// Mock the services
-jest.mock('../../../services/preApprovalPostServices', () => ({
-  postQRCodeZOLO: jest.fn(),
-  postZOLOCheck: jest.fn(),
-  postZolozAcknowledge: jest.fn(),
-  postPdfPreview: jest.fn(),
-}));
+  useEffect(() => {
+    if (seconds === 0) {
+      setZeroTimer(true)
+    }
+    if (seconds > 0) {
+      const timer = setTimeout(() => setSeconds(seconds - 1), 1000);
+      setShowDidntReceiveOTP(false);
+      return () => {
+        clearTimeout(timer);
+      };
+    } else {
+      setShowDidntReceiveOTP(true);
+    }
 
-// Mock other dependencies
-jest.mock('../../../../preApproval/services/preApprovalServices', () => ({
-  getImagePreview: jest.fn(),
-}));
+  }, [seconds]);
 
-describe('Zoloz Component', () => {
-  let useSelectorMock: jest.Mock;
-  let useDispatchMock: jest.Mock;
-  let dispatchMock: jest.Mock;
-  const mockSetHKIDVersion = jest.fn();
-
-  beforeEach(() => {
-    useSelectorMock = jest.requireMock('react-redux').useSelector;
-    useDispatchMock = jest.requireMock('react-redux').useDispatch;
-    dispatchMock = jest.fn();
-    useDispatchMock.mockReturnValue(dispatchMock);
-
-    // Reset all mocks
-    jest.clearAllMocks();
-
-    // Default mock implementations
-    (services.postQRCodeZOLO as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: { qrCode: 'testQRCode', transactionId: 'test123' }
-    });
-
-    (services.postZOLOCheck as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: {
-        documents: [{
-          docId: 'testDocId',
-          documentName: 'testDocument.png',
-          documentTypeCode: 'A001',
-          documentCategoryCode: 'R0001',
-          responseStatus: 'SUCCESS'
-        }]
-      }
-    });
-
-    (services.postZolozAcknowledge as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: [{ responseStatus: 'Success' }]
-    });
-
-    (services.postPdfPreview as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: {
-        statusCode: 'OK',
-        documents: [{ docId: 'testDocId' }]
-      }
-    });
-  });
-
-  const renderComponent = (customState = {}) => {
-    const defaultState = {
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: { channel_reference: 'TEST123' },
-            applicant_documents: [{
-              document_list: [{
-                document_category: 'R0001',
-                document_options: [{
-                  document_types: [{
-                    uploaded_documents: []
-                  }]
-                }]
-              }]
-            }]
-          },
-          dynamicDocumentsUpload: {
-            showUploadFileSuccess: false,
-            HKIDQRCodeData: { qrCode: 'testQRCode', transactionId: 'test123' },
-            HKIDVersionValue: 'A001',
-            fileSectionData: { document_category: 'R0001' },
-            documentCount: 0,
-            zoloErrorpopup: false
+  const resetOtp = () => {
+    setShowExpiredOTP(false);
+    setShowInvalidOTP(false);
+  }
+  const otpNotAvailable=()=>{
+    setModelName("OTPNot");
+    setOtpNotModal(true);
+  }
+  const generateOtp = () => {
+    getRandomChallenge(channel_reference_no)?.then(async (response: any) => {
+      if (response.status >= 200 && response.status <= 300) { 
+        var responseData = response.data;
+        dispatch(preApprovalAction.setRandomChallengeData(responseData.data.attributes));
+        await getGenerateOtp(productData).then(async (res: any) => {
+          setOtpGenResponse(res.data.data.attributes)
+          if (res.status >= 200 && res.status <= 300) {
+            setOtpVerify(false);
+            setOtpModel(true);
+            setShowDidntReceiveOTP(false);
+            setSeconds(100);
+            resetOtp();
           }
-        }]
-      },
-      preApproval: {
-        imgPrevURL: '',
-        documentZoloCheckRes: []
-      }
-    };
-
-    const finalState = { ...defaultState, ...customState };
-    useSelectorMock.mockImplementation((selector) => selector(finalState));
-
-    return render(<Zoloz setHKIDVersion={mockSetHKIDVersion} />);
-  };
-
-  it('should render the component with QR code section by default', () => {
-    renderComponent();
-    expect(screen.getByText(/Colour Identity Proof/i)).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'ORError' })).toBeInTheDocument();
-    expect(screen.getByText(/Submit/i)).toBeInTheDocument();
-  });
-
-  it('should render success section when showUploadFileSuccess is true', () => {
-    renderComponent({
-      stages: {
-        stages: [{
-          stageInfo: {},
-          dynamicDocumentsUpload: {
-            showUploadFileSuccess: true
+          else {
+            setOtpVerify(false);
+            setOtpModel(false);
+            otpNotAvailable();
           }
-        }]
-      },
-      preApproval: {
-        imgPrevURL: 'testURL',
-        documentZoloCheckRes: [{
-          docId: 'testDocId',
-          documentName: 'testDocument.png'
-        }]
+        })
+      }
+      else {
+        setOtpVerify(false);
+        setOtpModel(false);
+        otpNotAvailable();
       }
     });
+  }
 
-    expect(screen.getByText(/Upload complete/i)).toBeInTheDocument();
-    expect(screen.getByText(/testDocument.png/i)).toBeInTheDocument();
-  });
+  // let count = 1;
+  const didntReceiveOtp = () => {
+    setZeroTimer(false)
+    setOtpVal([]);
+    setShowDidntReceiveOTP(true)
+    if (!showExpiredOTP) {
+      otpList.map((i) => (
+        (document.getElementById("otp" + i) as HTMLInputElement).value = ""
+      ))
+    }
+    generateOtp()
+  }
 
-  it('should call closeFileUpload when close button is clicked', () => {
-    renderComponent();
-    fireEvent.click(screen.getByText(/Close/i));
-    expect(dispatchMock).toHaveBeenCalled();
-  });
+  const requestNewOtp = language === CONSTANTS.LANG_EN ? `REQUEST NEW OTP IN ${seconds} SECONDS` : language === CONSTANTS.LANG_CN ? `在 ${seconds} 秒内获取新的一次有效密码` : `在  ${seconds} 秒內獲取新的一次有效密碼`;
 
-  it('should call callSubmit when submit button is clicked', async () => {
-    renderComponent();
-    fireEvent.click(screen.getByText(/Submit/i));
-    
-    await waitFor(() => {
-      expect(services.postZOLOCheck).toHaveBeenCalled();
-    });
-  });
+  const otpBinding = (otp: any, id: string, index: number) => {//onChange Handler
 
-  it('should show error popup when zoloCheckResponse has no documents', async () => {
-    (services.postZOLOCheck as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: { documents: [] }
-    });
+    const charCode = otp.charCodeAt(0);
+    let shrinkArr: any = [...otpVal];
+    if (otp !== '' && otp !== null) {
+      shrinkArr[index] = otp;
+      setOtpVal(shrinkArr);
+    } else if (otp === "") {
+      shrinkArr[index] = "";
+      setOtpVal(shrinkArr);
+    }
+    if (charCode >= 48 && charCode <= 57) {
+      const restrictOtp = shrinkArr.filter((letter: any) => { return letter !== '' && letter !== undefined; });
+      if (shrinkArr.length === 6 && restrictOtp.length === 6) {
+        let singleOtp = (shrinkArr[0] ? shrinkArr[0] : '') + (shrinkArr[1] ? shrinkArr[1] : '') + (shrinkArr[2] ? shrinkArr[2] : '')
+          + (shrinkArr[3] ? shrinkArr[3] : '') + (shrinkArr[4] ? shrinkArr[4] : '') + (shrinkArr[5] ? shrinkArr[5] : '');
+        setOtpVal(singleOtp);
+        setOtpModel(false);
+        setShow500Model(false);
+        setShowAuthenticateErrorOTP(false);
+        setShowDeliveryFailed(false);
+        setShowExpiredOTP(false);
+        setOtpVerify(true);
+        setSeconds(0);
+        getRandomChallenge(channel_reference_no).then(async (response: any) => {
+          if (response.status >= 200 && response.status <= 300) {
+            var responseData = response.data;
+            getVerifyOtp(singleOtp, responseData.data.attributes, otpGenResponse, channel_reference_no).then(async (response: any) => {
+              if (response.status === 201) {
+                await getEnquiryData(productData, applicantsSelector, channel_reference_no).then(async (response: any) => {
+                  if (response.status === 200) {
+                    if (response?.data?.application?.application_status && response.data.application.application_status === "E01") {
+                      setOtpVerify(false);
+                      setOtpModel(false);
+                      dispatch(stagesAction.setOtpShow(false));
+                      dispatch(
+                        errorAction.getError({
+                          statusCode: "error",
+                          statusText: "no response",
+                        })
+                      );
+                    }
+                    else {
+                      if(response.data.application.cos_ref_number && response.data.application.resume_allowed === "Y") {
+                        dispatch(preApprovalAction.setResumeAllowed(response.data.application.resume_allowed));
+                        await getResumeRequest(response.data.application.cos_ref_number).then(async (response: any) => {
+                          if (response.status === 200) {
+                            let applicants = response.data.applicants;
+                            let application = response.data.application;
+                            let stageData = Object.assign({},stageSelector[0]?.stageInfo);
+                            for (let [key, value] of Object.entries(response.data)) {
+                              if(key === "applicants") {
+                                stageData[key] = [value];
+                              }
+                              else {
+                                stageData[key] = value;
+                              }
+                            }
+                    
+                            for(const [keys, values] of Object.entries(response?.data?.lov_desc || {})) {
+                              let newVal = keys.replace("_a_a_1_desc","").replace("_a_1_desc","");
+                              let fieldName = newVal + "_a_1"
+                              dispatch(
+                                lovDescAction.addLovData({
+                                  fieldData: {
+                                    fieldName: newVal, 
+                                    code_desc: values,
+                                    code_value: response.data.applicants[fieldName], 
+                                  },
+                                })
+                              );
+                            }
+                            let stageId = response?.data?.stage?.page_id || ""; 
+                            let productCatogery = Array.isArray(response?.data?.products) && response?.data?.products.length > 0 ? response?.data?.products[0]?.product_category : null;
+                            if(stageId === ""){
+                              if(stageId === "" && productCatogery === "PL") {
+                                stageId = "bd-1a"
+                              } else if(stageId === "" && productCatogery === "CC") {
+                                stageId = "bd-1"
+                              }
+                            }
+                            if(stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2) {
+                              dispatch(preApprovalAction.setCurrentStage("LD"));
+                            }
+                            else if(stageId === CONSTANTS.STAGE_NAMES.DOC_3) {
+                              dispatch(preApprovalAction.setCurrentStage("DC"));
+                            }
+                            else {
+                              dispatch(preApprovalAction.setCurrentStage("PD-3"));
+                            }
+                            dispatch(stagesAction.updateStageId(stageId));
+                            dispatch(urlParamAction.getAuthorize({ "applicationRefNo": response.data.application.application_reference, "channelRefNo": response.data.application.cos_ref_number }));
+                            dispatch(stagesAction.getStage({
+                              id: stageSelector[0].stageId,
+                              formConfig: stageData,
+                            }))
+                            if (response.data.application.application_status === "E01") {
+                              setOtpVerify(false);
+                              setOtpModel(false);
+                              dispatch(stagesAction.setOtpShow(false));
+                              dispatch(
+                                errorAction.getError({
+                                  statusCode: "error",
+                                  statusText: "no response",
+                                })
+                              );
+                              return
+                            }
+                            var responseType = response.data.application.response_type && response.data.application.response_type.toUpperCase();
+                            var responseAction = response.data.application.response_action && response.data.application.response_action.toUpperCase();
+                            var errorResp = response.data.application.error;
+                            var errorCode = (errorResp?.application_error && errorResp.application_error?.length > 0)
+                              ? errorResp.application_error[0]?.rtobCode
+                              : null;
+                            if(response.data.applicant_documents !== null && response.data.applicant_documents.length > 0) {
+                              dispatch(stagesAction.setJourneyType(response.data.applicant_documents[0].journey_type));
+                            }
+                            var errorResp = response.data.application.error;
+                            let statusText = '';
+                            let statusCode = '';
+                            if (errorResp.application_error?.length > 0 || errorResp.applicant_error?.length > 0 || errorResp.product_error?.length > 0) {
+                              if (errorResp.application_error !== null && errorResp.application_error.length > 0 && errorResp.application_error[0].error_description && errorResp.application_error[0]["error_description"] !== null) {
+                                statusText = errorResp.application_error[0]["error_description"]
+                                statusCode = errorResp.application_error[0]["rtobCode"]
+                              }
+                              if (errorResp.applicant_error !== null && errorResp.applicant_error.length > 0 && errorResp.applicant_error[0].error_description && errorResp.applicant_error[0]["error_description"] !== null) {
+                                statusText = errorResp.applicant_error[0]["error_description"]
+                                statusCode = errorResp.applicant_error[0]["rtobCode"]
+                              }
+                              if (errorResp.product_error !== null && errorResp.product_error.length > 0 && errorResp.product_error[0].error_description && errorResp.product_error[0]["error_description"] !== null) {
+                                statusText = errorResp.product_error[0]["error_description"]
+                                statusCode = errorResp.product_error[0]["rtobCode"]
+                              }
+                            }
+                            if (responseAction === 'SUCCESS' || responseType === 'INFO' || (responseType === 'SOFT' && responseAction === 'CONTINUE')) {
+                              let formStageData = JSON.parse(JSON.stringify(formConfigmetaData));
+                              formStageData.applicants = applicants;
+                              dispatch(stagesAction.getStage({
+                                id: stageId,
+                                formConfig: stageData,
+                              }))
+                              dispatch(preApprovalAction.setFormConfigMetaData(formStageData));
+                              dispatch(getDataFormConfig(PreApprovalUtil.getFormConfigPayload())).then((response: any) => {
+                                if (response.status === 200) {
+                                  dispatch(dispatchLoader(false));
+                                  if(stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2) {
+                                    dispatch(preApprovalAction.setCurrentStage("LD"));
+                                  }
+                                  else if(stageId === CONSTANTS.STAGE_NAMES.DOC_3) {
+                                    dispatch(preApprovalAction.setCurrentStage("DC"));
+                                  }
+                                  else {
+                                    dispatch(preApprovalAction.setCurrentStage("PD-3"));
+                                  }
+                                  if (response.data.application.application_status === "E01") {
+                                    setOtpVerify(false);
+                                    setOtpModel(false);
+                                    dispatch(stagesAction.setOtpShow(false));
+                                    dispatch(
+                                      errorAction.getError({
+                                        statusCode: "error",
+                                        statusText: "no response",
+                                      })
+                                    );
+                                  }
+                                  if (responseType === 'HARD' && (responseAction === 'STOP' || responseAction === 'RESUBMIT')) {
+                                    //'Sorry we are currently unable to process your application.'
+                                    if (responseAction === 'STOP') {
+                                      if(errorCode==="A55"){
+                                        setModelName("DECLINERLS");
+                                      }else{
+                                        setModelName("DECLINE");
+                                        setDeclineModal(true);
+                                      }
+                                    } else if (responseAction === 'RESUBMIT') {
+                                      if(errorCode ==="A20" || errorCode ==="A26"){
+                                        setModelName("ErrorCode");
+                                        setAlertErrorCode(errorCode);
+                                      }else{ 
+                                        setModelName("RESUBMIT");
+                                        setResubmitModal(true);
+                                        dispatch(stagesAction.setOtpShow(false));
+                                      }
+                                    }
+                                    setOtpVerify(false);
+                                  }
+                                  if (responseType === 'HARD' && responseAction === 'CORRECT RESUBMIT') {
+                                    //'Sorry we are currently unable to process your application.'
+                                    dispatch(stagesAction.setOtpShow(false));
+                                    setModelName("RESUBMIT");
+                                    setResubmitModal(true);
+                                    setOtpVerify(false);
+                                    setOtpModel(true);
+                                  }
+                                  dispatch(stagesAction.setOtpShow(false));
+                                }
+                              })
+                              if(response.data.products[0].product_type === "1313") {
+                                const randomNumber = Math.random();
+                                const url = `${process.env.REACT_APP_CASA_SEGMENT}?rnd=${randomNumber}`;
+                                getData(url).then(async (res: any) => {
+                                  dispatch(stagesAction.updateCasa(res.data))
+                                })
+                              }
+                            }
+                            if (responseType === 'HARD' && (responseAction === 'STOP' || responseAction === 'RESUBMIT')) {
+                              //'Sorry we are currently unable to process your application.'
+                              if (responseAction === 'STOP') {
+                                if(errorCode==="A55"){
+                                  setModelName("DECLINERLS");
+                                }else{
+                                  setModelName("DECLINE");
+                                  setDeclineModal(true);
+                                }
+                              }
+                              else if (responseAction === 'RESUBMIT') {
+                                if(errorCode ==="A20" || errorCode ==="A26"){
+                                  setModelName("ErrorCode");
+                                  setAlertErrorCode(errorCode);
+                                }else{
+                                  setModelName("RESUBMIT");
+                                  setResubmitModal(true);
+                                  if (errorResp.application_error.length > 0 || errorResp.applicant_error.length > 0 || errorResp.product_error.length > 0) {
+                                    setModalMsg(errorResp.application_error[0]["error_description"] || errorResp.applicant_error[0]["error_description"] || errorResp.product_error[0]["error_description"])
 
-    renderComponent();
-    fireEvent.click(screen.getByText(/Submit/i));
-    
-    await waitFor(() => {
-      expect(screen.queryByText(/Submit/i)).not.toBeInTheDocument();
-    });
-  });
+                                  }
+                                }
+                              }
+                              else {
+                                dispatch(stagesAction.setOtpShow(false));
+                                setOtpVerify(false);
+                              }
+                            }
+                            if (responseType === 'HARD' && responseAction === 'CORRECT RESUBMIT') {
+                              //'Sorry we are currently unable to process your application.'
+                              dispatch(stagesAction.setOtpShow(false));
+                              setModelName("Resubmit");
+                              setOtpVerify(false);
+                              setOtpModel(true);
+                            }
+                            if(errorCode==='A02' || errorCode==='A03' ){
+                              setModelName("ErrorCode");
+                              setAlertErrorCode(errorCode);
+                            }
+                            if(errorCode === 'CSL-REG-104') {
+                              dispatch(dispatchLoader(false));
+                              setModelName("ErrorCode");
+                              setAlertErrorCode(errorCode);
+                            }
+                            if(errorCode == 'CSL-REG-203') {
+                              dispatch(dispatchLoader(false));
+                              setModelName("RESUBMIT");
+                              setResubmitModal(true);
+                                if (errorResp.application_error.length > 0 || errorResp.applicant_error.length > 0 || errorResp.product_error.length > 0) {
+                                  setModalMsg(errorResp.application_error[0]["error_description"] || errorResp.applicant_error[0]["error_description"] || errorResp.product_error[0]["error_description"])
+                                }
+                            }
+                          }
+                          else{
+                            setOtpVerify(false);
+                            setOtpModel(false);
+                            dispatch(stagesAction.setOtpShow(false));
+                            dispatch(
+                              errorAction.getError({
+                                statusCode: "error",
+                                statusText: "no response",
+                              })
+                            );
+                          }
+                        })
+                      }
+                      else {
+                        await getDedupeData(channel_reference_no).then(async (response: any) => {
+                          if (response.status === 200) {
+                            let applicants = response.data.applicants;
+                            let application = response.data.application;
+                            let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
+                            stageData.applicants[0] = applicants;
+                            stageData.application = application;
+                            stageData.application = application;
+                            if (response.data.applicant_documents) {
+                              stageData.applicant_documents = response.data.applicant_documents;
+                            }
+                            //ATM changes
+                            if (!(!response.data.applicants['atm_account_numbers_a_1'])) {
+                              stageData.applicants[0]['atm_account_numbers_count'] = response.data.applicants['atm_account_numbers_a_1'].split(",").length;
+                            }
+                            //Setting Proven Income
+                            if(response.data.applicants['enquiry_proven_income_a_1']){
+                              stageData.applicants[0]['enquiry_proven_income_a_1'] = response.data.applicants['enquiry_proven_income_a_1'];
+                            }
+                            //Setting Occupation Flag
+                            if(response.data.applicants['enquriy_occupation_flag_a_1']){
+                              stageData.applicants[0]['enquriy_occupation_flag_a_1'] = response.data.applicants['enquriy_occupation_flag_a_1'];
+                            }
+                            //Setting is existing casa Flag
+                            if(response.data.applicant_documents[0].journey_type === "ETC"){
+                              stageData.applicants[0]['is_existing_casa_a_1'] = "Y";
+                            }
+                            dispatch(stagesAction.getStage({
+                              id: stageSelector[0].stageId,
+                              formConfig: stageData,
+                            }))
+                            if (response.data.application.application_status === "E01") {
+                              setOtpVerify(false);
+                              setOtpModel(false);
+                              dispatch(stagesAction.setOtpShow(false));
+                              dispatch(
+                                errorAction.getError({
+                                  statusCode: "error",
+                                  statusText: "no response",
+                                })
+                              );
+                              return
+                            }
+                            var responseType = response.data.application.response_type && response.data.application.response_type.toUpperCase();
+                            var responseAction = response.data.application.response_action && response.data.application.response_action.toUpperCase();
+                            var errorResp = response.data.application.error;
+                            var errorCode=errorResp?.application_error[0]?.["rtobCode"];
+                            if(response.data.applicant_documents !== null && response.data.applicant_documents.length > 0) {
+                              dispatch(stagesAction.setJourneyType(response.data.applicant_documents[0].journey_type));
+                            }
+                            var errorResp = response.data.application.error;
+                            let statusText = '';
+                            let statusCode = '';
+                            if (errorResp.application_error.length > 0 || errorResp.applicant_error.length > 0 || errorResp.product_error.length > 0) {
+                              if (errorResp.application_error !== null && errorResp.application_error.length > 0 && errorResp.application_error[0].error_description && errorResp.application_error[0]["error_description"] !== null) {
+                                statusText = errorResp.application_error[0]["error_description"]
+                                statusCode = errorResp.application_error[0]["rtobCode"]
+                              }
+                              if (errorResp.applicant_error !== null && errorResp.applicant_error.length > 0 && errorResp.applicant_error[0].error_description && errorResp.applicant_error[0]["error_description"] !== null) {
+                                statusText = errorResp.applicant_error[0]["error_description"]
+                                statusCode = errorResp.applicant_error[0]["rtobCode"]
+                              }
+                              if (errorResp.product_error !== null && errorResp.product_error.length > 0 && errorResp.product_error[0].error_description && errorResp.product_error[0]["error_description"] !== null) {
+                                statusText = errorResp.product_error[0]["error_description"]
+                                statusCode = errorResp.product_error[0]["rtobCode"]
+                              }
+                            }
+                            if (responseAction === 'SUCCESS' || responseType === 'INFO' || (responseType === 'SOFT' && responseAction === 'CONTINUE')) {
+                              let formStageData = JSON.parse(JSON.stringify(formConfigmetaData));
+                              formStageData.applicants = applicants;
+                              dispatch(preApprovalAction.setFormConfigMetaData(formStageData));
+                              dispatch(urlParamAction.getAuthorize({ "applicationRefNo": response.data.application.application_reference, "channelRefNo": response.data.application.cos_ref_number }));
+                              dispatch(preApprovalAction.setApplicantDouments(response.data.applicant_documents));
+                              dispatch(preApprovalAction.setDedupeApplication(response.data.application));
+                              dispatch(preApprovalAction.setNextStages(response.data.stage.next_page_values ? response.data.stage.next_page_values : ""));
+                              dispatch(getDataFormConfig(PreApprovalUtil.getFormConfigPayload())).then((response: any) => {
+                                if (response.status === 200) {
+                                  if (response.data.application.application_status === "E01") {
+                                    setOtpVerify(false);
+                                    setOtpModel(false);
+                                    dispatch(stagesAction.setOtpShow(false));
+                                    dispatch(
+                                      errorAction.getError({
+                                        statusCode: "error",
+                                        statusText: "no response",
+                                      })
+                                    );
+                                  }
+                                  if (responseType === 'HARD' && (responseAction === 'STOP' || responseAction === 'RESUBMIT')) {
+                                    //'Sorry we are currently unable to process your application.'
+                                    if (responseAction === 'STOP') {
+                                      if(errorCode==="A55"){
+                                        setModelName("DECLINERLS");
+                                      }else{
+                                        setModelName("DECLINE");
+                                        setDeclineModal(true);
+                                      }
+                                    } else if (responseAction === 'RESUBMIT') {
+                                      if(errorCode ==="A20" || errorCode ==="A26"){
+                                        setModelName("ErrorCode");
+                                        setAlertErrorCode(errorCode);
+                                      }else{ 
+                                        setModelName("RESUBMIT");
+                                        setResubmitModal(true);
+                                        dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.PD_1));
+                                        dispatch(stagesAction.setOtpShow(false));
+                                      }
+                                    }
+                                    setOtpVerify(false);
+                                  }
+                                  if (responseType === 'HARD' && responseAction === 'CORRECT RESUBMIT') {
+                                    //'Sorry we are currently unable to process your application.'
+                                    dispatch(stagesAction.setOtpShow(false));
+                                    setModelName("RESUBMIT");
+                                    setResubmitModal(true);
+                                    setOtpVerify(false);
+                                    setOtpModel(true);
+                                  }
+                                  dispatch(stagesAction.setOtpShow(false));
+                                }
+                              })
+                            }
+                            if (responseType === 'HARD' && (responseAction === 'STOP' || responseAction === 'RESUBMIT')) {
+                              //'Sorry we are currently unable to process your application.'
+                              if (responseAction === 'STOP') {
+                                if(errorCode==="A55"){
+                                  setModelName("DECLINERLS");
+                                }else{
+                                  setModelName("DECLINE");
+                                  setDeclineModal(true);
+                                }
+                              }
+                              else if (responseAction === 'RESUBMIT') {
+                                if(errorCode ==="A20" || errorCode ==="A26"){
+                                  setModelName("ErrorCode");
+                                  setAlertErrorCode(errorCode);
+                                }else{
+                                  setModelName("RESUBMIT");
+                                  setResubmitModal(true);
+                                  if (errorResp.application_error.length > 0 || errorResp.applicant_error.length > 0 || errorResp.product_error.length > 0) {
+                                    setModalMsg(errorResp.application_error[0]["error_description"] || errorResp.applicant_error[0]["error_description"] || errorResp.product_error[0]["error_description"])
 
-  it('should handle API errors in callSubmit', async () => {
-    (services.postZOLOCheck as jest.Mock).mockRejectedValue(new Error('API Error'));
-    
-    renderComponent();
-    fireEvent.click(screen.getByText(/Submit/i));
+                                  }
+                                }
+                              }
+                              else {
+                                dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.PD_1));
+                                dispatch(stagesAction.setOtpShow(false));
+                                setOtpVerify(false);
+                              }
+                            }
+                            if (responseType === 'HARD' && responseAction === 'CORRECT RESUBMIT') {
+                              //'Sorry we are currently unable to process your application.'
+                              dispatch(stagesAction.setOtpShow(false));
+                              setModelName("Resubmit");
+                              setOtpVerify(false);
+                              setOtpModel(true);
+                            }
+                            if(errorCode==='A02' || errorCode==='A03' ){
+                              setModelName("ErrorCode");
+                              setAlertErrorCode(errorCode);
+                            }
 
-    await waitFor(() => {
-      expect(dispatchMock).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'error/getError'
-      }));
-    });
-  });
-
-  it('should call okBtnClick and update store when continue is clicked', () => {
-    renderComponent({
-      stages: {
-        stages: [{
-          stageInfo: {},
-          dynamicDocumentsUpload: {
-            showUploadFileSuccess: true
+                          }
+                          else{
+                            setOtpVerify(false);
+                            setOtpModel(false);
+                            dispatch(stagesAction.setOtpShow(false));
+                            dispatch(
+                              errorAction.getError({
+                                statusCode: "error",
+                                statusText: "no response",
+                              })
+                            );
+                          }
+                        })
+                      }
+                    }
+                  }
+                  else {
+                    setOtpVerify(false);
+                    setOtpModel(false);
+                    dispatch(stagesAction.setOtpShow(false));
+                    dispatch(
+                      errorAction.getError({
+                        statusCode: "error",
+                        statusText: "no response",
+                      })
+                    );
+                  }
+                })
+              }
+            })
           }
-        }]
-      },
-      preApproval: {
-        imgPrevURL: 'testURL',
-        documentZoloCheckRes: [{
-          docId: 'testDocId',
-          documentName: 'testDocument.png',
-          documentTypeCode: 'A001',
-          documentCategoryCode: 'R0001',
-          responseStatus: 'SUCCESS',
-          appId: 'TEST123',
-          imageOrder: '1',
-          applicantId: '1',
-          period: 0
-        }]
-      }
-    });
-
-    fireEvent.click(screen.getByText(/Continue/i));
-    expect(dispatchMock).toHaveBeenCalledTimes(7); // Verify all expected dispatches
-    expect(mockSetHKIDVersion).toHaveBeenCalledWith('');
-  });
-
-  it('should disable continue button when showUploadFileSuccess is false', () => {
-    renderComponent();
-    expect(screen.getByText(/Continue/i)).toBeDisabled();
-  });
-
-  it('should enable continue button when showUploadFileSuccess is true', () => {
-    renderComponent({
-      stages: {
-        stages: [{
-          stageInfo: {},
-          dynamicDocumentsUpload: {
-            showUploadFileSuccess: true
+          else {
+            setOtpVerify(false);
+            setOtpModel(false);
+            otpNotAvailable();
+            switch (parseInt(id)) {
+              case 1:
+                shrinkArr[index] = "";
+                break;
+              case 2:
+                shrinkArr[index] = "";
+                break;
+              case 3:
+                shrinkArr[index] = "";
+                break;
+              case 4:
+                shrinkArr[index] = "";
+                break;
+              case 5:
+                shrinkArr[index] = "";
+                break;
+              case 6:
+                shrinkArr[index] = "";
+                break;
+            }
+            setOtpVal(shrinkArr);
           }
-        }]
-      },
-      preApproval: {
-        imgPrevURL: 'testURL',
-        documentZoloCheckRes: [{
-          docId: 'testDocId',
-          documentName: 'testDocument.png'
-        }]
+        })
       }
-    });
+    }
+  }
 
-    expect(screen.getByText(/Continue/i)).not.toBeDisabled();
-  });
+  const onElementKeyUp = (event: any, index: any) => {  //For moving next input fields
+    let fieldIntIndex = parseInt(index);
+    const nextField = document.getElementById('otp' + (fieldIntIndex + 1));
+    const prevField = document.getElementById('otp' + (fieldIntIndex - 1));
+    if (nextField !== null && event.target.value !== '' && event.target.value !== null) {
+      (nextField as HTMLInputElement).focus();
+    }
+    else if (prevField !== null && event.target.value === "") {
+      (prevField as HTMLInputElement).focus();
+    }
+  }
+  const goBack = () => {
+    if(modelName==="DECLINE"){
+      setDeclineModal(false)
+    }
+    window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
+  }
+  const reTry = () => {
+    setResubmitModal(false)
+    dispatch(stagesAction.setOtpShow(false));
+  }
+  const OtpNotModal = () => {
+    // setOtpNotModal(false);
+    // setOtpModel(false);
+    // dispatch(stagesAction.setOtpShow(false));
+    window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
+  }
+  return (
+    <>
+      {(otpModel && modelData && retryCount <= CONSTANTS.MAXRETRYCOUNT) ? (
+        <div className="onetp-parent">
+          <div className="onetp-new">
+            {zeroTimer &&
+              <div className="username-box">
+                <span className="otp-alert-icon"></span>
+                <p className="Your-last-requested">{language === CONSTANTS.LANG_CN ? "你的一次性密碼已經不再有效。請索取新的一次性密碼並在100秒內輸入" : "Your last requested OTP has expired and is no longer valid. Please request a new OTP and input the OTP within 100 seconds."}</p>
+                <span onClick={() => setZeroTimer(false)} className="x-button-reversed"></span>
+              </div>
+            }
+            <div className="security-banner">
+              <span className="icon_sc_l_protect_your_belongings"></span>
+            </div>
 
-  it('should show error popup when zoloErrorpopup is true', () => {
-    renderComponent({
-      stages: {
-        stages: [{
-          stageInfo: {},
-          dynamicDocumentsUpload: {
-            zoloErrorpopup: true
-          }
-        }]
+            <div className="onetp-head-crt">
+              {!showExpiredOTP ?
+                <>
+                  <div className="secutiry-content">
+                    <p className="An-SMS-with-OTP-pass">{language === CONSTANTS.LANG_EN ? modelData.header_content : language === CONSTANTS.LANG_CN ? modelData.header_content_CN : modelData.header_content_HK}<br /> ({last4Numbers}) {language === CONSTANTS.LANG_EN ? modelData.mobileNo : language === CONSTANTS.LANG_CN ? modelData.mobileNo_CN : modelData.mobileNo_HK}</p>
+                    <p className="Enter-the-6-digit-co">{language === CONSTANTS.LANG_EN ? modelData.enter6Digit : language === CONSTANTS.LANG_CN ? modelData.enter6Digit_CN : modelData.enter6Digit_HK} {last4Numbers}</p>
+                  </div>
+                  <div className="otp-text-field">
+                    <span className="FBrv--">{otpGenResponse['otp-prefix'] ? otpGenResponse['otp-prefix'] : otpPrefix}</span>
+                    <ul className="otp-input-text">{otpList.map((x, index) => (
+                      <li key={x} >
+                        <input data-testid="listitem" type="password" maxLength={1} id={'otp' + x} name={'otp' + x} inputMode="numeric" value={otpVal[index]}
+                          onChange={(e) => otpBinding(e.target.value, x, index)} onKeyUp={(e) => onElementKeyUp(e, x)} />
+                      </li>))}</ul>
+                  </div>
+
+                  {/* incorrect otp validation */}
+                  {showInvalidOTP &&
+                    <div className="onetp__field-error">{language === CONSTANTS.LANG_EN ? modelData.incorrectOtpText : language === CONSTANTS.LANG_CN ? modelData.incorrectOtpText_CN : modelData.incorrectOtpText_HK}</div>
+                  }
+
+                  {!showDidntReceiveOTP ?
+                    <div className="onetp-timer">{requestNewOtp}</div>
+                    :
+                    (
+                      <div className="resend-otp" onClick={didntReceiveOtp}>{language === CONSTANTS.LANG_EN ? modelData.requestnewotp : language === CONSTANTS.LANG_CN ? modelData.requestnewotp_CN : modelData.requestnewotp_HK}</div>)
+                  }
+                </>
+                :
+                <div className="onetp-head-expired" >
+
+                  {/* expired otp validation */}
+                  <h5 className="expired-color">{language === CONSTANTS.LANG_EN ? modelData.expiredotptext1 : language === CONSTANTS.LANG_CN ? modelData.expiredotptext1_CN : modelData.expiredotptext1_HK}</h5>
+                  <p className="expired-txt">{language === CONSTANTS.LANG_EN ? modelData.expiredotptext2 : language === CONSTANTS.LANG_CN ? modelData.expiredotptext2_CN : modelData.expiredotptext2_HK}</p>
+                  <p className="try-again">{language === CONSTANTS.LANG_EN ? modelData.expiredotptext3 : language === CONSTANTS.LANG_CN ? modelData.expiredotptext3_CN : modelData.expiredotptext3_HK}</p>
+                  <div className="onetp-error" onClick={didntReceiveOtp}>{language === CONSTANTS.LANG_EN ? modelData.resendotp : language === CONSTANTS.LANG_CN ? modelData.resendotp_CN : modelData.resendotp_HK}</div>
+
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      )
+        :
+        otpVerify && resumeAllowed === "Y" ? <Spinner loaderType="resumeTimmer" /> : <Spinner loaderType="showTimmer" />
       }
-    });
 
-    expect(screen.getByText(/Error/i)).toBeInTheDocument();
-  });
+      {(show500Model || showtooManyAttempt || showAuthenticateErrorOTP || showDeliveryFailedOTP || modelSelector || showNoMobileNumber) && (
+        <Model name={show500Model ? "maximumAttempt" :
+          showtooManyAttempt ? "tooManyAttempt" :
+            showAuthenticateErrorOTP ? 'authenticateError' :
+              showDeliveryFailedOTP ? 'deliveryFailed' :
+                showNoMobileNumber ? 'noMobileNumber' :
+                  modelSelector ? 'techincalissue' : modelName} />
+      )}
 
-  it('should call modelClose and callQRCodeAPI when error popup is closed', async () => {
-    renderComponent({
-      stages: {
-        stages: [{
-          stageInfo: {},
-          dynamicDocumentsUpload: {
-            zoloErrorpopup: true
-          }
-        }]
+      {modelName && modelName === "DECLINE" && declineModal &&
+        <PopupModel displayPopup={declineModal}>
+          <AlertModel alertType={modelName} goBack={goBack} />
+        </PopupModel>
       }
-    });
-    
-    fireEvent.click(screen.getByText(/OK/i));
+      {modelName && modelName === "DECLINERLS" && 
+        <PopupModel displayPopup={true}>
+          <AlertModel alertType={modelName} goBack={goBack} />
+        </PopupModel>
+      }
+      {modelName && modelName === "RESUBMIT" && resubmitModal &&
+        <PopupModel displayPopup={resubmitModal}>
+          <AlertModel alertType={modelName} goBack={reTry} message={modalMsg} />
+        </PopupModel>
+      }
+      {modelName && modelName === "OTPNot" &&
+        <PopupModel displayPopup={otpNotModal}>
+          <AlertModel alertType={modelName} goBack={OtpNotModal} />
+        </PopupModel>
+      }
+      {modelName && modelName ==="ErrorCode" &&
+        <PopupModel displayPopup={true}>
+          <AlertModel alertType={modelName} goBack={goBack} errorCode={alertErrorCode} />
+        </PopupModel>
+      }
+    </>
+  );
 
-    await waitFor(() => {
-      expect(services.postQRCodeZOLO).toHaveBeenCalled();
-    });
-  });
+};
 
-  it('should render different languages correctly', () => {
-    // Mock language setting
-    CONSTANTS.LANG_EN = 'en';
-    CONSTANTS.LANG_CN = 'zh';
-    CONSTANTS.LANG_HK = 'zh-HK';
+export default OTPModel;
 
-    // Test English
-    renderComponent();
-    expect(screen.getByText(/Submit/i)).toBeInTheDocument();
 
-    // Test Chinese (simplified)
-    // Would need to mock the language selector to return different values
-    // This is simplified for example purposes
-  });
-});
+Please write an test cases using react and jest including branches with 100 percent coverage
