@@ -1,257 +1,687 @@
-import { useEffect, useState } from "react";
-import "./document-upload-main-scr.scss";
-import { useDispatch, useSelector } from "react-redux";
-import { preApprovalAction } from "../../../../preApproval/store/preApproval-slice";
-import { postDocSaveData, postFinalAcknowledge, postFulFilmentData, postTMXUserSession } from "../../../../preApproval/services/preApprovalPostServices";
-import DocumentTypeDynamic from "../documentType/document-type-dynamic";
-import { dispatchLoader, lovRequests } from "../../../../../services/common-service";
-import { StoreModel } from "../../../../../utils/model/common-model";
-import { stagesAction } from "../../../../../utils/store/stages-slice";
-import { CONSTANTS } from "../../../../../utils/common/constants";
-import Close from "../../../../../shared/components/close/close";
-import { errorAction } from "../../../../../utils/store/error-slice";
-import { HardStop } from "../../../services/preApprovalUtilsService";
-import Spinner from "../../../../../shared/components/spinner/spinner";
-import { stateUrl } from "../../../../dashboard/fields/stage.utils";
-import { getUrl } from "../../../../../utils/common/change.utils";
+import React from 'react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import OnboardingBeforeStart from './OnboardingBeforeStart';
+import { getData, getPDFData } from '../../services/preApprovalServices';
+import { useDispatch, useSelector } from 'react-redux';
+import { getUrl } from '../../../../utils/common/change.utils';
+import { CONSTANTS } from '../../../../utils/common/constants';
+import * as preApprovalAction from '../../actions/preApprovalAction';
 
-const DucumentUploadMainSCR = () => {
-  
-  const document_list = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.applicant_documents[0].document_list)
-  const totalDocCount = document_list?.length;
-  const [showIncomeProof, setShowIncomeProof] = useState("");
-  const [HKIDQRCodeData, setHKIDQRCodeData] = useState(null);
-  const [showUploadFileSuccess, setShowUploadFileSuccess] = useState(false);
-  const [HKIDVersion, setHKIDVersion] = useState("");
-  const [showContinueBtn, setShowContinueBtn] = useState(false);
-  const [showSpinner, setShowSpinner] = useState(false);
-  const [ffd2Enable, setFFD2Enable] = useState(false);
-  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
-  const resumePage = getUrl.getParameterByName("pageId");
-  let count = 0;
-  document_list.forEach((doc:any) => {
-    doc.document_options?.forEach((option:any) => {
-      option.document_types?.forEach((type:any) => {
-        /*istanbul ignore else*/
-        if(type.uploaded_documents !== null){
-          count += 1;
-        }
-      })
-    })
-  })
-  const documentData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentData);
-  const newHKIDQRCodeData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.HKIDQRCodeData);
-  useEffect(() => {
-    dispatch(dispatchLoader(false));
-  }, [])
+// Mock all external dependencies
+jest.mock('../../services/preApprovalServices');
+jest.mock('react-redux');
+jest.mock('../../../../utils/common/change.utils');
+jest.mock('../../../../utils/common/constants');
 
-  const changeIconColorIdentityProof = useSelector((state: any) => state.stages.dynamicDocumentsUpload.changeIconColorIdentityProof);
-  let documentCount = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentCount);
-  /*istanbul ignore else*/
-  if(resumeAllowed === "Y" || resumePage === "resume") {
-    documentCount = count
-  }
-  const success = useSelector((state: any) => state.stages.dynamicDocumentsUpload.success);
-  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
-  const stageSelector = useSelector((state: StoreModel) => state.stages && state.stages.stages);
-  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
-  const dispatch = useDispatch();
-  const language = getUrl.getLanguageInfo("lang");
-  useEffect(()=>{
-    setShowSpinner(false);
-  },[])
-  
-  const nextStage = async () => {
-    dispatch(dispatchLoader(true));
-    await postTMXUserSession(channel_reference).then(async (res: any) => {
-      if (res.status === 200 && res.data.review_status.toLowerCase() === 'pass') {
-        await postFinalAcknowledge(channel_reference).then(async (res: any) => {
-          if (res.status === 202) {
-            dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
-            await postDocSaveData(documentData, newHKIDQRCodeData).then(async (res: any) => {
-              if (res.status >= 200 && res.status <= 300) {
-                let responseType = res.data.application.response_type.toUpperCase();
-                let responseAction = res.data.application.response_action.toUpperCase();
-                if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
-                  if (stageSelector[0].stageInfo.products[0].product_category === "CC") {
-                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_1));
-                    dispatch(dispatchLoader(false));
-                    setShowSpinner(true);
-                    postFulFilment(res.data);
-                  }
-                  else {
-                    dispatch(preApprovalAction.setCurrentStage("PD-3"));
-                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
-                    let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
-                    stageData.applicants = [res.data.applicants];
-                    stageData.application = res.data.application;
-                    stageData.applicant_documents = res.data.applicant_documents;
-                    dispatch(lovRequests(stageData, CONSTANTS.STAGE_NAMES.LD_1));
-                    dispatch(stagesAction.getStage({
-                      id: CONSTANTS.STAGE_NAMES.LD_1,
-                      formConfig: stageData,
-                    }))
-                    stateUrl(stageSelector[0].stageId);
-                    dispatch(dispatchLoader(false));
-                  }
-                }
-                else {
-                  HardStop(res);
-                }
-              }
-              else {
-                dispatch(dispatchLoader(false));
-                dispatch(
-                  errorAction.getError({
-                    statusCode: "error",
-                    statusText: "no response",
-                  })
-                );
-              }
-            })
-          }
-          else {
-            dispatch(dispatchLoader(false));
-            dispatch(
-              errorAction.getError({
-                statusCode: "error",
-                statusText: "no response",
-              })
-            );
-          }
-        })
-      }
-      else {
-        dispatch(dispatchLoader(false));
-        dispatch(
-          errorAction.getError({
-            statusCode: "error",
-            statusText: "no response",
-          })
-        );
-      }
-    })
-  }
+// Mock components
+jest.mock('../../../../shared/components/pdf/pdf', () => () => <div>Mock PDF</div>);
+jest.mock('../../../../shared/components/spinner/spinner', () => () => <div>Loading...</div>);
 
-  const postFulFilment = async (res: any) => {
-    stateUrl(CONSTANTS.STAGE_NAMES.FFD_1);
-    postFulFilmentData(res).then(async (fulres: any) => {
-      if (fulres.status >= 200 && fulres.status < 300) {
-        dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
-        let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
-        stageData.applicants = [fulres.data.applicants];
-        stageData.application = fulres.data.application;
-        dispatch(
-          stagesAction.getStage({
-            id: CONSTANTS.STAGE_NAMES.FFD_2,
-            formConfig: stageData,
-          })
-        );
-        let responseType = fulres.data.application.response_type.toUpperCase();
-        let responseAction = fulres.data.application.response_action.toUpperCase();
-        if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
-          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
-          setFFD2Enable(true)
+describe('OnboardingBeforeStart Component', () => {
+  const mockDispatch = jest.fn();
+  const mockOnScrollEnd = jest.fn();
+  const mockNextPage = jest.fn();
+
+  const mockStore = {
+    stages: {
+      stages: [{
+        stageId: 'some-stage',
+        stageInfo: {
+          products: [{
+            campaign: 'HKPIL23PLSTP10'
+          }]
         }
-        else {
-          dispatch(HardStop(fulres));
-          setShowSpinner(false);
-        }
-      }
-      else {
-        dispatch(dispatchLoader(false));
-        dispatch(
-          errorAction.getError({
-            statusCode: "error",
-            statusText: "no response",
-          })
-        );
-      }
+      }]
+    },
+    preApproval: {
+      formConfigmetaData: {
+        products: [{
+          campaign: 'HKPIL23PLSTP10'
+        }]
+      },
+      kfsDocumentPdf: 'mock-kfs-pdf',
+      tandCDocumentPdf: 'mock-tnc-pdf',
+      downloadPDFData: 'mock-pdf-data'
+    }
+  };
+
+  // Mock window properties
+  const originalWindowLocation = window.location;
+  const originalNavigator = window.navigator;
+
+  beforeAll(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalWindowLocation, host: 'example.com' }
     });
-  }
+    Object.defineProperty(window, 'navigator', {
+      configurable: true,
+      value: { ...originalNavigator, userAgent: 'Mozilla/5.0' }
+    });
+  });
 
-  let stageId = stageSelector[0].stageId;
-  return (
-    <>
-      {showSpinner && (stageId === "ld-1" || stageId === "ffd-1" || stageId === "ffd-2") ? (
-        <Spinner loaderType="lastStep" enable={ffd2Enable} />
-      )
-        :
-        <>
-          <div className={HKIDVersion || showIncomeProof ? "" : "document-view"}>
-            <>
-              <div>
-                {fileSectionData === null &&
-                  <>
-                    <div className="sc-icons">
-                      <span className="banner-icon banner-icon-mobile"></span>
-                      <div className="card-titleHead">
-                        <div className="card-titleDoc">{language === CONSTANTS.LANG_EN ? CONSTANTS.provideDoc : language === CONSTANTS.LANG_CN?CONSTANTS.provideDoc_CN : CONSTANTS.provideDoc_HK}</div>
-                        <div className="hk-headerclose-btnH">
-                          <Close authType="resume" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="row doc-details" id="row-doc-details">
-                      <p className="col-md-10 col-sm-10 col-xs-10 col-lg-10 doc-field-Label">
-                        {language === CONSTANTS.LANG_EN ? CONSTANTS.uploadDoc : language === CONSTANTS.LANG_CN?CONSTANTS.uploadDoc_CN : CONSTANTS.uploadDoc_HK}
-                      </p>
-                      <p className="col-md-2 col-sm-2 col-xs-2 col-lg-2">
-                        {" "}
-                        <span className="count-doc">
-                          {documentCount}/{totalDocCount}
-                        </span>
-                      </p>
-                    </div>
-                  </>
-                }
-                <DocumentTypeDynamic
-                  showContinueBtn={showContinueBtn}
-                  setShowContinueBtn={setShowContinueBtn}
-                  setShowUploadFileSuccess={setShowUploadFileSuccess}
-                  setHKIDVersion={setHKIDVersion}
-                  HKIDVersion={HKIDVersion}
-                  showUploadFileSuccess={showUploadFileSuccess}
-                  setHKIDQRCodeData={setHKIDQRCodeData}
-                />
-                {fileSectionData === null &&
-                  <>
-                    <div className="noteTipDiv">
-                      <p className="noteTip">{language === CONSTANTS.LANG_EN ? CONSTANTS.tooltipText : language === CONSTANTS.LANG_CN?CONSTANTS.tooltipText_CN : CONSTANTS.tooltipText_HK}</p>
-                    </div>
-                    <div className="document-footer-main-document">
-                      <div
-                        className="footer-banner">
-                        <div className="footer-content">
-                          <p className="footer-content1">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent1 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent1_CN : CONSTANTS.footerContent1_HK}</p>
-                          <p className="footer-content2">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent2 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent2_CN : CONSTANTS.footerContent2_HK}</p>
-                          <p className="footer-content3">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent3 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent3_CN : CONSTANTS.footerContent3_HK}</p>
-                        </div>
-                        <span className="images"></span>
-                      </div>
-                      <div className="hk-copy-rights">
-                        <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
-                      </div>
-                    </div>
-                  </>
-                }
-              </div>
-            </>
-          </div>
-          {fileSectionData === null && success && <>
-            <div className="footer footer-set">
-              <button role="button" type="submit" className={documentCount !== totalDocCount ? `continue form-invalid` : `continue form-valid`} onClick={nextStage} disabled={documentCount !== totalDocCount}>
-              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
-              </button>
-            </div>
-          </>}
-        </>
-      }
-    </>
-  );
-};
+  afterAll(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalWindowLocation
+    });
+    Object.defineProperty(window, 'navigator', {
+      configurable: true,
+      value: originalNavigator
+    });
+  });
 
-export default DucumentUploadMainSCR;
+  beforeEach(() => {
+    (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
+    (useSelector as jest.Mock).mockImplementation((selector) => selector(mockStore));
+    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
+    (CONSTANTS as any) = {
+      LANG_EN: 'en',
+      LANG_CN: 'zh',
+      LANG_HK: 'hk',
+      DownloadBtn: 'Download',
+      DownloadBtn_CN: '下载',
+      DownloadBtn_HK: '下載',
+      DownloadHeader: 'Download Documents',
+      DownloadHeader_CN: '下载文件',
+      DownloadHeader_HK: '下載文件',
+      ReadBtn: 'Read',
+      ReadBtn_CN: '阅读',
+      ReadBtn_HK: '閱讀',
+      Remarks: 'Important Remarks',
+      Remarks_CN: '重要备注',
+      Remarks_HK: '重要備註',
+      acceptButton: 'Accept',
+      acceptButton_CN: '接受',
+      acceptButton_HK: '接受'
+    };
+  });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-Please write an test cases using react and jest including branches with 100 percent coverage
+  const setupComponent = (props = {}) => {
+    const defaultProps = {
+      isVisible: true,
+      onScrollEnd: mockOnScrollEnd,
+      stageID: 0,
+      nextPage: mockNextPage,
+      ...props
+    };
+    return render(<OnboardingBeforeStart {...defaultProps} />);
+  };
+
+  // Test cases for initial rendering and data fetching
+  describe('Initial Rendering and Data Fetching', () => {
+    it('should render loading spinner initially', () => {
+      setupComponent();
+      expect(screen.getByText('Loading...')).toBeInTheDocument();
+    });
+
+    it('should fetch KFS document for stage 0', async () => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
+      });
+      (getPDFData as jest.Mock).mockResolvedValue('mock-pdf-data');
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(getData).toHaveBeenCalledWith(process.env.REACT_APP_KFS_DOC_URL);
+        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/desktop-pdf');
+        expect(mockDispatch).toHaveBeenCalledWith(preApprovalAction.setLoader(true));
+        expect(mockDispatch).toHaveBeenCalledWith(preApprovalAction.setKfsDocumentPdf('mock-pdf-data'));
+        expect(mockDispatch).toHaveBeenCalledWith(preApprovalAction.setLoader(false));
+        expect(mockOnScrollEnd).toHaveBeenCalledWith(true);
+      });
+    });
+
+    it('should fetch mobile KFS document when on mobile device', async () => {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
+        writable: true
+      });
+
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/mobile-pdf');
+      });
+    });
+
+    it('should handle localhost URL replacement for PDFs', async () => {
+      Object.defineProperty(window, 'location', {
+        value: { ...window.location, host: 'localhost:3000' }
+      });
+
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(getPDFData).toHaveBeenCalledWith('http://localhost:3000/desktop-pdf');
+      });
+    });
+
+    it('should fetch T&C document for stage 1', async () => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          CampaignTnCMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-tnc' }] },
+          CampaignTnC: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-tnc' }] },
+          tncLinkCampaignCode: {
+            HKPIL23PLSTP10: [{
+              pdfLinks: [
+                { Title: 'II. Personal Loan Terms', url: 'mock-url-1' },
+                { Title: 'III. Client Terms', url: 'mock-url-2' }
+              ]
+            }]
+          }
+        }
+      });
+
+      await act(async () => {
+        setupComponent({ stageID: 1 });
+      });
+
+      await waitFor(() => {
+        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/desktop-tnc');
+        expect(mockDispatch).toHaveBeenCalledWith(
+          preApprovalAction.setTandCDocumentPdf('mock-pdf-data')
+        );
+      });
+    });
+
+    it('should fetch Chinese language documents when language is zh', async () => {
+      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(getData).toHaveBeenCalledWith(process.env.REACT_APP_KFS_DOC_URL_Chinees);
+      });
+    });
+
+    it('should not fetch data if PDF is already in store', async () => {
+      const storeWithPDF = {
+        ...mockStore,
+        preApproval: {
+          ...mockStore.preApproval,
+          kfsDocumentPdf: 'already-loaded-pdf'
+        }
+      };
+      (useSelector as jest.Mock).mockImplementation((selector) => selector(storeWithPDF));
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(getData).not.toHaveBeenCalled();
+        expect(screen.getByText('Mock PDF')).toBeInTheDocument();
+      });
+    });
+  });
+
+  // Test cases for PDF download functionality
+  describe('PDF Download Functionality', () => {
+    beforeEach(() => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {
+            HKPIL23PLSTP10: [{
+              pdfLinks: [
+                { Title: 'II. Personal Loan Terms', url: 'mock-url-1' },
+                { Title: 'III. Client Terms', url: 'mock-url-2' }
+              ]
+            }]
+          }
+        }
+      });
+      (getPDFData as jest.Mock).mockResolvedValue('mock-pdf-data');
+    });
+
+    it('should download KFS PDF when download button is clicked', async () => {
+      const createElementSpy = jest.spyOn(document, 'createElement').mockReturnValue({
+        href: '',
+        download: '',
+        click: jest.fn(),
+        setAttribute: jest.fn(),
+        style: {}
+      } as any);
+      const appendChildSpy = jest.spyOn(document.body, 'appendChild');
+      const removeChildSpy = jest.spyOn(document.body, 'removeChild');
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        const downloadButton = screen.getByText('Download');
+        fireEvent.click(downloadButton);
+
+        expect(createElementSpy).toHaveBeenCalledWith('a');
+        expect(appendChildSpy).toHaveBeenCalled();
+        expect(removeChildSpy).toHaveBeenCalled();
+      });
+    });
+
+    it('should handle Safari browser for PDF download', async () => {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: 'Safari',
+        writable: true
+      });
+
+      window.open = jest.fn();
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        const downloadButton = screen.getByText('Download');
+        fireEvent.click(downloadButton);
+        expect(window.open).toHaveBeenCalledWith('mock-kfs-pdf', '_blank');
+      });
+    });
+
+    it('should download terms PDF when download link is clicked (PIL campaign)', async () => {
+      const createElementSpy = jest.spyOn(document, 'createElement').mockReturnValue({
+        href: '',
+        download: '',
+        click: jest.fn(),
+        setAttribute: jest.fn(),
+        style: {}
+      } as any);
+
+      await act(async () => {
+        setupComponent({ stageID: 1 });
+      });
+
+      await waitFor(() => {
+        const downloadLinks = screen.getAllByText('Download');
+        fireEvent.click(downloadLinks[0]);
+        expect(createElementSpy).toHaveBeenCalled();
+      });
+    });
+
+    it('should download terms PDF when download link is clicked (CC campaign)', async () => {
+      const ccMockStore = {
+        ...mockStore,
+        stages: {
+          stages: [{
+            stageId: 'some-stage',
+            stageInfo: {
+              products: [{
+                campaign: 'HKSOG20VAWV000'
+              }]
+            }
+          }]
+        },
+        preApproval: {
+          formConfigmetaData: {
+            products: [{
+              campaign: 'HKSOG20VAWV000'
+            }]
+          }
+        }
+      };
+
+      (useSelector as jest.Mock).mockImplementation((selector) => selector(ccMockStore));
+
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          CampaignTnCMob: { HKSOG20VAWV000: [{ pdfURL: 'https://pt.sc.com/mobile-tnc' }] },
+          CampaignTnC: { HKSOG20VAWV000: [{ pdfURL: 'https://pt.sc.com/desktop-tnc' }] },
+          tncLinkCampaignCode: {
+            HKSOG20VAWV000: [{
+              pdfLinks: [
+                { Title: 'III. Client Terms', url: 'mock-url-1' },
+                { Title: 'III. Credit Card Terms', url: 'mock-url-2' }
+              ]
+            }]
+          }
+        }
+      });
+
+      const createElementSpy = jest.spyOn(document, 'createElement').mockReturnValue({
+        href: '',
+        download: '',
+        click: jest.fn(),
+        setAttribute: jest.fn(),
+        style: {}
+      } as any);
+
+      await act(async () => {
+        setupComponent({ stageID: 1 });
+      });
+
+      await waitFor(() => {
+        const downloadLinks = screen.getAllByText('Download');
+        fireEvent.click(downloadLinks[0]); // III. Client Terms
+        fireEvent.click(downloadLinks[1]); // III. Credit Card Terms
+        expect(createElementSpy).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  // Test cases for scroll behavior
+  describe('Scroll Behavior', () => {
+    it('should call onScrollEnd when scrolled to bottom', async () => {
+      const mockRef = {
+        current: {
+          addEventListener: jest.fn((event, callback) => {
+            if (event === 'scroll') {
+              // Simulate scroll event
+              setTimeout(() => callback(), 100);
+            }
+          }),
+          removeEventListener: jest.fn(),
+          scrollTop: 100,
+          scrollHeight: 200,
+          clientHeight: 100
+        }
+      };
+
+      jest.spyOn(React, 'useRef').mockReturnValue(mockRef);
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+        await new Promise(resolve => setTimeout(resolve, 150));
+      });
+
+      expect(mockOnScrollEnd).toHaveBeenCalledWith(false);
+    });
+
+    it('should scroll down when footer button is clicked (stage 0)', async () => {
+      const mockScrollBy = jest.fn();
+      const mockRef = {
+        current: {
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+          scrollBy: mockScrollBy
+        }
+      };
+
+      jest.spyOn(React, 'useRef').mockReturnValue(mockRef);
+
+      await act(async () => {
+        setupComponent({ stageID: 0, isVisible: true });
+      });
+
+      await waitFor(() => {
+        const scrollButton = screen.getByRole('button', { name: /scroll/i });
+        fireEvent.click(scrollButton);
+        expect(mockScrollBy).toHaveBeenCalledWith({ top: 200, behavior: 'smooth' });
+      });
+    });
+
+    it('should scroll down when footer button is clicked (stage 1)', async () => {
+      const mockScrollBy = jest.fn();
+      const mockRef = {
+        current: {
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+          scrollBy: mockScrollBy
+        }
+      };
+
+      jest.spyOn(React, 'useRef').mockReturnValue(mockRef);
+
+      await act(async () => {
+        setupComponent({ stageID: 1, isVisible: true });
+      });
+
+      await waitFor(() => {
+        const scrollButton = screen.getByRole('button', { name: /scroll/i });
+        fireEvent.click(scrollButton);
+        expect(mockScrollBy).toHaveBeenCalledWith({ top: 5000, behavior: 'smooth' });
+      });
+    });
+
+    it('should show accept button when not visible and call nextPage on click', async () => {
+      await act(async () => {
+        setupComponent({ isVisible: false });
+      });
+
+      await waitFor(() => {
+        const acceptButton = screen.getByText('Accept');
+        fireEvent.click(acceptButton);
+        expect(mockNextPage).toHaveBeenCalled();
+      });
+    });
+
+    it('should clean up event listeners on unmount', () => {
+      const mockRemoveEventListener = jest.fn();
+      const mockRef = {
+        current: {
+          addEventListener: jest.fn(),
+          removeEventListener: mockRemoveEventListener,
+          scrollBy: jest.fn()
+        }
+      };
+
+      jest.spyOn(React, 'useRef').mockReturnValue(mockRef);
+
+      const { unmount } = setupComponent();
+
+      unmount();
+
+      expect(mockRemoveEventListener).toHaveBeenCalledWith('scroll', expect.any(Function));
+    });
+  });
+
+  // Test cases for language handling
+  describe('Language Handling', () => {
+    it('should display English text by default', async () => {
+      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
+      
+      await act(async () => {
+        setupComponent({ stageID: 1 });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Download Documents')).toBeInTheDocument();
+        expect(screen.getByText('Read')).toBeInTheDocument();
+        expect(screen.getByText('Download')).toBeInTheDocument();
+        expect(screen.getByText('Important Remarks')).toBeInTheDocument();
+        expect(screen.getByText('Accept')).toBeInTheDocument();
+      });
+    });
+
+    it('should display Chinese text when language is zh', async () => {
+      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
+      
+      await act(async () => {
+        setupComponent({ stageID: 1 });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('下载文件')).toBeInTheDocument();
+        expect(screen.getByText('阅读')).toBeInTheDocument();
+        expect(screen.getByText('下载')).toBeInTheDocument();
+        expect(screen.getByText('重要备注')).toBeInTheDocument();
+        expect(screen.getByText('接受')).toBeInTheDocument();
+      });
+    });
+
+    it('should display Hong Kong text when language is hk', async () => {
+      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('hk');
+      
+      await act(async () => {
+        setupComponent({ stageID: 1 });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('下載文件')).toBeInTheDocument();
+        expect(screen.getByText('閱讀')).toBeInTheDocument();
+        expect(screen.getByText('下載')).toBeInTheDocument();
+        expect(screen.getByText('重要備註')).toBeInTheDocument();
+        expect(screen.getByText('接受')).toBeInTheDocument();
+      });
+    });
+  });
+
+  // Test cases for error handling
+  describe('Error Handling', () => {
+    it('should handle API errors gracefully', async () => {
+      (getData as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(mockDispatch).toHaveBeenCalledWith(preApprovalAction.setLoader(false));
+      });
+    });
+
+    it('should handle empty PDF links', async () => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [] },
+          products: { HKPIL23PLSTP10: [] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(mockDispatch).toHaveBeenCalledWith(preApprovalAction.setLoader(false));
+      });
+    });
+
+    it('should handle empty campaign data', async () => {
+      const emptyStore = {
+        stages: {
+          stages: [{
+            stageId: 'some-stage',
+            stageInfo: {
+              products: []
+            }
+          }]
+        },
+        preApproval: {
+          formConfigmetaData: {
+            products: []
+          }
+        }
+      };
+      (useSelector as jest.Mock).mockImplementation((selector) => selector(emptyStore));
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(mockDispatch).toHaveBeenCalledWith(preApprovalAction.setLoader(false));
+      });
+    });
+
+    it('should handle missing PDF data in store', async () => {
+      const storeWithoutPDF = {
+        ...mockStore,
+        preApproval: {
+          ...mockStore.preApproval,
+          kfsDocumentPdf: null,
+          tandCDocumentPdf: null
+        }
+      };
+      (useSelector as jest.Mock).mockImplementation((selector) => selector(storeWithoutPDF));
+
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(getData).toHaveBeenCalled();
+      });
+    });
+  });
+
+  // Test cases for component rendering based on stageID
+  describe('Component Rendering Based on StageID', () => {
+    it('should render KFS document viewer for stage 0', async () => {
+      await act(async () => {
+        setupComponent({ stageID: 0 });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Mock PDF')).toBeInTheDocument();
+        expect(screen.getByText('Download')).toBeInTheDocument();
+      });
+    });
+
+    it('should render T&C document viewer for stage 1', async () => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          CampaignTnCMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-tnc' }] },
+          CampaignTnC: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-tnc' }] },
+          tncLinkCampaignCode: {
+            HKPIL23PLSTP10: [{
+              pdfLinks: [
+                { Title: 'II. Personal Loan Terms', url: 'mock-url-1' },
+                { Title: 'III. Client Terms', url: 'mock-url-2' }
+              ]
+            }]
+          }
+        }
+      });
+
+      await act(async () => {
+        setupComponent({ stageID: 1 });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Mock PDF')).toBeInTheDocument();
+        expect(screen.getAllByText('Download').length).toBeGreaterThan(1);
+      });
+    });
+  });
+});
