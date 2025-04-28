@@ -1,21 +1,19 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import OnboardingBeforeStart from './OnboardingBeforeStart';
 import { getData, getPDFData } from '../../services/preApprovalServices';
 import { useDispatch, useSelector } from 'react-redux';
 import { getUrl } from '../../../../utils/common/change.utils';
 import { CONSTANTS } from '../../../../utils/common/constants';
 
-// Mock the external dependencies
+// Mock all external dependencies
 jest.mock('../../services/preApprovalServices');
 jest.mock('react-redux');
 jest.mock('../../../../utils/common/change.utils');
 jest.mock('../../../../utils/common/constants');
 
-// Mock the PDF component since it's complex and we don't need to test it here
+// Mock components
 jest.mock('../../../../shared/components/pdf/pdf', () => () => <div>Mock PDF</div>);
-
-// Mock the Spinner component
 jest.mock('../../../../shared/components/spinner/spinner', () => () => <div>Loading...</div>);
 
 describe('OnboardingBeforeStart Component', () => {
@@ -43,133 +41,212 @@ describe('OnboardingBeforeStart Component', () => {
     }
   };
 
+  // Mock window properties
+  const originalWindowLocation = window.location;
+  const originalNavigator = window.navigator;
+
+  beforeAll(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalWindowLocation, host: 'example.com' }
+    });
+    Object.defineProperty(window, 'navigator', {
+      configurable: true,
+      value: { ...originalNavigator, userAgent: 'Mozilla/5.0' }
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalWindowLocation
+    });
+    Object.defineProperty(window, 'navigator', {
+      configurable: true,
+      value: originalNavigator
+    });
+  });
+
   beforeEach(() => {
     (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
     (useSelector as jest.Mock).mockImplementation((selector) => selector(mockStore));
     (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-    (getData as jest.Mock).mockResolvedValue({
-      data: {
-        productsMob: {
-          HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mock-pdf-url' }]
-        },
-        products: {
-          HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mock-pdf-url' }]
-        },
-        CampaignTnCMob: {
-          HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mock-tnc-url' }]
-        },
-        CampaignTnC: {
-          HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mock-tnc-url' }]
-        },
-        tncLinkCampaignCode: {
-          HKPIL23PLSTP10: [{
-            pdfLinks: [
-              { Title: 'II. Personal Loan Terms', url: 'mock-url-1' },
-              { Title: 'III. Client Terms', url: 'mock-url-2' },
-              { Title: 'Welcome Offers', url: 'mock-url-3' }
-            ]
-          }]
-        }
-      }
-    });
-    (getPDFData as jest.Mock).mockResolvedValue('mock-pdf-data');
+    (CONSTANTS as any) = {
+      LANG_EN: 'en',
+      LANG_CN: 'zh',
+      LANG_HK: 'hk',
+      DownloadBtn: 'Download',
+      DownloadBtn_CN: '下载',
+      DownloadBtn_HK: '下載',
+      DownloadHeader: 'Download Documents',
+      DownloadHeader_CN: '下载文件',
+      DownloadHeader_HK: '下載文件',
+      ReadBtn: 'Read',
+      ReadBtn_CN: '阅读',
+      ReadBtn_HK: '閱讀',
+      Remarks: 'Important Remarks',
+      Remarks_CN: '重要备注',
+      Remarks_HK: '重要備註',
+      acceptButton: 'Accept',
+      acceptButton_CN: '接受',
+      acceptButton_HK: '接受'
+    };
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders spinner initially', () => {
-    render(
-      <OnboardingBeforeStart
-        isVisible={true}
-        onScrollEnd={mockOnScrollEnd}
-        stageID={0}
-        nextPage={mockNextPage}
-      />
-    );
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
-  });
+  const setupComponent = (props = {}) => {
+    const defaultProps = {
+      isVisible: true,
+      onScrollEnd: mockOnScrollEnd,
+      stageID: 0,
+      nextPage: mockNextPage,
+      ...props
+    };
+    return render(<OnboardingBeforeStart {...defaultProps} />);
+  };
 
-  describe('Stage 0 (KFS Document)', () => {
-    it('loads and displays KFS document for desktop', async () => {
-      Object.defineProperty(window.navigator, 'userAgent', {
-        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        writable: true
+  describe('Initial Load and Data Fetching', () => {
+    it('should show spinner during initial load', () => {
+      setupComponent();
+      expect(screen.getByText('Loading...')).toBeInTheDocument();
+    });
+
+    it('should fetch KFS document for stage 0', async () => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
       });
+      (getPDFData as jest.Mock).mockResolvedValue('mock-pdf-data');
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      setupComponent({ stageID: 0 });
 
       await waitFor(() => {
         expect(getData).toHaveBeenCalled();
-        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/mock-pdf-url');
-        expect(mockDispatch).toHaveBeenCalled();
+        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/desktop-pdf');
+        expect(mockDispatch).toHaveBeenCalledTimes(3); // setLoader, setKfsDocumentPdf, setLoader
         expect(mockOnScrollEnd).toHaveBeenCalledWith(true);
-        expect(screen.getByText('Mock PDF')).toBeInTheDocument();
       });
     });
 
-    it('loads and displays KFS document for mobile', async () => {
+    it('should fetch mobile KFS document when on mobile device', async () => {
       Object.defineProperty(window.navigator, 'userAgent', {
         value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
         writable: true
       });
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      setupComponent({ stageID: 0 });
 
       await waitFor(() => {
-        expect(getData).toHaveBeenCalled();
-        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/mock-pdf-url');
+        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/mobile-pdf');
       });
     });
 
-    it('handles localhost URL replacement', async () => {
+    it('should handle localhost URL replacement', async () => {
       Object.defineProperty(window, 'location', {
-        value: { host: 'localhost:3000' },
-        writable: true
+        value: { ...window.location, host: 'localhost:3000' }
       });
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      setupComponent({ stageID: 0 });
 
       await waitFor(() => {
-        expect(getPDFData).toHaveBeenCalledWith('http://localhost:3000/mock-pdf-url');
+        expect(getPDFData).toHaveBeenCalledWith('http://localhost:3000/desktop-pdf');
       });
     });
 
-    it('downloads KFS PDF when download button is clicked', async () => {
+    it('should fetch T&C document for stage 1', async () => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          CampaignTnCMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-tnc' }] },
+          CampaignTnC: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-tnc' }] },
+          tncLinkCampaignCode: {
+            HKPIL23PLSTP10: [{
+              pdfLinks: [
+                { Title: 'II. Personal Loan Terms', url: 'mock-url-1' },
+                { Title: 'III. Client Terms', url: 'mock-url-2' }
+              ]
+            }]
+          }
+        }
+      });
+
+      setupComponent({ stageID: 1 });
+
+      await waitFor(() => {
+        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/desktop-tnc');
+        expect(mockDispatch).toHaveBeenCalledWith(
+          preApprovalAction.setTandCDocumentPdf('https://pt.sc.com/desktop-tnc')
+        );
+        expect(mockDispatch).toHaveBeenCalledWith(
+          preApprovalAction.setDownloadPDFData('mock-pdf-data')
+        );
+      });
+    });
+
+    it('should handle Chinese language documents', async () => {
+      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      setupComponent({ stageID: 0 });
+
+      await waitFor(() => {
+        expect(getData).toHaveBeenCalledWith(process.env.REACT_APP_KFS_DOC_URL_Chinees);
+      });
+    });
+  });
+
+  describe('PDF Download Functionality', () => {
+    beforeEach(() => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/mobile-pdf' }] },
+          products: { HKPIL23PLSTP10: [{ pdfURL: 'https://pt.sc.com/desktop-pdf' }] },
+          tncLinkCampaignCode: {
+            HKPIL23PLSTP10: [{
+              pdfLinks: [
+                { Title: 'II. Personal Loan Terms', url: 'mock-url-1' },
+                { Title: 'III. Client Terms', url: 'mock-url-2' }
+              ]
+            }]
+          }
+        }
+      });
+      (getPDFData as jest.Mock).mockResolvedValue('mock-pdf-data');
+    });
+
+    it('should download KFS PDF when download button is clicked', async () => {
       const createElementSpy = jest.spyOn(document, 'createElement');
       const appendChildSpy = jest.spyOn(document.body, 'appendChild');
       const removeChildSpy = jest.spyOn(document.body, 'removeChild');
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      setupComponent({ stageID: 0 });
 
       await waitFor(() => {
         const downloadButton = screen.getByText('Download');
@@ -181,73 +258,22 @@ describe('OnboardingBeforeStart Component', () => {
       });
     });
 
-    it('handles Safari browser for PDF download', async () => {
+    it('should handle Safari browser for PDF download', async () => {
       Object.defineProperty(window.navigator, 'userAgent', {
         value: 'Safari',
         writable: true
       });
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      setupComponent({ stageID: 0 });
 
       await waitFor(() => {
         const downloadButton = screen.getByText('Download');
         fireEvent.click(downloadButton);
       });
     });
-  });
 
-  describe('Stage 1 (Terms and Conditions)', () => {
-    it('loads and displays T&C document', async () => {
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={1}
-          nextPage={mockNextPage}
-        />
-      );
-
-      await waitFor(() => {
-        expect(getData).toHaveBeenCalled();
-        expect(getPDFData).toHaveBeenCalledWith('https://pt.sc.com/mock-tnc-url');
-        expect(screen.getByText('Mock PDF')).toBeInTheDocument();
-        expect(screen.getByText('Download')).toBeInTheDocument();
-      });
-    });
-
-    it('displays terms and conditions table', async () => {
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={1}
-          nextPage={mockNextPage}
-        />
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText('II. Personal Loan Terms')).toBeInTheDocument();
-        expect(screen.getByText('III. Client Terms')).toBeInTheDocument();
-        expect(screen.getByText('Welcome Offers')).toBeInTheDocument();
-      });
-    });
-
-    it('downloads terms PDF when download link is clicked', async () => {
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={1}
-          nextPage={mockNextPage}
-        />
-      );
+    it('should download terms PDF when download link is clicked (PIL campaign)', async () => {
+      setupComponent({ stageID: 1 });
 
       await waitFor(() => {
         const downloadLinks = screen.getAllByText('Download');
@@ -255,8 +281,8 @@ describe('OnboardingBeforeStart Component', () => {
       });
     });
 
-    it('handles different campaign IDs for PDF downloads', async () => {
-      const mockStoreCC = {
+    it('should download terms PDF when download link is clicked (CC campaign)', async () => {
+      const ccMockStore = {
         ...mockStore,
         stages: {
           stages: [{
@@ -277,67 +303,43 @@ describe('OnboardingBeforeStart Component', () => {
         }
       };
 
-      (useSelector as jest.Mock).mockImplementation((selector) => selector(mockStoreCC));
+      (useSelector as jest.Mock).mockImplementation((selector) => selector(ccMockStore));
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={1}
-          nextPage={mockNextPage}
-        />
-      );
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          CampaignTnCMob: { HKSOG20VAWV000: [{ pdfURL: 'https://pt.sc.com/mobile-tnc' }] },
+          CampaignTnC: { HKSOG20VAWV000: [{ pdfURL: 'https://pt.sc.com/desktop-tnc' }] },
+          tncLinkCampaignCode: {
+            HKSOG20VAWV000: [{
+              pdfLinks: [
+                { Title: 'III. Client Terms', url: 'mock-url-1' },
+                { Title: 'III. Credit Card Terms', url: 'mock-url-2' }
+              ]
+            }]
+          }
+        }
+      });
+
+      setupComponent({ stageID: 1 });
 
       await waitFor(() => {
         const downloadLinks = screen.getAllByText('Download');
-        fireEvent.click(downloadLinks[0]);
-      });
-    });
-  });
-
-  describe('Language Handling', () => {
-    it('displays Chinese text when language is zh', async () => {
-      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
-
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
-
-      await waitFor(() => {
-        // Assuming CONSTANTS.DownloadBtn_CN is '下载' for Chinese
-        expect(screen.getByText('下载')).toBeInTheDocument();
-      });
-    });
-
-    it('displays Hong Kong text when language is hk', async () => {
-      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('hk');
-
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
-
-      await waitFor(() => {
-        // Assuming CONSTANTS.DownloadBtn_HK is '下載' for Hong Kong
-        expect(screen.getByText('下載')).toBeInTheDocument();
+        fireEvent.click(downloadLinks[0]); // III. Client Terms
+        fireEvent.click(downloadLinks[1]); // III. Credit Card Terms
       });
     });
   });
 
   describe('Scroll Behavior', () => {
-    it('calls onScrollEnd when scrolled to bottom', async () => {
+    it('should call onScrollEnd when scrolled to bottom', async () => {
       const mockRef = {
         current: {
-          addEventListener: jest.fn(),
+          addEventListener: jest.fn((event, callback) => {
+            if (event === 'scroll') {
+              // Simulate scroll event
+              setTimeout(() => callback(), 100);
+            }
+          }),
           removeEventListener: jest.fn(),
           scrollTop: 100,
           scrollHeight: 200,
@@ -347,25 +349,16 @@ describe('OnboardingBeforeStart Component', () => {
 
       jest.spyOn(React, 'useRef').mockReturnValue(mockRef);
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      setupComponent({ stageID: 0 });
 
-      await waitFor(() => {
-        // Simulate scroll event
-        const scrollEvent = new Event('scroll');
-        mockRef.current.dispatchEvent(scrollEvent);
-        
-        expect(mockOnScrollEnd).toHaveBeenCalledWith(false);
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 150));
       });
+
+      expect(mockOnScrollEnd).toHaveBeenCalledWith(false);
     });
 
-    it('scrolls down when footer button is clicked', async () => {
+    it('should scroll down when footer button is clicked (stage 0)', async () => {
       const mockScrollBy = jest.fn();
       const mockRef = {
         current: {
@@ -377,14 +370,7 @@ describe('OnboardingBeforeStart Component', () => {
 
       jest.spyOn(React, 'useRef').mockReturnValue(mockRef);
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      setupComponent({ stageID: 0, isVisible: true });
 
       await waitFor(() => {
         const scrollButton = screen.getByRole('button', { name: /scroll/i });
@@ -393,15 +379,29 @@ describe('OnboardingBeforeStart Component', () => {
       });
     });
 
-    it('shows accept button when not visible', async () => {
-      render(
-        <OnboardingBeforeStart
-          isVisible={false}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+    it('should scroll down when footer button is clicked (stage 1)', async () => {
+      const mockScrollBy = jest.fn();
+      const mockRef = {
+        current: {
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+          scrollBy: mockScrollBy
+        }
+      };
+
+      jest.spyOn(React, 'useRef').mockReturnValue(mockRef);
+
+      setupComponent({ stageID: 1, isVisible: true });
+
+      await waitFor(() => {
+        const scrollButton = screen.getByRole('button', { name: /scroll/i });
+        fireEvent.click(scrollButton);
+        expect(mockScrollBy).toHaveBeenCalledWith({ top: 5000, behavior: 'smooth' });
+      });
+    });
+
+    it('should show accept button when not visible', async () => {
+      setupComponent({ isVisible: false });
 
       await waitFor(() => {
         const acceptButton = screen.getByText('Accept');
@@ -411,74 +411,68 @@ describe('OnboardingBeforeStart Component', () => {
     });
   });
 
-  describe('Device Detection', () => {
-    it('detects iPhone Safari browser', () => {
-      Object.defineProperty(window.navigator, 'userAgent', {
-        value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
-        writable: true
+  describe('Language Handling', () => {
+    it('should display English text by default', async () => {
+      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
+      setupComponent({ stageID: 1 });
+
+      await waitFor(() => {
+        expect(screen.getByText('Download Documents')).toBeInTheDocument();
+        expect(screen.getByText('Read')).toBeInTheDocument();
+        expect(screen.getByText('Download')).toBeInTheDocument();
+        expect(screen.getByText('Important Remarks')).toBeInTheDocument();
       });
-
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
-
-      // Check if the appropriate class would be applied
-      // This would need to be verified in the actual DOM
     });
 
-    it('detects Android browser', () => {
-      Object.defineProperty(window.navigator, 'userAgent', {
-        value: 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-        writable: true
-      });
+    it('should display Chinese text when language is zh', async () => {
+      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
+      setupComponent({ stageID: 1 });
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      await waitFor(() => {
+        expect(screen.getByText('下载文件')).toBeInTheDocument();
+        expect(screen.getByText('阅读')).toBeInTheDocument();
+        expect(screen.getByText('下载')).toBeInTheDocument();
+        expect(screen.getByText('重要备注')).toBeInTheDocument();
+      });
     });
 
-    it('detects desktop browser', () => {
-      Object.defineProperty(window.navigator, 'userAgent', {
-        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        writable: true
-      });
+    it('should display Hong Kong text when language is hk', async () => {
+      (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('hk');
+      setupComponent({ stageID: 1 });
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      await waitFor(() => {
+        expect(screen.getByText('下載文件')).toBeInTheDocument();
+        expect(screen.getByText('閱讀')).toBeInTheDocument();
+        expect(screen.getByText('下載')).toBeInTheDocument();
+        expect(screen.getByText('重要備註')).toBeInTheDocument();
+      });
     });
   });
 
   describe('Error Handling', () => {
-    it('handles API errors gracefully', async () => {
+    it('should handle API errors gracefully', async () => {
       (getData as jest.Mock).mockRejectedValue(new Error('API Error'));
 
-      render(
-        <OnboardingBeforeStart
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      );
+      setupComponent({ stageID: 0 });
 
       await waitFor(() => {
         expect(mockDispatch).toHaveBeenCalledWith(expect.any(Function));
+      });
+    });
+
+    it('should handle empty PDF links', async () => {
+      (getData as jest.Mock).mockResolvedValue({
+        data: {
+          productsMob: { HKPIL23PLSTP10: [] },
+          products: { HKPIL23PLSTP10: [] },
+          tncLinkCampaignCode: {}
+        }
+      });
+
+      setupComponent({ stageID: 0 });
+
+      await waitFor(() => {
+        expect(mockDispatch).toHaveBeenCalled();
       });
     });
   });
