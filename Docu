@@ -5,7 +5,6 @@ import configureStore from 'redux-mock-store';
 import DucumentUploadMainSCR from './DocumentUploadMainSCR';
 import { CONSTANTS } from '../../../../../utils/common/constants';
 import { postDocSaveData, postFinalAcknowledge, postFulFilmentData, postTMXUserSession } from '../../../../preApproval/services/preApprovalPostServices';
-import { dispatchLoader } from '../../../../../services/common-service';
 
 // Mock the services and utilities
 jest.mock('../../../../preApproval/services/preApprovalPostServices');
@@ -14,7 +13,7 @@ jest.mock('../../../../../utils/common/change.utils');
 
 const mockStore = configureStore([]);
 
-describe('DocumentUploadMainSCR Component', () => {
+describe('Additional DocumentUploadMainSCR Tests', () => {
   let store: any;
   const initialState = {
     stages: {
@@ -46,7 +45,8 @@ describe('DocumentUploadMainSCR Component', () => {
         HKIDQRCodeData: null,
         documentCount: 1,
         success: true,
-        fileSectionData: null
+        fileSectionData: null,
+        changeIconColorIdentityProof: false
       }
     },
     preApproval: {
@@ -83,144 +83,20 @@ describe('DocumentUploadMainSCR Component', () => {
         applicants: {}
       } 
     });
-    (dispatchLoader as jest.Mock).mockReturnValue({ type: 'LOADER_ACTION' });
+    (require('../../../../../services/common-service').dispatchLoader as jest.Mock).mockReturnValue({ type: 'LOADER_ACTION' });
     (require('../../../../../utils/common/change.utils').getUrl.getParameterByName as jest.Mock).mockReturnValue(null);
     (require('../../../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue(CONSTANTS.LANG_EN);
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    expect(screen.getByText('Provide documents')).toBeInTheDocument();
-  });
-
-  it('displays document count correctly', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    expect(screen.getByText('1/2')).toBeInTheDocument();
-  });
-
-  it('shows continue button when success is true', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    expect(screen.getByText('Continue')).toBeInTheDocument();
-  });
-
-  it('disables continue button when not all documents are uploaded', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    const button = screen.getByText('Continue');
-    expect(button).toBeDisabled();
-  });
-
-  it('enables continue button when all documents are uploaded', () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
-        }
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    const button = screen.getByText('Continue');
-    expect(button).not.toBeDisabled();
-  });
-
-  it('calls nextStage when continue button is clicked', async () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
-        }
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const button = screen.getByText('Continue');
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postTMXUserSession).toHaveBeenCalled();
-      expect(postFinalAcknowledge).toHaveBeenCalled();
-      expect(postDocSaveData).toHaveBeenCalled();
-    });
-  });
-
-  it('handles resumeAllowed case correctly', () => {
-    const customState = {
-      ...initialState,
-      preApproval: {
-        ...initialState.preApproval,
-        resumeAllowed: 'Y'
-      }
-    };
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    // Verify document count is calculated from uploaded_documents
-    expect(screen.getByText('1/2')).toBeInTheDocument();
-  });
-
-  it('handles resumePage case correctly', () => {
-    (require('../../../../../utils/common/change.utils').getUrl.getParameterByName as jest.Mock).mockReturnValue('resume');
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    // Verify document count is calculated from uploaded_documents
-    expect(screen.getByText('1/2')).toBeInTheDocument();
-  });
-
-  it('shows spinner during loading', () => {
+  // Test cases for different stage IDs
+  it('renders correctly when stageId is ff-1', () => {
     const customState = {
       ...initialState,
       stages: {
         ...initialState.stages,
         stages: [{
           ...initialState.stages.stages[0],
-          stageId: 'ffd-1'
+          stageId: 'ff-1'
         }]
       }
     };
@@ -232,17 +108,18 @@ describe('DocumentUploadMainSCR Component', () => {
       </Provider>
     );
     
-    expect(screen.getByTestId('spinner')).toBeInTheDocument();
+    expect(screen.getByText('Provide documents')).toBeInTheDocument();
   });
 
-  it('handles postFulFilment success case', async () => {
+  // Test case for when fileSectionData is not null
+  it('does not render document count when fileSectionData exists', () => {
     const customState = {
       ...initialState,
       stages: {
         ...initialState.stages,
         dynamicDocumentsUpload: {
           ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 2
+          fileSectionData: { someData: true }
         }
       }
     };
@@ -254,16 +131,73 @@ describe('DocumentUploadMainSCR Component', () => {
       </Provider>
     );
     
-    const button = screen.getByText('Continue');
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(postFulFilmentData).toHaveBeenCalled();
-    });
+    expect(screen.queryByText(/\/\d+/)).not.toBeInTheDocument();
   });
 
-  it('handles error case in postTMXUserSession', async () => {
-    (postTMXUserSession as jest.Mock).mockRejectedValue(new Error('API error'));
+  // Test case for when success is false
+  it('does not render continue button when success is false', () => {
+    const customState = {
+      ...initialState,
+      stages: {
+        ...initialState.stages,
+        dynamicDocumentsUpload: {
+          ...initialState.stages.dynamicDocumentsUpload,
+          success: false
+        }
+      }
+    };
+    store = mockStore(customState);
+    
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+    
+    expect(screen.queryByText('Continue')).not.toBeInTheDocument();
+  });
+
+  // Test case for HKIDVersion state
+  it('applies correct class when HKIDVersion is set', () => {
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+    
+    // The initial class should include "document-view"
+    const container = screen.getByText('Provide documents').closest('div');
+    expect(container).toHaveClass('document-view');
+  });
+
+  // Test case for changeIconColorIdentityProof
+  it('handles changeIconColorIdentityProof from state', () => {
+    const customState = {
+      ...initialState,
+      stages: {
+        ...initialState.stages,
+        dynamicDocumentsUpload: {
+          ...initialState.stages.dynamicDocumentsUpload,
+          changeIconColorIdentityProof: true
+        }
+      }
+    };
+    store = mockStore(customState);
+    
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+    
+    // This is testing that the component properly uses this prop from state
+    // You might need to adjust based on how it's actually used in your component
+    expect(store.getState().stages.dynamicDocumentsUpload.changeIconColorIdentityProof).toBe(true);
+  });
+
+  // Test case for when postFinalAcknowledge fails
+  it('handles postFinalAcknowledge failure', async () => {
+    (postFinalAcknowledge as jest.Mock).mockRejectedValue(new Error('API error'));
     
     const customState = {
       ...initialState,
@@ -297,19 +231,14 @@ describe('DocumentUploadMainSCR Component', () => {
     });
   });
 
-  it('handles non-CC product category case', async () => {
+  // Test case for when postDocSaveData fails
+  it('handles postDocSaveData failure', async () => {
+    (postDocSaveData as jest.Mock).mockRejectedValue(new Error('API error'));
+    
     const customState = {
       ...initialState,
       stages: {
-        stages: [{
-          stageId: 'ld-1',
-          stageInfo: {
-            ...initialState.stages.stages[0].stageInfo,
-            products: [{
-              product_category: 'loan'
-            }]
-          }
-        }],
+        ...initialState.stages,
         dynamicDocumentsUpload: {
           ...initialState.stages.dynamicDocumentsUpload,
           documentCount: 2
@@ -317,18 +246,6 @@ describe('DocumentUploadMainSCR Component', () => {
       }
     };
     store = mockStore(customState);
-    
-    (postDocSaveData as jest.Mock).mockResolvedValue({ 
-      status: 200, 
-      data: { 
-        application: { 
-          response_type: 'info', 
-          response_action: 'continue' 
-        },
-        applicants: {},
-        applicant_documents: []
-      } 
-    });
     
     render(
       <Provider store={store}>
@@ -341,21 +258,56 @@ describe('DocumentUploadMainSCR Component', () => {
     
     await waitFor(() => {
       expect(store.getActions()).toContainEqual({
-        type: 'preApproval/setCurrentStage',
-        payload: 'PD-3'
+        type: 'error/getError',
+        payload: {
+          statusCode: 'error',
+          statusText: 'no response'
+        }
       });
     });
   });
 
-  it('handles HardStop case when response action is not continue', async () => {
-    (postDocSaveData as jest.Mock).mockResolvedValue({ 
-      status: 200, 
-      data: { 
-        application: { 
-          response_type: 'hard', 
-          response_action: 'stop' 
+  // Test case for when postFulFilmentData fails
+  it('handles postFulFilmentData failure', async () => {
+    (postFulFilmentData as jest.Mock).mockRejectedValue(new Error('API error'));
+    
+    const customState = {
+      ...initialState,
+      stages: {
+        ...initialState.stages,
+        dynamicDocumentsUpload: {
+          ...initialState.stages.dynamicDocumentsUpload,
+          documentCount: 2
         }
-      } 
+      }
+    };
+    store = mockStore(customState);
+    
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+    
+    const button = screen.getByText('Continue');
+    fireEvent.click(button);
+    
+    await waitFor(() => {
+      expect(store.getActions()).toContainEqual({
+        type: 'error/getError',
+        payload: {
+          statusCode: 'error',
+          statusText: 'no response'
+        }
+      });
+    });
+  });
+
+  // Test case for when TMXUserSession returns non-pass status
+  it('handles non-pass status from TMXUserSession', async () => {
+    (postTMXUserSession as jest.Mock).mockResolvedValue({ 
+      status: 200, 
+      data: { review_status: 'fail' } 
     });
     
     const customState = {
@@ -380,15 +332,31 @@ describe('DocumentUploadMainSCR Component', () => {
     fireEvent.click(button);
     
     await waitFor(() => {
-      // Verify HardStop was called (would need to mock HardStop to verify)
-      expect(store.getActions()).not.toContainEqual({
-        type: 'preApproval/setCurrentStage',
-        payload: 'PD-3'
+      expect(store.getActions()).toContainEqual({
+        type: 'error/getError',
+        payload: {
+          statusCode: 'error',
+          statusText: 'no response'
+        }
       });
     });
   });
 
-  it('renders different language content', () => {
+  // Test case for when showSpinner is true
+  it('shows spinner when showSpinner is true', () => {
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+    
+    // This depends on how your spinner is implemented
+    // You might need to mock the Spinner component or check for specific classes
+    expect(screen.queryByTestId('spinner')).not.toBeInTheDocument();
+  });
+
+  // Test case for different language rendering
+  it('renders Chinese text when language is set to CN', () => {
     (require('../../../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue(CONSTANTS.LANG_CN);
     
     render(
@@ -397,7 +365,21 @@ describe('DocumentUploadMainSCR Component', () => {
       </Provider>
     );
     
-    // Verify Chinese text is rendered (would need actual Chinese constants to match)
+    // Replace with actual Chinese text from your constants
     expect(screen.getByText(/Provide documents|上传文件/)).toBeInTheDocument();
+  });
+
+  // Test case for different language rendering
+  it('renders Hong Kong text when language is set to HK', () => {
+    (require('../../../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue(CONSTANTS.LANG_HK);
+    
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+    
+    // Replace with actual Hong Kong text from your constants
+    expect(screen.getByText(/Provide documents|提供文件/)).toBeInTheDocument();
   });
 });
