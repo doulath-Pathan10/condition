@@ -1,427 +1,256 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import Dates from './Dates';
-import { StoreModel } from '../../../utils/model/common-model';
-import { CONSTANTS } from '../../../utils/common/constants';
-import * as changeUtils from '../../../utils/common/change.utils';
-import * as validateService from '../../../services/validation-service';
+import { useEffect, useState } from "react";
+import "./document-upload-main-scr.scss";
+import { useDispatch, useSelector } from "react-redux";
+import { preApprovalAction } from "../../../../preApproval/store/preApproval-slice";
+import { postDocSaveData, postFinalAcknowledge, postFulFilmentData, postTMXUserSession } from "../../../../preApproval/services/preApprovalPostServices";
+import DocumentTypeDynamic from "../documentType/document-type-dynamic";
+import { dispatchLoader, lovRequests } from "../../../../../services/common-service";
+import { StoreModel } from "../../../../../utils/model/common-model";
+import { stagesAction } from "../../../../../utils/store/stages-slice";
+import { CONSTANTS } from "../../../../../utils/common/constants";
+import Close from "../../../../../shared/components/close/close";
+import { errorAction } from "../../../../../utils/store/error-slice";
+import { HardStop } from "../../../services/preApprovalUtilsService";
+import Spinner from "../../../../../shared/components/spinner/spinner";
+import { stateUrl } from "../../../../dashboard/fields/stage.utils";
+import { getUrl } from "../../../../../utils/common/change.utils";
 
-// Mock all external dependencies
-jest.mock('../../../utils/common/change.utils');
-jest.mock('../../../services/validation-service');
-
-const mockStore = configureStore([]);
-
-describe('Dates Component', () => {
-  let store: any;
-  const baseState: StoreModel = {
-    stages: {
-      stages: [{
-        stageId: 'ad-2',
-        stageInfo: {
-          products: [{
-            product_category: 'PL',
-            offer_details: [{}]
-          }],
-          applicants: [{
-            work_type_a_1: 'E001',
-            date_of_birth_a_1: '1990-05-15',
-            expiry_date_a_1: '2025-12-31',
-            id_type_cb: 'Passport',
-            business_est_date: '2010-01-01'
-          }]
+const DucumentUploadMainSCR = () => {
+  
+  const document_list = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.applicant_documents[0].document_list)
+  const totalDocCount = document_list?.length;
+  const [showIncomeProof, setShowIncomeProof] = useState("");
+  const [HKIDQRCodeData, setHKIDQRCodeData] = useState(null);
+  const [showUploadFileSuccess, setShowUploadFileSuccess] = useState(false);
+  const [HKIDVersion, setHKIDVersion] = useState("");
+  const [showContinueBtn, setShowContinueBtn] = useState(false);
+  const [showSpinner, setShowSpinner] = useState(false);
+  const [ffd2Enable, setFFD2Enable] = useState(false);
+  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
+  const resumePage = getUrl.getParameterByName("pageId");
+  let count = 0;
+  document_list.forEach((doc:any) => {
+    doc.document_options?.forEach((option:any) => {
+      option.document_types?.forEach((type:any) => {
+        /*istanbul ignore else*/
+        if(type.uploaded_documents !== null){
+          count += 1;
         }
-      }],
-      userInput: {
-        applicants: [{
-          work_type: 'E001',
-          date_of_birth: '1990-05-15',
-          expiry_date: '2025-12-31',
-          id_type_cb: 'Passport',
-          business_est_date: '2010-01-01'
-        }]
-      }
-    },
-    error: {},
-    lovDesc: {},
-    preApproval: {
-      resumeAllowed: 'N'
-    },
-    fielderror: {
-      error: []
-    }
-  };
+      })
+    })
+  })
+  const documentData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentData);
+  const newHKIDQRCodeData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.HKIDQRCodeData);
+  useEffect(() => {
+    dispatch(dispatchLoader(false));
+  }, [])
 
-  const props = {
-    data: {
-      logical_field_name: 'date_of_birth',
-      rwb_label_name: 'Date of Birth',
-      mandatory: 'Yes',
-      editable: false
-    },
-    handleCallback: jest.fn(),
-    handleFieldDispatch: jest.fn()
-  };
-
-  beforeEach(() => {
-    store = mockStore(baseState);
-    (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-    (changeUtils.fieldError as jest.Mock).mockReturnValue(false);
-    (changeUtils.fieldIdAppend as jest.Mock).mockImplementation((p) => p.data.logical_field_name);
-    (validateService.allowOnlyCharacter as jest.Mock).mockImplementation((e) => e);
-    (validateService.isValidDate as jest.Mock).mockReturnValue(true);
-    (validateService.calculateAge as jest.Mock).mockReturnValue(30);
-    (validateService.calculateMonth as jest.Mock).mockReturnValue(true);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  // Test cases for different field types
-  describe('Date of Birth Field', () => {
-    it('should render with initial state', () => {
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      expect(screen.getByText('Date of Birth')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('DD')).toHaveValue('15');
-      expect(screen.getByPlaceholderText('MM')).toHaveValue('05');
-      expect(screen.getByPlaceholderText('YYYY')).toHaveValue('1990');
-    });
-
-    it('should show error for age < 20 for PL product', async () => {
-      (validateService.calculateAge as jest.Mock).mockReturnValue(19);
-      
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      fireEvent.change(yyyyInput, { target: { value: '2005' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Minimum age should be 20/)).toBeInTheDocument();
-      });
-    });
-
-    it('should show error for age > 99', async () => {
-      (validateService.calculateAge as jest.Mock).mockReturnValue(100);
-      
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      fireEvent.change(yyyyInput, { target: { value: '1920' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Please enter a valid Date of Birth/)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Expiry Date Field', () => {
-    const expiryProps = {
-      ...props,
-      data: {
-        ...props.data,
-        logical_field_name: 'expiry_date'
-      }
-    };
-
-    it('should show error for past expiry date', async () => {
-      render(
-        <Provider store={store}>
-          <Dates {...expiryProps} />
-        </Provider>
-      );
-
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      fireEvent.change(yyyyInput, { target: { value: '2020' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Expiry date should be a future date/)).toBeInTheDocument();
-      });
-    });
-
-    it('should show Passport-specific error when expiry < 30 days', async () => {
-      (validateService.calculateMonth as jest.Mock).mockReturnValue(false);
-      
-      render(
-        <Provider store={store}>
-          <Dates {...expiryProps} />
-        </Provider>
-      );
-
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      fireEvent.change(yyyyInput, { target: { value: '2023' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Passport expiry date should be at least 30 days/)).toBeInTheDocument();
-      });
-    });
-
-    it('should show Exit-Entry Permit specific error when expiry < 30 days', async () => {
-      const modifiedState = {
-        ...baseState,
-        stages: {
-          ...baseState.stages,
-          stages: [{
-            ...baseState.stages.stages[0],
-            stageInfo: {
-              ...baseState.stages.stages[0].stageInfo,
-              applicants: [{
-                ...baseState.stages.stages[0].stageInfo.applicants[0],
-                id_type_cb: 'Exit-Entry Permit'
-              }]
-            }
-          }],
-          userInput: {
-            applicants: [{
-              ...baseState.stages.userInput.applicants[0],
-              id_type_cb: 'Exit-Entry Permit'
-            }]
+  const changeIconColorIdentityProof = useSelector((state: any) => state.stages.dynamicDocumentsUpload.changeIconColorIdentityProof);
+  let documentCount = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentCount);
+  /*istanbul ignore else*/
+  if(resumeAllowed === "Y" || resumePage === "resume") {
+    documentCount = count
+  }
+  const success = useSelector((state: any) => state.stages.dynamicDocumentsUpload.success);
+  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
+  const stageSelector = useSelector((state: StoreModel) => state.stages && state.stages.stages);
+  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
+  const dispatch = useDispatch();
+  const language = getUrl.getLanguageInfo("lang");
+  useEffect(()=>{
+    setShowSpinner(false);
+  },[])
+  
+  const nextStage = async () => {
+    dispatch(dispatchLoader(true));
+    await postTMXUserSession(channel_reference).then(async (res: any) => {
+      if (res.status === 200 && res.data.review_status.toLowerCase() === 'pass') {
+        await postFinalAcknowledge(channel_reference).then(async (res: any) => {
+          if (res.status === 202) {
+            dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
+            await postDocSaveData(documentData, newHKIDQRCodeData).then(async (res: any) => {
+              if (res.status >= 200 && res.status <= 300) {
+                let responseType = res.data.application.response_type.toUpperCase();
+                let responseAction = res.data.application.response_action.toUpperCase();
+                if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
+                  if (stageSelector[0].stageInfo.products[0].product_category === "CC") {
+                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_1));
+                    dispatch(dispatchLoader(false));
+                    setShowSpinner(true);
+                    postFulFilment(res.data);
+                  }
+                  else {
+                    dispatch(preApprovalAction.setCurrentStage("PD-3"));
+                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
+                    let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
+                    stageData.applicants = [res.data.applicants];
+                    stageData.application = res.data.application;
+                    stageData.applicant_documents = res.data.applicant_documents;
+                    dispatch(lovRequests(stageData, CONSTANTS.STAGE_NAMES.LD_1));
+                    dispatch(stagesAction.getStage({
+                      id: CONSTANTS.STAGE_NAMES.LD_1,
+                      formConfig: stageData,
+                    }))
+                    stateUrl(stageSelector[0].stageId);
+                    dispatch(dispatchLoader(false));
+                  }
+                }
+                else {
+                  HardStop(res);
+                }
+              }
+              else {
+                dispatch(dispatchLoader(false));
+                dispatch(
+                  errorAction.getError({
+                    statusCode: "error",
+                    statusText: "no response",
+                  })
+                );
+              }
+            })
           }
-        }
-      };
-      store = mockStore(modifiedState);
-      
-      (validateService.calculateMonth as jest.Mock).mockReturnValue(false);
-      
-      render(
-        <Provider store={store}>
-          <Dates {...expiryProps} />
-        </Provider>
-      );
-
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      fireEvent.change(yyyyInput, { target: { value: '2023' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Exit-Entry Permit expiry date should be at least 30 days/)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Business Establishment Date Field', () => {
-    const businessProps = {
-      ...props,
-      data: {
-        ...props.data,
-        logical_field_name: 'business_est_date'
+          else {
+            dispatch(dispatchLoader(false));
+            dispatch(
+              errorAction.getError({
+                statusCode: "error",
+                statusText: "no response",
+              })
+            );
+          }
+        })
       }
-    };
+      else {
+        dispatch(dispatchLoader(false));
+        dispatch(
+          errorAction.getError({
+            statusCode: "error",
+            statusText: "no response",
+          })
+        );
+      }
+    })
+  }
 
-    it('should show error for future business establishment date', async () => {
-      (validateService.calculateAge as jest.Mock).mockReturnValue(-1);
-      
-      render(
-        <Provider store={store}>
-          <Dates {...businessProps} />
-        </Provider>
-      );
-
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      fireEvent.change(yyyyInput, { target: { value: '2050' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Please enter a valid Business Establishment Date/)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Field Interactions', () => {
-    it('should move focus from DD to MM when DD is filled', () => {
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const ddInput = screen.getByPlaceholderText('DD');
-      const mmInput = screen.getByPlaceholderText('MM');
-      const spy = jest.spyOn(mmInput, 'focus');
-      
-      fireEvent.change(ddInput, { target: { value: '20' } });
-      
-      expect(spy).toHaveBeenCalled();
-    });
-
-    it('should move focus from MM to YYYY when MM is filled', () => {
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const mmInput = screen.getByPlaceholderText('MM');
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      const spy = jest.spyOn(yyyyInput, 'focus');
-      
-      fireEvent.change(mmInput, { target: { value: '10' } });
-      
-      expect(spy).toHaveBeenCalled();
-    });
-
-    it('should show error when tabbing away from empty field', async () => {
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const ddInput = screen.getByPlaceholderText('DD');
-      fireEvent.change(ddInput, { target: { value: '' } });
-      fireEvent.keyDown(ddInput, { key: 'Tab' });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Date of Birth is required/)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should show error for invalid month (>12)', async () => {
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const mmInput = screen.getByPlaceholderText('MM');
-      fireEvent.change(mmInput, { target: { value: '13' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText('Date is not valid')).toBeInTheDocument();
-      });
-    });
-
-    it('should show error for invalid date in February (non-leap year)', async () => {
-      (validateService.isValidDate as jest.Mock).mockReturnValue(false);
-      
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      fireEvent.change(yyyyInput, { target: { value: '2023' } });
-      const mmInput = screen.getByPlaceholderText('MM');
-      fireEvent.change(mmInput, { target: { value: '02' } });
-      const ddInput = screen.getByPlaceholderText('DD');
-      fireEvent.change(ddInput, { target: { value: '29' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText('Date is not valid')).toBeInTheDocument();
-      });
-    });
-
-    it('should show error for empty mandatory field', async () => {
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const ddInput = screen.getByPlaceholderText('DD');
-      fireEvent.change(ddInput, { target: { value: '' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Date of Birth is required/)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Special Cases', () => {
-    it('should handle resume allowed scenario', () => {
-      const modifiedState = {
-        ...baseState,
-        preApproval: {
-          resumeAllowed: 'Y'
+  const postFulFilment = async (res: any) => {
+    stateUrl(CONSTANTS.STAGE_NAMES.FFD_1);
+    postFulFilmentData(res).then(async (fulres: any) => {
+      if (fulres.status >= 200 && fulres.status < 300) {
+        dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
+        let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
+        stageData.applicants = [fulres.data.applicants];
+        stageData.application = fulres.data.application;
+        dispatch(
+          stagesAction.getStage({
+            id: CONSTANTS.STAGE_NAMES.FFD_2,
+            formConfig: stageData,
+          })
+        );
+        let responseType = fulres.data.application.response_type.toUpperCase();
+        let responseAction = fulres.data.application.response_action.toUpperCase();
+        if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
+          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
+          setFFD2Enable(true)
         }
-      };
-      store = mockStore(modifiedState);
-      
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      expect(screen.getByPlaceholderText('DD')).toHaveValue('15');
-    });
-
-    it('should handle Chinese language content', () => {
-      (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
-      
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      expect(screen.getByText('Date of Birth')).toBeInTheDocument();
-    });
-
-    it('should show tick mark for valid date', async () => {
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const ddInput = screen.getByPlaceholderText('DD');
-      fireEvent.change(ddInput, { target: { value: '20' } });
-      
-      await waitFor(() => {
-        expect(document.querySelector('.tick-class')).toBeInTheDocument();
-      });
-    });
-
-    it('should handle non-PL product age validation', async () => {
-      const modifiedState = {
-        ...baseState,
-        stages: {
-          ...baseState.stages,
-          stages: [{
-            ...baseState.stages.stages[0],
-            stageInfo: {
-              ...baseState.stages.stages[0].stageInfo,
-              products: [{
-                product_category: 'CC',
-                offer_details: [{}]
-              }]
-            }
-          }]
+        else {
+          dispatch(HardStop(fulres));
+          setShowSpinner(false);
         }
-      };
-      store = mockStore(modifiedState);
-      
-      (validateService.calculateAge as jest.Mock).mockReturnValue(17);
-      
-      render(
-        <Provider store={store}>
-          <Dates {...props} />
-        </Provider>
-      );
-
-      const yyyyInput = screen.getByPlaceholderText('YYYY');
-      fireEvent.change(yyyyInput, { target: { value: '2007' } });
-      
-      await waitFor(() => {
-        expect(screen.getByText(/Minimum age should be 18/)).toBeInTheDocument();
-      });
+      }
+      else {
+        dispatch(dispatchLoader(false));
+        dispatch(
+          errorAction.getError({
+            statusCode: "error",
+            statusText: "no response",
+          })
+        );
+      }
     });
-  });
-});
+  }
+
+  let stageId = stageSelector[0].stageId;
+  return (
+    <>
+      {showSpinner && (stageId === "ld-1" || stageId === "ffd-1" || stageId === "ffd-2") ? (
+        <Spinner loaderType="lastStep" enable={ffd2Enable} />
+      )
+        :
+        <>
+          <div className={HKIDVersion || showIncomeProof ? "" : "document-view"}>
+            <>
+              <div>
+                {fileSectionData === null &&
+                  <>
+                    <div className="sc-icons">
+                      <span className="banner-icon banner-icon-mobile"></span>
+                      <div className="card-titleHead">
+                        <div className="card-titleDoc">{language === CONSTANTS.LANG_EN ? CONSTANTS.provideDoc : language === CONSTANTS.LANG_CN?CONSTANTS.provideDoc_CN : CONSTANTS.provideDoc_HK}</div>
+                        <div className="hk-headerclose-btnH">
+                          <Close authType="resume" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="row doc-details" id="row-doc-details">
+                      <p className="col-md-10 col-sm-10 col-xs-10 col-lg-10 doc-field-Label">
+                        {language === CONSTANTS.LANG_EN ? CONSTANTS.uploadDoc : language === CONSTANTS.LANG_CN?CONSTANTS.uploadDoc_CN : CONSTANTS.uploadDoc_HK}
+                      </p>
+                      <p className="col-md-2 col-sm-2 col-xs-2 col-lg-2">
+                        {" "}
+                        <span className="count-doc">
+                          {documentCount}/{totalDocCount}
+                        </span>
+                      </p>
+                    </div>
+                  </>
+                }
+                <DocumentTypeDynamic
+                  showContinueBtn={showContinueBtn}
+                  setShowContinueBtn={setShowContinueBtn}
+                  setShowUploadFileSuccess={setShowUploadFileSuccess}
+                  setHKIDVersion={setHKIDVersion}
+                  HKIDVersion={HKIDVersion}
+                  showUploadFileSuccess={showUploadFileSuccess}
+                  setHKIDQRCodeData={setHKIDQRCodeData}
+                />
+                {fileSectionData === null &&
+                  <>
+                    <div className="noteTipDiv">
+                      <p className="noteTip">{language === CONSTANTS.LANG_EN ? CONSTANTS.tooltipText : language === CONSTANTS.LANG_CN?CONSTANTS.tooltipText_CN : CONSTANTS.tooltipText_HK}</p>
+                    </div>
+                    <div className="document-footer-main-document">
+                      <div
+                        className="footer-banner">
+                        <div className="footer-content">
+                          <p className="footer-content1">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent1 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent1_CN : CONSTANTS.footerContent1_HK}</p>
+                          <p className="footer-content2">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent2 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent2_CN : CONSTANTS.footerContent2_HK}</p>
+                          <p className="footer-content3">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent3 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent3_CN : CONSTANTS.footerContent3_HK}</p>
+                        </div>
+                        <span className="images"></span>
+                      </div>
+                      <div className="hk-copy-rights">
+                        <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
+                      </div>
+                    </div>
+                  </>
+                }
+              </div>
+            </>
+          </div>
+          {fileSectionData === null && success && <>
+            <div className="footer footer-set">
+              <button role="button" type="submit" className={documentCount !== totalDocCount ? `continue form-invalid` : `continue form-valid`} onClick={nextStage} disabled={documentCount !== totalDocCount}>
+              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
+              </button>
+            </div>
+          </>}
+        </>
+      }
+    </>
+  );
+};
+
+export default DucumentUploadMainSCR;
+
+Please write an test cases using react and jest including branches with 100 percent coverage
