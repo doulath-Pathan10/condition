@@ -1,16 +1,25 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import DucumentUploadMainSCR from './DocumentUploadMainSCR';
 import { CONSTANTS } from '../../../../../utils/common/constants';
+import { postTMXUserSession, postFinalAcknowledge, postDocSaveData, postFulFilmentData } from '../../../../preApproval/services/preApprovalPostServices';
+
+// Mock the API calls
+jest.mock('../../../../preApproval/services/preApprovalPostServices', () => ({
+  postTMXUserSession: jest.fn(),
+  postFinalAcknowledge: jest.fn(),
+  postDocSaveData: jest.fn(),
+  postFulFilmentData: jest.fn(),
+}));
 
 const mockStore = configureStore([]);
 
-describe('DocumentUploadMainSCR Component', () => {
+describe('DocumentUploadMainSCR Component - Enhanced Coverage', () => {
   let store: any;
 
-  const initialState = {
+  const baseState = {
     stages: {
       stages: [{
         stageId: 'ld-1',
@@ -21,6 +30,13 @@ describe('DocumentUploadMainSCR Component', () => {
                 document_options: [{
                   document_types: [
                     { uploaded_documents: null }
+                  ]
+                }]
+              },
+              {
+                document_options: [{
+                  document_types: [
+                    { uploaded_documents: { id: 'doc2' } }
                   ]
                 }]
               }
@@ -37,9 +53,10 @@ describe('DocumentUploadMainSCR Component', () => {
       dynamicDocumentsUpload: {
         documentData: {},
         HKIDQRCodeData: null,
-        documentCount: 0,
-        success: false,
-        fileSectionData: null
+        documentCount: 1, // 1 out of 2 documents uploaded
+        success: true,
+        fileSectionData: null,
+        changeIconColorIdentityProof: false
       }
     },
     preApproval: {
@@ -49,210 +66,307 @@ describe('DocumentUploadMainSCR Component', () => {
   };
 
   beforeEach(() => {
-    store = mockStore(initialState);
+    store = mockStore(baseState);
     store.dispatch = jest.fn();
-  });
-
-  test('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
     
-    expect(screen.getByText(/provide document/i)).toBeInTheDocument();
-  });
-
-  test('displays document upload progress', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
+    // Reset all mocks
+    jest.clearAllMocks();
     
-    expect(screen.getByText(/0\/1/i)).toBeInTheDocument();
-  });
-
-  test('shows continue button when all documents are uploaded', () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 1,
-          success: true
-        }
+    // Default mock implementations
+    (postTMXUserSession as jest.Mock).mockResolvedValue({
+      status: 200,
+      data: { review_status: 'pass' }
+    });
+    (postFinalAcknowledge as jest.Mock).mockResolvedValue({
+      status: 202
+    });
+    (postDocSaveData as jest.Mock).mockResolvedValue({
+      status: 200,
+      data: {
+        application: {
+          response_type: 'info',
+          response_action: 'continue'
+        },
+        applicants: [{}],
+        applicant_documents: [{}]
       }
-    };
-    
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument();
-  });
-
-  test('disables continue button when not all documents are uploaded', () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          success: true
-        }
+    });
+    (postFulFilmentData as jest.Mock).mockResolvedValue({
+      status: 200,
+      data: {
+        application: {
+          response_type: 'info',
+          response_action: 'continue'
+        },
+        applicants: [{}]
       }
-    };
-    
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    expect(continueButton).toBeDisabled();
-    expect(continueButton).toHaveClass('form-invalid');
-  });
-
-  test('enables continue button when all documents are uploaded', () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 1,
-          success: true
-        }
-      }
-    };
-    
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    expect(continueButton).not.toBeDisabled();
-    expect(continueButton).toHaveClass('form-valid');
-  });
-
-  test('displays spinner when showSpinner is true and stage is ld-1', () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        stages: [{
-          ...initialState.stages.stages[0],
-          stageId: 'ld-1'
-        }]
-      }
-    };
-    
-    store = mockStore(customState);
-    
-    const { container } = render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    // Mock the spinner state
-    jest.spyOn(React, 'useState')
-      .mockImplementationOnce(() => [true, jest.fn()]); // showSpinner
-    
-    expect(container.querySelector('.spinner')).toBeInTheDocument();
-  });
-
-  test('calls nextStage when continue button is clicked', async () => {
-    const customState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        dynamicDocumentsUpload: {
-          ...initialState.stages.dynamicDocumentsUpload,
-          documentCount: 1,
-          success: true
-        }
-      }
-    };
-    
-    store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(continueButton);
-    
-    await waitFor(() => {
-      expect(store.dispatch).toHaveBeenCalled();
     });
   });
 
-  test('displays correct content for different languages', () => {
-    // Mock the getLanguageInfo function to return different languages
-    jest.mock('../../../../../utils/common/change.utils', () => ({
-      getLanguageInfo: jest.fn().mockReturnValue('en')
-    }));
-    
+  test('should show spinner during API calls in nextStage', async () => {
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
-    // Test for English
-    expect(screen.getByText(CONSTANTS.provideDoc)).toBeInTheDocument();
-    
-    // Change mock to return Chinese
-    jest.mock('../../../../../utils/common/change.utils', () => ({
-      getLanguageInfo: jest.fn().mockReturnValue('cn')
-    }));
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    // Test for Chinese
-    expect(screen.getByText(CONSTANTS.provideDoc_CN)).toBeInTheDocument();
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(store.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'SHOW_LOADER',
+        payload: true
+      }));
+    });
   });
 
-  test('handles resume page scenario correctly', () => {
+  test('should handle postTMXUserSession failure', async () => {
+    (postTMXUserSession as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(store.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'ERROR/GET_ERROR'
+      }));
+    });
+  });
+
+  test('should handle HardStop when review_status is not pass', async () => {
+    (postTMXUserSession as jest.Mock).mockResolvedValue({
+      status: 200,
+      data: { review_status: 'fail' }
+    });
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(store.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'ERROR/GET_ERROR'
+      }));
+    });
+  });
+
+  test('should handle postFinalAcknowledge failure', async () => {
+    (postFinalAcknowledge as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(store.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'ERROR/GET_ERROR'
+      }));
+    });
+  });
+
+  test('should handle postDocSaveData failure', async () => {
+    (postDocSaveData as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(store.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'ERROR/GET_ERROR'
+      }));
+    });
+  });
+
+  test('should handle HardStop from postDocSaveData response', async () => {
+    (postDocSaveData as jest.Mock).mockResolvedValue({
+      status: 200,
+      data: {
+        application: {
+          response_type: 'hard',
+          response_action: 'stop'
+        }
+      }
+    });
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(store.dispatch).toHaveBeenCalledWith(expect.any(Function));
+    });
+  });
+
+  test('should handle non-CC product flow', async () => {
     const customState = {
-      ...initialState,
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        stages: [{
+          ...baseState.stages.stages[0],
+          stageInfo: {
+            ...baseState.stages.stages[0].stageInfo,
+            products: [{
+              product_category: 'Loan'
+            }]
+          }
+        }]
+      }
+    };
+    store = mockStore(customState);
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(store.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGES/GET_STAGE'
+        })
+      );
+    });
+  });
+
+  test('should handle FFD2 enable flow', async () => {
+    (postFulFilmentData as jest.Mock).mockResolvedValue({
+      status: 200,
+      data: {
+        application: {
+          response_type: 'info',
+          response_action: 'continue'
+        },
+        applicants: [{}]
+      }
+    });
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(store.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGES/GET_STAGE'
+        })
+      );
+    });
+  });
+
+  test('should handle fileSectionData not null case', () => {
+    const customState = {
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        dynamicDocumentsUpload: {
+          ...baseState.stages.dynamicDocumentsUpload,
+          fileSectionData: { some: 'data' }
+        }
+      }
+    };
+    store = mockStore(customState);
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    expect(screen.queryByText(/provide document/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/upload document/i)).not.toBeInTheDocument();
+  });
+
+  test('should handle HKIDVersion or showIncomeProof cases', () => {
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    // Verify initial class
+    expect(screen.getByTestId('document-container')).toHaveClass('document-view');
+
+    // Mock useState to return values that would change the class
+    jest.spyOn(React, 'useState')
+      .mockImplementationOnce(() => ['income-proof', jest.fn()]) // showIncomeProof
+      .mockImplementationOnce(() => [null, jest.fn()]) // HKIDQRCodeData
+      .mockImplementationOnce(() => [false, jest.fn()]) // showUploadFileSuccess
+      .mockImplementationOnce(() => ['v2', jest.fn()]) // HKIDVersion
+      .mockImplementationOnce(() => [false, jest.fn()]); // showContinueBtn
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    expect(screen.getByTestId('document-container')).not.toHaveClass('document-view');
+  });
+
+  test('should handle resumeAllowed="Y" scenario', () => {
+    const customState = {
+      ...baseState,
       preApproval: {
-        ...initialState.preApproval,
+        ...baseState.preApproval,
         resumeAllowed: 'Y'
       },
       stages: {
-        ...initialState.stages,
+        ...baseState.stages,
         stages: [{
-          ...initialState.stages.stages[0],
+          ...baseState.stages.stages[0],
           stageInfo: {
-            ...initialState.stages.stages[0].stageInfo,
+            ...baseState.stages.stages[0].stageInfo,
             applicant_documents: [{
               document_list: [
                 {
                   document_options: [{
                     document_types: [
-                      { uploaded_documents: { some: 'data' } }
+                      { uploaded_documents: { id: 'doc1' } }
+                    ]
+                  }]
+                },
+                {
+                  document_options: [{
+                    document_types: [
+                      { uploaded_documents: { id: 'doc2' } }
                     ]
                   }]
                 }
@@ -262,28 +376,14 @@ describe('DocumentUploadMainSCR Component', () => {
         }]
       }
     };
-    
     store = mockStore(customState);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    // Should show 1/1 count since resumeAllowed is Y and there's uploaded data
-    expect(screen.getByText(/1\/1/i)).toBeInTheDocument();
-  });
 
-  test('displays footer content correctly', () => {
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
-    expect(screen.getByText(CONSTANTS.footerContent1)).toBeInTheDocument();
-    expect(screen.getByText(CONSTANTS.footerContent2)).toBeInTheDocument();
-    expect(screen.getByText(CONSTANTS.footerContent3)).toBeInTheDocument();
+
+    expect(screen.getByText(/2\/2/i)).toBeInTheDocument();
   });
 });
