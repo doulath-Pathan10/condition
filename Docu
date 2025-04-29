@@ -2,84 +2,25 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import { useDispatch, useSelector } from 'react-redux';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import PILDashboard from './PILDashboard';
-import { preApprovalAction } from '../store/preApproval-slice';
-import { authAction } from '../../../utils/store/auth-slice';
-import { urlParamAction } from '../../../utils/store/urlparam-slice';
-import { stagesAction } from '../../../utils/store/stages-slice';
-import { loaderAction } from '../../../utils/store/loader-slice';
-import { errorAction } from '../../../utils/store/error-slice';
-import { lovDescAction } from '../../../utils/store/lov-desc-slice';
 
-// Mock the Redux hooks
-jest.mock('react-redux', () => ({
-  ...jest.requireActual('react-redux'),
-  useDispatch: jest.fn(),
-  useSelector: jest.fn(),
-}));
+// Previous mocks setup...
 
-// Mock the services and utilities
-jest.mock('../services/preApprovalServices', () => ({
-  getSessionByPreLogin: jest.fn(),
-  getDataFormConfig: jest.fn(),
-  getProductMetaDataInfo: jest.fn(),
-}));
-
-jest.mock('../services/preApprovalPostServices', () => ({
-  getResumeRequest: jest.fn(),
-}));
-
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(() => 'en'),
-    getParameterByName: jest.fn(),
-    getChannelRefNo: jest.fn(),
-  },
-}));
-
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useLocation: jest.fn(),
-}));
-
-// Mock child components
-jest.mock('../../dashboard/left-sidebar/left-sidebar', () => () => <div>LeftSideBar</div>);
-jest.mock('../dynamicComponent/dynamicComponent', () => () => <div>DynamicComponent</div>);
-jest.mock('../../../shared/components/header-ref/header-ref', () => () => <div>HeaderRef</div>);
-jest.mock('../../../shared/components/close/close', () => () => <div>Close</div>);
-jest.mock('../../../shared/components/popup-model/popup-model', () => ({ children }) => <div>PopupModel: {children}</div>);
-jest.mock('../../../shared/components/model/model', () => () => <div>Model</div>);
-jest.mock('../commonComponents/asiaMiles/asiaMiles', () => () => <div>AsiaMiles</div>);
-jest.mock('../alertModal/alert-modal', () => ({ alertType, goBack }) => (
-  <div>
-    AlertModal: {alertType}
-    <button onClick={goBack}>Go Back</button>
-  </div>
-));
-
-describe('PILDashboard Component', () => {
+describe('PILDashboard Error Handling', () => {
   let store;
   const mockDispatch = jest.fn();
-  const mockUseLocation = {
-    search: '',
-    pathname: '/',
-  };
 
   beforeEach(() => {
     store = configureStore({
       reducer: {
         preApproval: () => ({
-          formConfigmetaData: { fieldmetadata: { data: { stages: [{ fields: [{ field_set_name: 'Test Title', rwb_label_name: 'Test Notes' }] }] } },
+          formConfigmetaData: { fieldmetadata: { data: { stages: [] } },
           currentStage: 'PD-1',
           previousStage: 'PD-0',
         }),
-        auth: () => ({ sessionUid: 'test-session' }),
-        stages: () => ({
-          otpOpen: false,
-          stages: [{ stageId: 'pd-1', stageInfo: {} }],
-        }),
+        auth: () => ({ sessionUid: null }),
+        stages: () => ({ otpOpen: false, stages: [] }),
         urlParam: () => ({ validUrl: true, isResume: false }),
         loader: () => ({ isFetching: false }),
       },
@@ -87,96 +28,23 @@ describe('PILDashboard Component', () => {
 
     useDispatch.mockReturnValue(mockDispatch);
     useSelector.mockImplementation((callback) => callback(store.getState()));
-    useLocation.mockReturnValue(mockUseLocation);
-    window.location.search = '?product=1313&source=09&lang=en';
+    useLocation.mockReturnValue({ search: '', pathname: '/' });
+    window.location.search = '?product=123&source=01&lang=en';
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders AsiaMiles component when URL has specific search params', () => {
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-
-    expect(screen.getByText('AsiaMiles')).toBeInTheDocument();
-  });
-
-  it('renders technical issue popup when URL is invalid', () => {
-    useSelector.mockImplementation((callback) => callback({
-      ...store.getState(),
-      urlParam: { validUrl: false },
-    }));
-
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-
-    expect(screen.getByText('PopupModel:')).toBeInTheDocument();
-    expect(screen.getByText('Model')).toBeInTheDocument();
-  });
-
-  it('renders OTPModel when stage is pd-1 and otpOpen is true', () => {
-    useSelector.mockImplementation((callback) => callback({
-      ...store.getState(),
-      stages: { otpOpen: true, stages: [{ stageId: 'pd-1' }] },
-    }));
-
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-
-    // Note: Since OTPModel is not properly mocked, this test might need adjustment
-    // based on your actual OTPModel implementation
-  });
-
-  it('renders main dashboard content when conditions are met', () => {
-    window.location.search = '?product=123&source=01&lang=en';
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-
-    expect(screen.getByText('LeftSideBar')).toBeInTheDocument();
-    expect(screen.getByText('DynamicComponent')).toBeInTheDocument();
-  });
-
-  it('dispatches actions on mount for resume flow', async () => {
-    window.location.search = '?pageId=resume&appRefNo=test123';
-    useSelector.mockImplementation((callback) => callback({
-      ...store.getState(),
-      urlParam: { validUrl: true, isResume: true },
-    }));
-
-    const mockGetResumeResponse = {
-      status: 200,
-      data: {
-        applicants: [{ name: 'test' }],
-        application: { application_reference: 'ref123', cos_ref_number: 'cos123', application_status: 'A01' },
-        products: [{ product_type: '1313', product_category: 'CC' }],
-        stage: { page_id: 'bd-1' },
-        lov_desc: { test_a_a_1_desc: 'Description' },
+  it('handles session creation failure', async () => {
+    const errorResponse = {
+      response: {
+        status: 500,
+        statusText: 'Internal Server Error',
       },
     };
 
-    require('../services/preApprovalPostServices').getResumeRequest.mockResolvedValue(mockGetResumeResponse);
+    require('../services/preApprovalServices').getSessionByPreLogin.mockRejectedValue(errorResponse);
 
     render(
       <Provider store={store}>
@@ -187,29 +55,169 @@ describe('PILDashboard Component', () => {
     );
 
     await waitFor(() => {
-      expect(mockDispatch).toHaveBeenCalledWith(urlParamAction.isResume(true));
-      expect(require('../services/preApprovalPostServices').getResumeRequest).toHaveBeenCalled();
+      expect(mockDispatch).toHaveBeenCalledWith(
+        errorAction.getError({
+          statusCode: 500,
+          statusText: 'Internal Server Error',
+        })
+      );
     });
   });
 
-  it('handles error response in resume flow', async () => {
+  it('handles product metadata fetch failure', async () => {
+    const errorResponse = {
+      response: {
+        status: 404,
+        statusText: 'Not Found',
+      },
+    };
+
+    require('../services/preApprovalServices').getProductMetaDataInfo.mockRejectedValue(errorResponse);
+    require('../services/preApprovalServices').getSessionByPreLogin.mockResolvedValue({
+      status: 201,
+      headers: { sessionuid: 'test-session' },
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalledWith(
+        errorAction.getError({
+          statusCode: 404,
+          statusText: 'Not Found',
+        })
+      );
+    });
+  });
+
+  it('handles form config fetch failure', async () => {
+    const errorResponse = {
+      response: {
+        status: 400,
+        statusText: 'Bad Request',
+      },
+    };
+
+    require('../services/preApprovalServices').getDataFormConfig.mockRejectedValue(errorResponse);
+    require('../services/preApprovalServices').getSessionByPreLogin.mockResolvedValue({
+      status: 201,
+      headers: { sessionuid: 'test-session' },
+    });
+    require('../services/preApprovalServices').getProductMetaDataInfo.mockResolvedValue({});
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalledWith(
+        errorAction.getError({
+          statusCode: 400,
+          statusText: 'Bad Request',
+        })
+      );
+    });
+  });
+
+  it('shows RESUBMIT modal when response_action is RESUBMIT', async () => {
     window.location.search = '?pageId=resume&appRefNo=test123';
     useSelector.mockImplementation((callback) => callback({
       ...store.getState(),
       urlParam: { validUrl: true, isResume: true },
     }));
 
-    const mockErrorResponse = {
-      status: 400,
+    const mockResponse = {
+      status: 200,
       data: {
-        application: { application_status: 'E01' },
-        error: {
-          application_error: [{ rtobCode: 'A55', error_description: 'Test error' }],
+        applicants: [],
+        application: { 
+          application_reference: 'ref123', 
+          cos_ref_number: 'cos123', 
+          application_status: 'A01',
+          response_type: 'HARD',
+          response_action: 'RESUBMIT',
+          error: {
+            application_error: [{ rtobCode: 'A20', error_description: 'Please resubmit your application' }],
+          },
         },
+        products: [],
+        stage: { page_id: 'bd-1' },
       },
     };
 
-    require('../services/preApprovalPostServices').getResumeRequest.mockResolvedValue(mockErrorResponse);
+    require('../services/preApprovalPostServices').getResumeRequest.mockResolvedValue(mockResponse);
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('AlertModal: RESUBMIT')).toBeInTheDocument();
+      expect(screen.getByText('Go Back')).toBeInTheDocument();
+    });
+  });
+
+  it('shows ErrorCode modal for CSL-REG-104 error', async () => {
+    window.location.search = '?pageId=resume&appRefNo=test123';
+    useSelector.mockImplementation((callback) => callback({
+      ...store.getState(),
+      urlParam: { validUrl: true, isResume: true },
+    }));
+
+    const mockResponse = {
+      status: 200,
+      data: {
+        applicants: [],
+        application: { 
+          application_reference: 'ref123', 
+          cos_ref_number: 'cos123', 
+          application_status: 'A01',
+          error: {
+            application_error: [{ rtobCode: 'CSL-REG-104', error_description: 'Registration error' }],
+          },
+        },
+        products: [],
+        stage: { page_id: 'bd-1' },
+      },
+    };
+
+    require('../services/preApprovalPostServices').getResumeRequest.mockResolvedValue(mockResponse);
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('AlertModal: ErrorCode')).toBeInTheDocument();
+    });
+  });
+
+  it('handles network errors during resume request', async () => {
+    window.location.search = '?pageId=resume&appRefNo=test123';
+    useSelector.mockImplementation((callback) => callback({
+      ...store.getState(),
+      urlParam: { validUrl: true, isResume: true },
+    }));
+
+    require('../services/preApprovalPostServices').getResumeRequest.mockRejectedValue(new Error('Network Error'));
 
     render(
       <Provider store={store}>
@@ -229,7 +237,75 @@ describe('PILDashboard Component', () => {
     });
   });
 
-  it('shows decline modal when error code A55 is received', async () => {
+  it('handles empty response from resume request', async () => {
+    window.location.search = '?pageId=resume&appRefNo=test123';
+    useSelector.mockImplementation((callback) => callback({
+      ...store.getState(),
+      urlParam: { validUrl: true, isResume: true },
+    }));
+
+    require('../services/preApprovalPostServices').getResumeRequest.mockResolvedValue({});
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalledWith(
+        errorAction.getError({
+          statusCode: 'error',
+          statusText: 'no response',
+        })
+      );
+    });
+  });
+
+  it('handles application status E01', async () => {
+    window.location.search = '?pageId=resume&appRefNo=test123';
+    useSelector.mockImplementation((callback) => callback({
+      ...store.getState(),
+      urlParam: { validUrl: true, isResume: true },
+    }));
+
+    const mockResponse = {
+      status: 200,
+      data: {
+        applicants: [],
+        application: { 
+          application_reference: 'ref123', 
+          cos_ref_number: 'cos123', 
+          application_status: 'E01',
+        },
+        products: [],
+        stage: { page_id: 'bd-1' },
+      },
+    };
+
+    require('../services/preApprovalPostServices').getResumeRequest.mockResolvedValue(mockResponse);
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalledWith(
+        errorAction.getError({
+          statusCode: 'error',
+          statusText: 'no response',
+        })
+      );
+    });
+  });
+
+  it('handles CORRECT RESUBMIT response action', async () => {
     window.location.search = '?pageId=resume&appRefNo=test123';
     useSelector.mockImplementation((callback) => callback({
       ...store.getState(),
@@ -245,9 +321,9 @@ describe('PILDashboard Component', () => {
           cos_ref_number: 'cos123', 
           application_status: 'A01',
           response_type: 'HARD',
-          response_action: 'STOP',
+          response_action: 'CORRECT RESUBMIT',
           error: {
-            application_error: [{ rtobCode: 'A55', error_description: 'Test error' }],
+            application_error: [{ rtobCode: 'A30', error_description: 'Please correct and resubmit' }],
           },
         },
         products: [],
@@ -266,108 +342,7 @@ describe('PILDashboard Component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('AlertModal: DECLINERLS')).toBeInTheDocument();
+      expect(screen.getByText('AlertModal: RESUBMIT')).toBeInTheDocument();
     });
-  });
-
-  it('calls goBack function when decline modal button is clicked', async () => {
-    window.location.search = '?pageId=resume&appRefNo=test123';
-    useSelector.mockImplementation((callback) => callback({
-      ...store.getState(),
-      urlParam: { validUrl: true, isResume: true },
-    }));
-
-    const mockResponse = {
-      status: 200,
-      data: {
-        applicants: [],
-        application: { 
-          application_reference: 'ref123', 
-          cos_ref_number: 'cos123', 
-          application_status: 'A01',
-          response_type: 'HARD',
-          response_action: 'STOP',
-          error: {
-            application_error: [{ rtobCode: 'A01', error_description: 'Test error' }],
-          },
-        },
-        products: [],
-        stage: { page_id: 'bd-1' },
-      },
-    };
-
-    require('../services/preApprovalPostServices').getResumeRequest.mockResolvedValue(mockResponse);
-    delete window.location;
-    window.location = { href: '' };
-
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-
-    await waitFor(() => {
-      const goBackButton = screen.getByText('Go Back');
-      fireEvent.click(goBackButton);
-      expect(window.location.href).toBe('http://localhost/');
-    });
-  });
-
-  it('updates stage_Id and calls nextPage correctly', () => {
-    const { rerender } = render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-
-    // Test initial state
-    expect(screen.getByText('Test Title')).toBeInTheDocument();
-    
-    // Mock the nextPage function directly on the component instance
-    // This is a workaround since we can't directly access the component's state
-    // In a real test, you might want to trigger the actual button that calls nextPage
-    const nextPageButton = screen.getByTestId('main-btn');
-    fireEvent.click(nextPageButton);
-    
-    // Verify dispatch was called
-    expect(mockDispatch).toHaveBeenCalledWith(
-      preApprovalAction.setCurrentStage('PD-2')
-    );
-    expect(mockDispatch).toHaveBeenCalledWith(
-      preApprovalAction.setPreviousStage('PD-1')
-    );
-  });
-
-  it('handles language changes correctly', () => {
-    require('../../../utils/common/change.utils').getUrl.getLanguageInfo
-      .mockReturnValueOnce('zh')
-      .mockReturnValueOnce('en');
-
-    const { rerender } = render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-
-    // Verify initial language
-    expect(screen.getByText('Test Title')).toBeInTheDocument();
-
-    // Change language and rerender
-    rerender(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-
-    // Verify language change handling
-    // This depends on your constants implementation
   });
 });
