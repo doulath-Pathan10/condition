@@ -1,136 +1,256 @@
-import React from "react";
-import { render, fireEvent, screen, waitFor } from "@testing-library/react";
-import CasaTNC from "../path/to/CasaTNC"; // adjust path
-import { useSelector, useDispatch } from "react-redux";
-import * as services from "../../services/preApprovalServices";
-import * as commonService from "../../../../services/common-service";
+import { useEffect, useState } from "react";
+import "./document-upload-main-scr.scss";
+import { useDispatch, useSelector } from "react-redux";
+import { preApprovalAction } from "../../../../preApproval/store/preApproval-slice";
+import { postDocSaveData, postFinalAcknowledge, postFulFilmentData, postTMXUserSession } from "../../../../preApproval/services/preApprovalPostServices";
+import DocumentTypeDynamic from "../documentType/document-type-dynamic";
+import { dispatchLoader, lovRequests } from "../../../../../services/common-service";
+import { StoreModel } from "../../../../../utils/model/common-model";
+import { stagesAction } from "../../../../../utils/store/stages-slice";
+import { CONSTANTS } from "../../../../../utils/common/constants";
+import Close from "../../../../../shared/components/close/close";
+import { errorAction } from "../../../../../utils/store/error-slice";
+import { HardStop } from "../../../services/preApprovalUtilsService";
+import Spinner from "../../../../../shared/components/spinner/spinner";
+import { stateUrl } from "../../../../dashboard/fields/stage.utils";
+import { getUrl } from "../../../../../utils/common/change.utils";
 
-// Mock Redux
-jest.mock("react-redux", () => ({
-  useDispatch: jest.fn(),
-  useSelector: jest.fn(),
-}));
+const DucumentUploadMainSCR = () => {
+  
+  const document_list = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.applicant_documents[0].document_list)
+  const totalDocCount = document_list?.length;
+  const [showIncomeProof, setShowIncomeProof] = useState("");
+  const [HKIDQRCodeData, setHKIDQRCodeData] = useState(null);
+  const [showUploadFileSuccess, setShowUploadFileSuccess] = useState(false);
+  const [HKIDVersion, setHKIDVersion] = useState("");
+  const [showContinueBtn, setShowContinueBtn] = useState(false);
+  const [showSpinner, setShowSpinner] = useState(false);
+  const [ffd2Enable, setFFD2Enable] = useState(false);
+  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
+  const resumePage = getUrl.getParameterByName("pageId");
+  let count = 0;
+  document_list.forEach((doc:any) => {
+    doc.document_options?.forEach((option:any) => {
+      option.document_types?.forEach((type:any) => {
+        /*istanbul ignore else*/
+        if(type.uploaded_documents !== null){
+          count += 1;
+        }
+      })
+    })
+  })
+  const documentData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentData);
+  const newHKIDQRCodeData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.HKIDQRCodeData);
+  useEffect(() => {
+    dispatch(dispatchLoader(false));
+  }, [])
 
-// Mock services
-jest.mock("../../services/preApprovalServices", () => ({
-  getData: jest.fn(),
-  getPDFData: jest.fn(),
-}));
+  const changeIconColorIdentityProof = useSelector((state: any) => state.stages.dynamicDocumentsUpload.changeIconColorIdentityProof);
+  let documentCount = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentCount);
+  /*istanbul ignore else*/
+  if(resumeAllowed === "Y" || resumePage === "resume") {
+    documentCount = count
+  }
+  const success = useSelector((state: any) => state.stages.dynamicDocumentsUpload.success);
+  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
+  const stageSelector = useSelector((state: StoreModel) => state.stages && state.stages.stages);
+  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
+  const dispatch = useDispatch();
+  const language = getUrl.getLanguageInfo("lang");
+  useEffect(()=>{
+    setShowSpinner(false);
+  },[])
+  
+  const nextStage = async () => {
+    dispatch(dispatchLoader(true));
+    await postTMXUserSession(channel_reference).then(async (res: any) => {
+      if (res.status === 200 && res.data.review_status.toLowerCase() === 'pass') {
+        await postFinalAcknowledge(channel_reference).then(async (res: any) => {
+          if (res.status === 202) {
+            dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
+            await postDocSaveData(documentData, newHKIDQRCodeData).then(async (res: any) => {
+              if (res.status >= 200 && res.status <= 300) {
+                let responseType = res.data.application.response_type.toUpperCase();
+                let responseAction = res.data.application.response_action.toUpperCase();
+                if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
+                  if (stageSelector[0].stageInfo.products[0].product_category === "CC") {
+                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_1));
+                    dispatch(dispatchLoader(false));
+                    setShowSpinner(true);
+                    postFulFilment(res.data);
+                  }
+                  else {
+                    dispatch(preApprovalAction.setCurrentStage("PD-3"));
+                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
+                    let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
+                    stageData.applicants = [res.data.applicants];
+                    stageData.application = res.data.application;
+                    stageData.applicant_documents = res.data.applicant_documents;
+                    dispatch(lovRequests(stageData, CONSTANTS.STAGE_NAMES.LD_1));
+                    dispatch(stagesAction.getStage({
+                      id: CONSTANTS.STAGE_NAMES.LD_1,
+                      formConfig: stageData,
+                    }))
+                    stateUrl(stageSelector[0].stageId);
+                    dispatch(dispatchLoader(false));
+                  }
+                }
+                else {
+                  HardStop(res);
+                }
+              }
+              else {
+                dispatch(dispatchLoader(false));
+                dispatch(
+                  errorAction.getError({
+                    statusCode: "error",
+                    statusText: "no response",
+                  })
+                );
+              }
+            })
+          }
+          else {
+            dispatch(dispatchLoader(false));
+            dispatch(
+              errorAction.getError({
+                statusCode: "error",
+                statusText: "no response",
+              })
+            );
+          }
+        })
+      }
+      else {
+        dispatch(dispatchLoader(false));
+        dispatch(
+          errorAction.getError({
+            statusCode: "error",
+            statusText: "no response",
+          })
+        );
+      }
+    })
+  }
 
-// Mock dispatchLoader
-jest.mock("../../../../services/common-service", () => ({
-  dispatchLoader: jest.fn(),
-}));
+  const postFulFilment = async (res: any) => {
+    stateUrl(CONSTANTS.STAGE_NAMES.FFD_1);
+    postFulFilmentData(res).then(async (fulres: any) => {
+      if (fulres.status >= 200 && fulres.status < 300) {
+        dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
+        let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
+        stageData.applicants = [fulres.data.applicants];
+        stageData.application = fulres.data.application;
+        dispatch(
+          stagesAction.getStage({
+            id: CONSTANTS.STAGE_NAMES.FFD_2,
+            formConfig: stageData,
+          })
+        );
+        let responseType = fulres.data.application.response_type.toUpperCase();
+        let responseAction = fulres.data.application.response_action.toUpperCase();
+        if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
+          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
+          setFFD2Enable(true)
+        }
+        else {
+          dispatch(HardStop(fulres));
+          setShowSpinner(false);
+        }
+      }
+      else {
+        dispatch(dispatchLoader(false));
+        dispatch(
+          errorAction.getError({
+            statusCode: "error",
+            statusText: "no response",
+          })
+        );
+      }
+    });
+  }
 
-// Mock PDF component
-jest.mock("../../../../shared/components/pdf/pdf", () => () => <div>Mock PDF Viewer</div>);
-
-// Mock Spinner component
-jest.mock("../../../../shared/components/spinner/spinner", () => () => <div>Loading Spinner...</div>);
-
-// Dummy constants
-const mockStore = {
-  preApproval: {
-    currentStage: 1,
-    formConfigmetaData: {
-      products: [{ campaign: "testCampaign" }],
-    },
-  },
+  let stageId = stageSelector[0].stageId;
+  return (
+    <>
+      {showSpinner && (stageId === "ld-1" || stageId === "ffd-1" || stageId === "ffd-2") ? (
+        <Spinner loaderType="lastStep" enable={ffd2Enable} />
+      )
+        :
+        <>
+          <div className={HKIDVersion || showIncomeProof ? "" : "document-view"}>
+            <>
+              <div>
+                {fileSectionData === null &&
+                  <>
+                    <div className="sc-icons">
+                      <span className="banner-icon banner-icon-mobile"></span>
+                      <div className="card-titleHead">
+                        <div className="card-titleDoc">{language === CONSTANTS.LANG_EN ? CONSTANTS.provideDoc : language === CONSTANTS.LANG_CN?CONSTANTS.provideDoc_CN : CONSTANTS.provideDoc_HK}</div>
+                        <div className="hk-headerclose-btnH">
+                          <Close authType="resume" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="row doc-details" id="row-doc-details">
+                      <p className="col-md-10 col-sm-10 col-xs-10 col-lg-10 doc-field-Label">
+                        {language === CONSTANTS.LANG_EN ? CONSTANTS.uploadDoc : language === CONSTANTS.LANG_CN?CONSTANTS.uploadDoc_CN : CONSTANTS.uploadDoc_HK}
+                      </p>
+                      <p className="col-md-2 col-sm-2 col-xs-2 col-lg-2">
+                        {" "}
+                        <span className="count-doc">
+                          {documentCount}/{totalDocCount}
+                        </span>
+                      </p>
+                    </div>
+                  </>
+                }
+                <DocumentTypeDynamic
+                  showContinueBtn={showContinueBtn}
+                  setShowContinueBtn={setShowContinueBtn}
+                  setShowUploadFileSuccess={setShowUploadFileSuccess}
+                  setHKIDVersion={setHKIDVersion}
+                  HKIDVersion={HKIDVersion}
+                  showUploadFileSuccess={showUploadFileSuccess}
+                  setHKIDQRCodeData={setHKIDQRCodeData}
+                />
+                {fileSectionData === null &&
+                  <>
+                    <div className="noteTipDiv">
+                      <p className="noteTip">{language === CONSTANTS.LANG_EN ? CONSTANTS.tooltipText : language === CONSTANTS.LANG_CN?CONSTANTS.tooltipText_CN : CONSTANTS.tooltipText_HK}</p>
+                    </div>
+                    <div className="document-footer-main-document">
+                      <div
+                        className="footer-banner">
+                        <div className="footer-content">
+                          <p className="footer-content1">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent1 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent1_CN : CONSTANTS.footerContent1_HK}</p>
+                          <p className="footer-content2">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent2 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent2_CN : CONSTANTS.footerContent2_HK}</p>
+                          <p className="footer-content3">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent3 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent3_CN : CONSTANTS.footerContent3_HK}</p>
+                        </div>
+                        <span className="images"></span>
+                      </div>
+                      <div className="hk-copy-rights">
+                        <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
+                      </div>
+                    </div>
+                  </>
+                }
+              </div>
+            </>
+          </div>
+          {fileSectionData === null && success && <>
+            <div className="footer footer-set">
+              <button role="button" type="submit" className={documentCount !== totalDocCount ? `continue form-invalid` : `continue form-valid`} onClick={nextStage} disabled={documentCount !== totalDocCount}>
+              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
+              </button>
+            </div>
+          </>}
+        </>
+      }
+    </>
+  );
 };
 
-describe("CasaTNC Component", () => {
-  const mockDispatch = jest.fn();
+export default DucumentUploadMainSCR;
 
-  beforeEach(() => {
-    (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
-    (useSelector as jest.Mock).mockImplementation((selectorFn) => selectorFn(mockStore));
-
-    jest.clearAllMocks();
-  });
-
-  it("renders Spinner initially", () => {
-    render(<CasaTNC isVisible={true} stageID={undefined} onScrollEnd={jest.fn()} />);
-    expect(screen.getByText("Loading Spinner...")).toBeInTheDocument();
-  });
-
-  it("renders PDF and buttons after loading", async () => {
-    (services.getData as jest.Mock).mockResolvedValue({
-      data: {
-        products: {
-          testCampaign: [{ pdfURL: "http://example.com/sample.pdf" }],
-        },
-        productsMob: {
-          testCampaign: [{ pdfURL: "http://example.com/sampleMobile.pdf" }],
-        },
-        tncLinkCampaignCode: {
-          isCasa: [
-            {
-              pdfLinks: [
-                { url: "http://example.com/tnc1.pdf", Title: "Terms 1" },
-                { url: "http://example.com/tnc2.pdf", Title: "Terms 2" },
-              ],
-            },
-          ],
-        },
-      },
-    });
-
-    (services.getPDFData as jest.Mock).mockResolvedValue("mocked-pdf-data");
-
-    render(<CasaTNC isVisible={true} stageID={undefined} onScrollEnd={jest.fn()} />);
-
-    await waitFor(() => expect(screen.getByText("Before you start your application:")).toBeInTheDocument());
-    expect(screen.getByText("TAP TO SCROLL AND READ")).toBeInTheDocument();
-    expect(screen.getByText("Mock PDF Viewer")).toBeInTheDocument();
-    expect(screen.getByText("Download")).toBeInTheDocument();
-
-    // Check dynamic T&C Links rendered
-    expect(screen.getByText("Terms 1")).toBeInTheDocument();
-    expect(screen.getByText("Terms 2")).toBeInTheDocument();
-  });
-
-  it("handles Download PDF button click", async () => {
-    render(<CasaTNC isVisible={true} stageID={undefined} onScrollEnd={jest.fn()} />);
-
-    const downloadButton = screen.getByText("Download");
-
-    fireEvent.click(downloadButton);
-
-    // Since it's creating and clicking anchor tag dynamically,
-    // you can only check if button is in document
-    expect(downloadButton).toBeInTheDocument();
-  });
-
-  it("shows Accept button after scrolling", async () => {
-    (services.getData as jest.Mock).mockResolvedValue({
-      data: {
-        products: {
-          testCampaign: [{ pdfURL: "http://example.com/sample.pdf" }],
-        },
-        productsMob: {
-          testCampaign: [{ pdfURL: "http://example.com/sampleMobile.pdf" }],
-        },
-        tncLinkCampaignCode: {
-          isCasa: [
-            {
-              pdfLinks: [],
-            },
-          ],
-        },
-      },
-    });
-
-    (services.getPDFData as jest.Mock).mockResolvedValue("mocked-pdf-data");
-
-    render(<CasaTNC isVisible={true} stageID={undefined} onScrollEnd={jest.fn()} />);
-
-    await waitFor(() => expect(screen.getByText("TAP TO SCROLL AND READ")).toBeInTheDocument());
-
-    const scrollableDiv = document.querySelector(".react-pdf__Page__canvas1") as HTMLElement;
-
-    fireEvent.scroll(scrollableDiv, { target: { scrollTop: 5000 } });
-
-    // wait for scroll effect
-    await waitFor(() => expect(screen.getByText("I ACCEPT")).toBeInTheDocument());
-  });
-});
+Please write an test cases using react and jest
