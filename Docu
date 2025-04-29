@@ -1,618 +1,273 @@
-import React from 'react';
-import { render, fireEvent, screen, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import OTPModel from './OTPModel';
-import { CONSTANTS } from '../../../utils/common/constants';
+import { useState, useEffect, useRef } from "react";
+import Pdf from "../../../../shared/components/pdf/pdf";
+import { getData, getPDFData } from "../../services/preApprovalServices";
+import { CATEGORIES, KFS_DOC_URL } from "../../services/constants";
+import { useDispatch, useSelector } from "react-redux";
+import { StoreModel } from "../../../../utils/model/common-model";
+import Spinner from "../../../../shared/components/spinner/spinner";
+import { preApprovalAction } from "../../store/preApproval-slice";
+import { dispatchLoader } from "../../../../services/common-service";
+import './casaTNC.scss';
+import CASATNCTerms from "../../../../assets/pdf-file/HK_Integrated_deposit.pdf";
+import './casaTNC.scss';
 
-// Mock the services and modules
-jest.mock('../../../modules/preApproval/services/preApprovalServices', () => ({
-  getRandomChallenge: jest.fn(),
-  getGenerateOtp: jest.fn(),
-  getVerifyOtp: jest.fn(),
-  getEnquiryData: jest.fn(),
-  getDedupeData: jest.fn(),
-}));
+const CasaTNC: React.FC<any> = ({
+    isVisible,
+    onScrollEnd,
+    stageID,
+    // nextPage
+}) => {
 
-jest.mock('../../../modules/preApproval/services/preApprovalPostServices', () => ({
-  getResumeRequest: jest.fn(),
-}));
+    const listInnerRef = useRef<HTMLDivElement>(null);
+    const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+    const download = "Download";
+    const [kfsDocPDF, setkfsDocPDF] = useState("");
+    const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+    const [pdfName, setPdfName] = useState('');
+    const [visibleButton, setVisibleButton] = useState(false);
+    const [showSpinner, setShowSpinner] = useState(true);
+    const tapAndScroll = "TAP TO SCROLL AND READ"
+    const acceptButton = "I ACCEPT";
+    const [Title, setTitle] = useState("Before you start your application:");
+    const [TnCBannerNotes, setTnCBannerNotes] = useState("Please READ the following Terms & Conditions by tapping on the button or using the scroll bar to read till the bottom of the screen to proceed");
+    const currentStage = useSelector((state: StoreModel) => state.preApproval.currentStage);
+    const formConfigmetaData = useSelector(
+        (state: StoreModel) => state?.preApproval.formConfigmetaData
+    );
+    const dispatch = useDispatch();
 
-jest.mock('../../../services/common-service', () => ({
-  dispatchLoader: jest.fn(),
-  lovRequests: jest.fn(),
-}));
 
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(() => 'en'),
-  },
-}));
+   
 
-jest.mock('../../../modules/preApproval/services/preApprovalUtils', () => ({
-  getFormConfigPayload: jest.fn(),
-}));
+    useEffect(() => {
+        setShowSpinner(true);
+        dispatch(dispatchLoader(true));
+        setTitle('Before you start your application:');
+        setTnCBannerNotes("Please READ the following Terms & Conditions by tapping on the button or using the scroll bar to read till the bottom of the screen to proceed");
+        getData(KFS_DOC_URL)?.then((response: any) => {
+            const campaignID = formConfigmetaData?.products[0].campaign;
+            let pdfURLNew = "";
+            if (stageID === undefined) {
+                const userAgent = navigator.userAgent.toLowerCase();
+                const isMobile = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+                const pdfURL = isMobile ? response.data.productsMob[campaignID] : response.data.products[campaignID];
+                const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+                const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+                if (window.location.host === "localhost:3000") {
+                    if (pdfURL.length > 0 && typeof pdfURL[0] === 'object') {
+                        pdfURLNew = pdfURL[0]?.pdfURL?.replace(
+                            "https://pt.sc.com/",
+                            "http://localhost:3000/"
 
-// Mock the JSON data
-jest.mock('../../../assets/_json/model.json', () => ([
-  {
-    name: "otpSubmit",
-    header_content: "An SMS with OTP password has been sent to",
-    header_content_CN: "CN: An SMS with OTP password has been sent to",
-    header_content_HK: "HK: An SMS with OTP password has been sent to",
-    mobileNo: "mobile number",
-    mobileNo_CN: "CN: mobile number",
-    mobileNo_HK: "HK: mobile number",
-    enter6Digit: "Enter the 6-digit code sent to",
-    enter6Digit_CN: "CN: Enter the 6-digit code sent to",
-    enter6Digit_HK: "HK: Enter the 6-digit code sent to",
-    requestnewotp: "Request new OTP",
-    requestnewotp_CN: "CN: Request new OTP",
-    requestnewotp_HK: "HK: Request new OTP",
-    incorrectOtpText: "Incorrect OTP",
-    incorrectOtpText_CN: "CN: Incorrect OTP",
-    incorrectOtpText_HK: "HK: Incorrect OTP",
-    expiredotptext1: "OTP expired",
-    expiredotptext1_CN: "CN: OTP expired",
-    expiredotptext1_HK: "HK: OTP expired",
-    expiredotptext2: "Your OTP has expired",
-    expiredotptext2_CN: "CN: Your OTP has expired",
-    expiredotptext2_HK: "HK: Your OTP has expired",
-    expiredotptext3: "Please try again",
-    expiredotptext3_CN: "CN: Please try again",
-    expiredotptext3_HK: "HK: Please try again",
-    resendotp: "Resend OTP",
-    resendotp_CN: "CN: Resend OTP",
-    resendotp_HK: "HK: Resend OTP",
-  }
-]));
+                        );
+                        setPdfName(getPDFName);
+                    }
+                } else {
+                    pdfURLNew = pdfURL[0].pdfURL;
+                }
+                setkfsDocPDF(pdfURLNew);
+                getPDFData(pdfURLNew).then((response: any) => {
+                    const pdfurl: any = {};
+                    pdfurl.pdf = response;
+                    pdfurl.pdfurl = pdfURLNew;
+                    setkfsDocPDFDownload(response);
+                    dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+                    // onScrollEnd(false); 
+                    setShowSpinner(false);
+                    dispatch(dispatchLoader(false));
+                });
+                const allPDFLinks = response?.data?.tncLinkCampaignCode.isCasa[0].pdfLinks;
+                setPdfLinkTerms(allPDFLinks)
+            }
+        })
+    }, []);
 
-describe('OTPModel Component', () => {
-  const mockStore = configureStore([]);
-  let store: any;
-
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageId: 'PD-1',
-          stageInfo: {
-            applicants: [{
-              mobile_number: '1234567890'
-            }]
-          }
-        }],
-        userInput: {
-          applicants: [{
-            mobile_number: '1234567890'
-          }]
-        },
-        otpShow: true,
-      },
-      model: {
-        toggleModel: false,
-      },
-      preApproval: {
-        formConfigmetaData: {
-          application: {
-            channel_reference: 'test-ref'
-          },
-          products: [{
-            product_category: 'CC'
-          }]
-        },
-        resumeAllowed: 'N',
-        currentStage: 'PD-1',
-      },
-      urlparam: {},
-      error: {},
-      lov_desc: {},
-    });
-
-    // Mock service responses
-    require('../../../modules/preApproval/services/preApprovalServices').getRandomChallenge.mockResolvedValue({
-      status: 200,
-      data: {
-        data: {
-          attributes: {}
+    useEffect(() => {
+        const listInnerElement = listInnerRef.current;
+        /* istanbul ignore else */
+        if (listInnerElement) {
+            listInnerElement.addEventListener("scroll", scrollToBottom);
+            // Clean-up
+            return () => {
+                listInnerElement.removeEventListener("scroll", scrollToBottom);
+            };
         }
-      }
+      
     });
 
-    require('../../../modules/preApproval/services/preApprovalServices').getGenerateOtp.mockResolvedValue({
-      status: 200,
-      data: {
-        data: {
-          attributes: {
-            'otp-prefix': 'FBrv - '
-          }
+    const nextPage = () => {
+        console.log('next page');
+    }
+
+    const downloadPdf = (link: any) => {
+        const lin = document.createElement('a');
+        fetch(link, {
+            mode: "no-cors",
+            headers: {
+                "Content-Type": "application/xml; charset=utf-8",
+                "Authorization": `${process.env.REACT_APP_RTOB_AUTHORIZATION}`,
+            },
+        }).then((response: any) => {
+            var blob = new Blob([response.data], { type: "application/pdf" });
+            if (
+                navigator.userAgent.indexOf("Chrome") !== -1 ||
+                navigator.userAgent.match("CriOS")
+            ) {
+                blob = new Blob([response.data], { type: "application/pdf" });
+            } else {
+                var pdfBase64Data = new Uint8Array(response.data);
+                blob = new Blob([pdfBase64Data], {
+                    type: "application/octet-stream",
+                });
+            }
+            const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+            /* istanbul ignore else */
+            if (isSafari) {
+                blob = new Blob([response.data], { type: "application/pdf" });
+            }
+            const dataURL = window.URL.createObjectURL(blob);
+            lin.href = dataURL;
+            if (isSafari) {
+                lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+                document.body.appendChild(lin);
+                lin.click();
+                document.body.removeChild(lin);
+            } else {
+                lin.download = pdfName;
+                document.body.appendChild(lin);
+                lin.click();
+                document.body.removeChild(lin);
+            }
+        });
+    }
+
+    const downloadPDFPreApproval = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e?.preventDefault()
+        const lin = document.createElement('a');
+        lin.href = CASATNCTerms;
+        const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+        if (isSafari) {
+            lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+            document.body.appendChild(lin);
+            lin.click();
+            document.body.removeChild(lin);
+        } else {
+            lin.download = 'hk-cx-important-info-n-ht-eng-03-2023s';
+            document.body.appendChild(lin);
+            lin.click();
+            document.body.removeChild(lin);
+        };
+    }
+    const btnClickScroll = () => {
+        listInnerRef.current?.scrollBy({ top: 2000, behavior: "smooth" });
+    };
+
+    const scrollToBottom = () => {
+        if (listInnerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
+            const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+
+            if (isNearBottom) {
+                setVisibleButton(true);
+            }
         }
-      }
-    });
-
-    require('../../../modules/preApproval/services/preApprovalServices').getVerifyOtp.mockResolvedValue({
-      status: 201
-    });
-
-    require('../../../modules/preApproval/services/preApprovalServices').getEnquiryData.mockResolvedValue({
-      status: 200,
-      data: {
-        application: {
-          application_status: 'A01',
-          response_type: 'INFO',
-          response_action: 'SUCCESS',
-          error: {
-            application_error: [],
-            applicant_error: [],
-            product_error: []
-          }
-        },
-        applicants: [{}],
-        stage: {
-          page_id: 'PD-1'
-        },
-        products: [{
-          product_type: '1234'
-        }]
-      }
-    });
-
-    require('../../../modules/preApproval/services/preApprovalServices').getDedupeData.mockResolvedValue({
-      status: 200,
-      data: {
-        application: {
-          application_status: 'A01',
-          response_type: 'INFO',
-          response_action: 'SUCCESS',
-          error: {
-            application_error: [],
-            applicant_error: [],
-            product_error: []
-          }
-        },
-        applicants: [{}],
-        stage: {
-          page_id: 'PD-1'
+    };
+    useEffect(() => {
+        const listInnerElement = listInnerRef.current;
+        setVisibleButton(false);
+        if (listInnerElement) {
+            listInnerElement.addEventListener("scroll", scrollToBottom);
+            return () => {
+                listInnerElement.removeEventListener("scroll", scrollToBottom);
+            };
         }
-      }
-    });
+    }, []);
+    return (
+        <div>
+            {showSpinner === true ? (
+                <Spinner></Spinner>
+            ) : (
+                <>
+                    <div>
+                        <div className="hk-banner-set">
+                            <div className="card-title">{Title}</div>
+                            <section className='banner_notes'>
+                                <p>{TnCBannerNotes}</p>
+                            </section>
+                        </div>
+                        <button
+                            onClick={(evt: React.MouseEvent<HTMLButtonElement>) => downloadPDFPreApproval(evt)}
+                            className="view-pdf"
+                     
+                        >
+                            {download}
+                        </button>
+                    </div>
+                    <div className="pdf-view">
+                        <div className="react-pdf__Page__canvas1" ref={listInnerRef}>
+                            <Pdf fileName={CASATNCTerms} />
+                        </div>
+                    </div>
 
-    jest.useFakeTimers();
-  });
+                    {stageID == undefined && (
+                        <div className="pdf-table">
+                            <div className="download-section">
+                                <span className="download-header">Tap below to read full T&C of relevant section.</span>
+                                <span className="images"></span>
+                            </div>
 
-  afterEach(() => {
-    jest.clearAllMocks();
-    jest.useRealTimers();
-  });
+                            <div className="tc-container">
+                                {pdfLinkTerms?.map((item: any, index: any) => {
+                                    return (
+                                        <div className="link_title">
+                                            <a
+                                                href={item.url}
+                                                download
+                                                target="_blank"
+                                                className="href_title"
+                                            >
+                                                {item.Title}
+                                            </a>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    <div
+                        className="col-xs-4 col-sm-4 col-md-4 col-lg-4"
+                        id="footer-content"
+                    >
+                        {!visibleButton ? (
+                            <>
+                                <div className="pre-approval-accept confirm-btn1" aria-describedby="submitButton">
+                                    <footer className="pre-approval-confirm-btn1" onClick={btnClickScroll}>
+                                        {tapAndScroll}
+                                    </footer>
+                                </div>
+                            </>
+                        )
+                            :
+                            <div
+                                className="pre-approval-accept confirm-btn1"
+                                id="navigationBtn"
+                            >
+                                <button
+                                    id="pre-approval-confirm-btn1"
+                                    className="pre-approval-confirm-btn1"
+                                >
+                                    {acceptButton}
+                                </button>
 
-  it('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
+                            </div>
+                        }
+                    </div>
+                </>
+            )}
+        </div>
     );
-    
-    expect(screen.getByText(/An SMS with OTP password has been sent to/i)).toBeInTheDocument();
-  });
+};
+export default CasaTNC;
 
-  it('displays the mobile number with last 4 digits visible', () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    expect(screen.getByText(/*****7890/)).toBeInTheDocument();
-  });
 
-  it('shows OTP input fields', () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    expect(screen.getAllByRole('textbox').length).toBe(6);
-  });
-
-  it('handles OTP input and moves focus to next field', async () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    fireEvent.change(otpInputs[0], { target: { value: '1' } });
-    
-    expect(otpInputs[0]).toHaveValue('1');
-    expect(otpInputs[1]).toHaveFocus();
-  });
-
-  it('handles backspace to move focus to previous field', () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    fireEvent.change(otpInputs[1], { target: { value: '2' } });
-    fireEvent.change(otpInputs[1], { target: { value: '' } });
-    
-    expect(otpInputs[0]).toHaveFocus();
-  });
-
-  it('shows timer counting down', () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    expect(screen.getByText(/REQUEST NEW OTP IN 100 SECONDS/)).toBeInTheDocument();
-    
-    jest.advanceTimersByTime(1000);
-    expect(screen.getByText(/REQUEST NEW OTP IN 99 SECONDS/)).toBeInTheDocument();
-  });
-
-  it('shows "Request new OTP" button when timer reaches 0', () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    // Fast-forward until all timers have been executed
-    jest.advanceTimersByTime(101000);
-    
-    expect(screen.getByText(/Request new OTP/)).toBeInTheDocument();
-  });
-
-  it('calls generateOtp when "Request new OTP" is clicked', async () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    // Fast-forward until timer expires
-    jest.advanceTimersByTime(101000);
-    
-    fireEvent.click(screen.getByText(/Request new OTP/));
-    
-    await waitFor(() => {
-      expect(require('../../../modules/preApproval/services/preApprovalServices').getGenerateOtp).toHaveBeenCalled();
-    });
-  });
-
-  it('shows expired OTP message when zeroTimer is true', () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    // Fast-forward until timer expires
-    jest.advanceTimersByTime(101000);
-    
-    expect(screen.getByText(/Your last requested OTP has expired/)).toBeInTheDocument();
-  });
-
-  it('verifies OTP when all 6 digits are entered', async () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    
-    // Enter OTP
-    fireEvent.change(otpInputs[0], { target: { value: '1' } });
-    fireEvent.change(otpInputs[1], { target: { value: '2' } });
-    fireEvent.change(otpInputs[2], { target: { value: '3' } });
-    fireEvent.change(otpInputs[3], { target: { value: '4' } });
-    fireEvent.change(otpInputs[4], { target: { value: '5' } });
-    fireEvent.change(otpInputs[5], { target: { value: '6' } });
-    
-    await waitFor(() => {
-      expect(require('../../../modules/preApproval/services/preApprovalServices').getVerifyOtp).toHaveBeenCalled();
-    });
-  });
-
-  it('shows Spinner when OTP is being verified', async () => {
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    
-    // Enter OTP
-    fireEvent.change(otpInputs[0], { target: { value: '1' } });
-    fireEvent.change(otpInputs[1], { target: { value: '2' } });
-    fireEvent.change(otpInputs[2], { target: { value: '3' } });
-    fireEvent.change(otpInputs[3], { target: { value: '4' } });
-    fireEvent.change(otpInputs[4], { target: { value: '5' } });
-    fireEvent.change(otpInputs[5], { target: { value: '6' } });
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('spinner')).toBeInTheDocument();
-    });
-  });
-
-  it('handles OTP verification failure with invalid OTP', async () => {
-    require('../../../modules/preApproval/services/preApprovalServices').getVerifyOtp.mockRejectedValueOnce({
-      response: {
-        status: 400,
-        data: {
-          error: 'Invalid OTP'
-        }
-      }
-    });
-    
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    
-    // Enter OTP
-    fireEvent.change(otpInputs[0], { target: { value: '1' } });
-    fireEvent.change(otpInputs[1], { target: { value: '2' } });
-    fireEvent.change(otpInputs[2], { target: { value: '3' } });
-    fireEvent.change(otpInputs[3], { target: { value: '4' } });
-    fireEvent.change(otpInputs[4], { target: { value: '5' } });
-    fireEvent.change(otpInputs[5], { target: { value: '6' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Incorrect OTP/)).toBeInTheDocument();
-    });
-  });
-
-  it('handles OTP generation failure', async () => {
-    require('../../../modules/preApproval/services/preApprovalServices').getGenerateOtp.mockRejectedValueOnce(new Error('Failed to generate OTP'));
-    
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    // Fast-forward until timer expires
-    jest.advanceTimersByTime(101000);
-    
-    fireEvent.click(screen.getByText(/Request new OTP/));
-    
-    await waitFor(() => {
-      expect(screen.getByText(/OTP service is not available/)).toBeInTheDocument();
-    });
-  });
-
-  it('handles resume allowed flow', async () => {
-    store = mockStore({
-      ...store.getState(),
-      preApproval: {
-        ...store.getState().preApproval,
-        resumeAllowed: 'Y'
-      }
-    });
-    
-    require('../../../modules/preApproval/services/preApprovalPostServices').getResumeRequest.mockResolvedValueOnce({
-      status: 200,
-      data: {
-        application: {
-          application_status: 'A01',
-          response_type: 'INFO',
-          response_action: 'SUCCESS',
-          error: {
-            application_error: [],
-            applicant_error: [],
-            product_error: []
-          },
-          cos_ref_number: 'test-ref',
-          resume_allowed: 'Y'
-        },
-        applicants: [{}],
-        stage: {
-          page_id: 'PD-1'
-        },
-        products: [{
-          product_type: '1234'
-        }]
-      }
-    });
-    
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    
-    // Enter OTP
-    fireEvent.change(otpInputs[0], { target: { value: '1' } });
-    fireEvent.change(otpInputs[1], { target: { value: '2' } });
-    fireEvent.change(otpInputs[2], { target: { value: '3' } });
-    fireEvent.change(otpInputs[3], { target: { value: '4' } });
-    fireEvent.change(otpInputs[4], { target: { value: '5' } });
-    fireEvent.change(otpInputs[5], { target: { value: '6' } });
-    
-    await waitFor(() => {
-      expect(require('../../../modules/preApproval/services/preApprovalPostServices').getResumeRequest).toHaveBeenCalled();
-    });
-  });
-
-  it('handles decline modal when response action is STOP', async () => {
-    require('../../../modules/preApproval/services/preApprovalServices').getEnquiryData.mockResolvedValueOnce({
-      status: 200,
-      data: {
-        application: {
-          application_status: 'A01',
-          response_type: 'HARD',
-          response_action: 'STOP',
-          error: {
-            application_error: [{
-              rtobCode: 'A55',
-              error_description: 'Declined'
-            }],
-            applicant_error: [],
-            product_error: []
-          }
-        },
-        applicants: [{}],
-        stage: {
-          page_id: 'PD-1'
-        },
-        products: [{
-          product_type: '1234'
-        }]
-      }
-    });
-    
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    
-    // Enter OTP
-    fireEvent.change(otpInputs[0], { target: { value: '1' } });
-    fireEvent.change(otpInputs[1], { target: { value: '2' } });
-    fireEvent.change(otpInputs[2], { target: { value: '3' } });
-    fireEvent.change(otpInputs[3], { target: { value: '4' } });
-    fireEvent.change(otpInputs[4], { target: { value: '5' } });
-    fireEvent.change(otpInputs[5], { target: { value: '6' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Sorry we are currently unable to process your application/)).toBeInTheDocument();
-    });
-  });
-
-  it('handles resubmit modal when response action is RESUBMIT', async () => {
-    require('../../../modules/preApproval/services/preApprovalServices').getEnquiryData.mockResolvedValueOnce({
-      status: 200,
-      data: {
-        application: {
-          application_status: 'A01',
-          response_type: 'HARD',
-          response_action: 'RESUBMIT',
-          error: {
-            application_error: [{
-              rtobCode: 'A20',
-              error_description: 'Resubmit required'
-            }],
-            applicant_error: [],
-            product_error: []
-          }
-        },
-        applicants: [{}],
-        stage: {
-          page_id: 'PD-1'
-        },
-        products: [{
-          product_type: '1234'
-        }]
-      }
-    });
-    
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    
-    // Enter OTP
-    fireEvent.change(otpInputs[0], { target: { value: '1' } });
-    fireEvent.change(otpInputs[1], { target: { value: '2' } });
-    fireEvent.change(otpInputs[2], { target: { value: '3' } });
-    fireEvent.change(otpInputs[3], { target: { value: '4' } });
-    fireEvent.change(otpInputs[4], { target: { value: '5' } });
-    fireEvent.change(otpInputs[5], { target: { value: '6' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Please check your details and resubmit/)).toBeInTheDocument();
-    });
-  });
-
-  it('handles error code A02', async () => {
-    require('../../../modules/preApproval/services/preApprovalServices').getEnquiryData.mockResolvedValueOnce({
-      status: 200,
-      data: {
-        application: {
-          application_status: 'A01',
-          response_type: 'HARD',
-          response_action: 'RESUBMIT',
-          error: {
-            application_error: [{
-              rtobCode: 'A02',
-              error_description: 'Error A02'
-            }],
-            applicant_error: [],
-            product_error: []
-          }
-        },
-        applicants: [{}],
-        stage: {
-          page_id: 'PD-1'
-        },
-        products: [{
-          product_type: '1234'
-        }]
-      }
-    });
-    
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    const otpInputs = screen.getAllByRole('textbox');
-    
-    // Enter OTP
-    fireEvent.change(otpInputs[0], { target: { value: '1' } });
-    fireEvent.change(otpInputs[1], { target: { value: '2' } });
-    fireEvent.change(otpInputs[2], { target: { value: '3' } });
-    fireEvent.change(otpInputs[3], { target: { value: '4' } });
-    fireEvent.change(otpInputs[4], { target: { value: '5' } });
-    fireEvent.change(otpInputs[5], { target: { value: '6' } });
-    
-    await waitFor(() => {
-      expect(screen.getByText(/We are unable to verify your identity/)).toBeInTheDocument();
-    });
-  });
-
-  it('handles Chinese language content', () => {
-    require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValueOnce('zh');
-    
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    expect(screen.getByText(/CN: An SMS with OTP password has been sent to/)).toBeInTheDocument();
-  });
-
-  it('handles Cantonese language content', () => {
-    require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValueOnce('hk');
-    
-    render(
-      <Provider store={store}>
-        <OTPModel />
-      </Provider>
-    );
-    
-    expect(screen.getByText(/HK: An SMS with OTP password has been sent to/)).toBeInTheDocument();
-  });
-});
+Please write an test cases using react and jest including branches with 100 percent coverage
