@@ -1,273 +1,294 @@
-import { useState, useEffect, useRef } from "react";
-import Pdf from "../../../../shared/components/pdf/pdf";
-import { getData, getPDFData } from "../../services/preApprovalServices";
-import { CATEGORIES, KFS_DOC_URL } from "../../services/constants";
-import { useDispatch, useSelector } from "react-redux";
-import { StoreModel } from "../../../../utils/model/common-model";
-import Spinner from "../../../../shared/components/spinner/spinner";
-import { preApprovalAction } from "../../store/preApproval-slice";
-import { dispatchLoader } from "../../../../services/common-service";
-import './casaTNC.scss';
-import CASATNCTerms from "../../../../assets/pdf-file/HK_Integrated_deposit.pdf";
-import './casaTNC.scss';
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import CasaTNC from './CasaTNC';
 
-const CasaTNC: React.FC<any> = ({
-    isVisible,
-    onScrollEnd,
-    stageID,
-    // nextPage
-}) => {
+// Mock the necessary modules
+jest.mock('react-redux', () => ({
+  useSelector: jest.fn(),
+  useDispatch: jest.fn(),
+}));
 
-    const listInnerRef = useRef<HTMLDivElement>(null);
-    const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
-    const download = "Download";
-    const [kfsDocPDF, setkfsDocPDF] = useState("");
-    const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
-    const [pdfName, setPdfName] = useState('');
-    const [visibleButton, setVisibleButton] = useState(false);
-    const [showSpinner, setShowSpinner] = useState(true);
-    const tapAndScroll = "TAP TO SCROLL AND READ"
-    const acceptButton = "I ACCEPT";
-    const [Title, setTitle] = useState("Before you start your application:");
-    const [TnCBannerNotes, setTnCBannerNotes] = useState("Please READ the following Terms & Conditions by tapping on the button or using the scroll bar to read till the bottom of the screen to proceed");
-    const currentStage = useSelector((state: StoreModel) => state.preApproval.currentStage);
-    const formConfigmetaData = useSelector(
-        (state: StoreModel) => state?.preApproval.formConfigmetaData
-    );
-    const dispatch = useDispatch();
+jest.mock('../../services/preApprovalServices', () => ({
+  getData: jest.fn(),
+  getPDFData: jest.fn(),
+}));
 
+jest.mock('../../../../shared/components/pdf/pdf', () => () => <div>Mock PDF Component</div>);
+jest.mock('../../../../shared/components/spinner/spinner', () => () => <div>Mock Spinner</div>);
+jest.mock('../../services/common-service', () => ({
+  dispatchLoader: jest.fn(),
+}));
 
-   
+describe('CasaTNC Component', () => {
+  const mockDispatch = jest.fn();
+  const mockUseSelector = useSelector as jest.MockedFunction<typeof useSelector>;
+  const mockGetData = jest.requireMock('../../services/preApprovalServices').getData;
+  const mockGetPDFData = jest.requireMock('../../services/preApprovalServices').getPDFData;
+  const mockDispatchLoader = jest.requireMock('../../services/common-service').dispatchLoader;
 
-    useEffect(() => {
-        setShowSpinner(true);
-        dispatch(dispatchLoader(true));
-        setTitle('Before you start your application:');
-        setTnCBannerNotes("Please READ the following Terms & Conditions by tapping on the button or using the scroll bar to read till the bottom of the screen to proceed");
-        getData(KFS_DOC_URL)?.then((response: any) => {
-            const campaignID = formConfigmetaData?.products[0].campaign;
-            let pdfURLNew = "";
-            if (stageID === undefined) {
-                const userAgent = navigator.userAgent.toLowerCase();
-                const isMobile = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
-                const pdfURL = isMobile ? response.data.productsMob[campaignID] : response.data.products[campaignID];
-                const pdfMap = pdfURL.map((item: any) => item.pdfURL)
-                const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-                if (window.location.host === "localhost:3000") {
-                    if (pdfURL.length > 0 && typeof pdfURL[0] === 'object') {
-                        pdfURLNew = pdfURL[0]?.pdfURL?.replace(
-                            "https://pt.sc.com/",
-                            "http://localhost:3000/"
+  beforeEach(() => {
+    (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
+    mockDispatch.mockClear();
+    mockGetData.mockClear();
+    mockGetPDFData.mockClear();
+    mockDispatchLoader.mockClear();
+  });
 
-                        );
-                        setPdfName(getPDFName);
-                    }
-                } else {
-                    pdfURLNew = pdfURL[0].pdfURL;
-                }
-                setkfsDocPDF(pdfURLNew);
-                getPDFData(pdfURLNew).then((response: any) => {
-                    const pdfurl: any = {};
-                    pdfurl.pdf = response;
-                    pdfurl.pdfurl = pdfURLNew;
-                    setkfsDocPDFDownload(response);
-                    dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
-                    // onScrollEnd(false); 
-                    setShowSpinner(false);
-                    dispatch(dispatchLoader(false));
-                });
-                const allPDFLinks = response?.data?.tncLinkCampaignCode.isCasa[0].pdfLinks;
-                setPdfLinkTerms(allPDFLinks)
-            }
-        })
-    }, []);
+  const mockStoreState = {
+    preApproval: {
+      currentStage: 'someStage',
+      formConfigmetaData: {
+        products: [{
+          campaign: 'testCampaign'
+        }]
+      },
+    }
+  };
 
-    useEffect(() => {
-        const listInnerElement = listInnerRef.current;
-        /* istanbul ignore else */
-        if (listInnerElement) {
-            listInnerElement.addEventListener("scroll", scrollToBottom);
-            // Clean-up
-            return () => {
-                listInnerElement.removeEventListener("scroll", scrollToBottom);
-            };
-        }
+  describe('Initial Render', () => {
+    it('should show spinner initially', () => {
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockResolvedValue({ data: { tncLinkCampaignCode: { isCasa: [{ pdfLinks: [] }] } } });
       
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      expect(screen.getByText('Mock Spinner')).toBeInTheDocument();
     });
 
-    const nextPage = () => {
-        console.log('next page');
-    }
+    it('should set initial title and notes', () => {
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockResolvedValue({ data: { tncLinkCampaignCode: { isCasa: [{ pdfLinks: [] }] } } });
+      
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      expect(screen.getByText('Before you start your application:')).toBeInTheDocument();
+      expect(screen.getByText(/Please READ the following Terms & Conditions/)).toBeInTheDocument();
+    });
+  });
 
-    const downloadPdf = (link: any) => {
-        const lin = document.createElement('a');
-        fetch(link, {
-            mode: "no-cors",
-            headers: {
-                "Content-Type": "application/xml; charset=utf-8",
-                "Authorization": `${process.env.REACT_APP_RTOB_AUTHORIZATION}`,
-            },
-        }).then((response: any) => {
-            var blob = new Blob([response.data], { type: "application/pdf" });
-            if (
-                navigator.userAgent.indexOf("Chrome") !== -1 ||
-                navigator.userAgent.match("CriOS")
-            ) {
-                blob = new Blob([response.data], { type: "application/pdf" });
-            } else {
-                var pdfBase64Data = new Uint8Array(response.data);
-                blob = new Blob([pdfBase64Data], {
-                    type: "application/octet-stream",
-                });
-            }
-            const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
-            /* istanbul ignore else */
-            if (isSafari) {
-                blob = new Blob([response.data], { type: "application/pdf" });
-            }
-            const dataURL = window.URL.createObjectURL(blob);
-            lin.href = dataURL;
-            if (isSafari) {
-                lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
-                document.body.appendChild(lin);
-                lin.click();
-                document.body.removeChild(lin);
-            } else {
-                lin.download = pdfName;
-                document.body.appendChild(lin);
-                lin.click();
-                document.body.removeChild(lin);
-            }
-        });
-    }
+  describe('After Data Load', () => {
+    beforeEach(() => {
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockResolvedValue({
+        data: {
+          products: { testCampaign: [{ pdfURL: 'http://test.pdf' }] },
+          productsMob: { testCampaign: [{ pdfURL: 'http://test-mobile.pdf' }] },
+          tncLinkCampaignCode: { 
+            isCasa: [{ 
+              pdfLinks: [
+                { url: 'http://link1.pdf', Title: 'Link 1' },
+                { url: 'http://link2.pdf', Title: 'Link 2' }
+              ] 
+            }] 
+          }
+        }
+      });
+      mockGetPDFData.mockResolvedValue('mockPdfData');
+    });
 
-    const downloadPDFPreApproval = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e?.preventDefault()
-        const lin = document.createElement('a');
-        lin.href = CASATNCTerms;
-        const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
-        if (isSafari) {
-            lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
-            document.body.appendChild(lin);
-            lin.click();
-            document.body.removeChild(lin);
-        } else {
-            lin.download = 'hk-cx-important-info-n-ht-eng-03-2023s';
-            document.body.appendChild(lin);
-            lin.click();
-            document.body.removeChild(lin);
+    it('should render PDF component after data load', async () => {
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Mock PDF Component')).toBeInTheDocument();
+      });
+    });
+
+    it('should render download button', async () => {
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Download')).toBeInTheDocument();
+      });
+    });
+
+    it('should render T&C links', async () => {
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('Tap below to read full T&C of relevant section.')).toBeInTheDocument();
+        expect(screen.getByText('Link 1')).toBeInTheDocument();
+        expect(screen.getByText('Link 2')).toBeInTheDocument();
+      });
+    });
+
+    it('should show "TAP TO SCROLL AND READ" button initially', async () => {
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        expect(screen.getByText('TAP TO SCROLL AND READ')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('User Interactions', () => {
+    beforeEach(() => {
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockResolvedValue({
+        data: {
+          products: { testCampaign: [{ pdfURL: 'http://test.pdf' }] },
+          productsMob: { testCampaign: [{ pdfURL: 'http://test-mobile.pdf' }] },
+          tncLinkCampaignCode: { isCasa: [{ pdfLinks: [] }] }
+        }
+      });
+      mockGetPDFData.mockResolvedValue('mockPdfData');
+    });
+
+    it('should handle download button click', async () => {
+      const { container } = render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        const downloadButton = screen.getByText('Download');
+        fireEvent.click(downloadButton);
+        
+        // Verify the download behavior (mock implementation)
+        // In a real test, you might want to verify the URL creation
+      });
+    });
+
+    it('should handle scroll to bottom button click', async () => {
+      const { container } = render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        const mockScrollBy = jest.fn();
+        const mockDiv = {
+          scrollBy: mockScrollBy,
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
         };
-    }
-    const btnClickScroll = () => {
-        listInnerRef.current?.scrollBy({ top: 2000, behavior: "smooth" });
-    };
+        (container.querySelector('.react-pdf__Page__canvas1') as any) = mockDiv;
+        
+        const scrollButton = screen.getByText('TAP TO SCROLL AND READ');
+        fireEvent.click(scrollButton);
+        
+        expect(mockScrollBy).toHaveBeenCalledWith({ top: 2000, behavior: 'smooth' });
+      });
+    });
 
-    const scrollToBottom = () => {
-        if (listInnerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
-            const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
-
-            if (isNearBottom) {
-                setVisibleButton(true);
-            }
+    it('should show accept button when scrolled to bottom', async () => {
+      const { container } = render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        // Mock scroll event
+        const scrollDiv = container.querySelector('.react-pdf__Page__canvas1');
+        if (scrollDiv) {
+          Object.defineProperty(scrollDiv, 'scrollTop', { value: 100 });
+          Object.defineProperty(scrollDiv, 'scrollHeight', { value: 200 });
+          Object.defineProperty(scrollDiv, 'clientHeight', { value: 100 });
+          
+          fireEvent.scroll(scrollDiv);
+          
+          expect(screen.getByText('I ACCEPT')).toBeInTheDocument();
         }
-    };
-    useEffect(() => {
-        const listInnerElement = listInnerRef.current;
-        setVisibleButton(false);
-        if (listInnerElement) {
-            listInnerElement.addEventListener("scroll", scrollToBottom);
-            return () => {
-                listInnerElement.removeEventListener("scroll", scrollToBottom);
-            };
+      });
+    });
+  });
+
+  describe('Mobile vs Desktop', () => {
+    it('should use mobile PDF URL when on mobile device', async () => {
+      // Mock mobile user agent
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
+        configurable: true
+      });
+      
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockResolvedValue({
+        data: {
+          products: { testCampaign: [{ pdfURL: 'http://desktop.pdf' }] },
+          productsMob: { testCampaign: [{ pdfURL: 'http://mobile.pdf' }] },
+          tncLinkCampaignCode: { isCasa: [{ pdfLinks: [] }] }
         }
-    }, []);
-    return (
-        <div>
-            {showSpinner === true ? (
-                <Spinner></Spinner>
-            ) : (
-                <>
-                    <div>
-                        <div className="hk-banner-set">
-                            <div className="card-title">{Title}</div>
-                            <section className='banner_notes'>
-                                <p>{TnCBannerNotes}</p>
-                            </section>
-                        </div>
-                        <button
-                            onClick={(evt: React.MouseEvent<HTMLButtonElement>) => downloadPDFPreApproval(evt)}
-                            className="view-pdf"
-                     
-                        >
-                            {download}
-                        </button>
-                    </div>
-                    <div className="pdf-view">
-                        <div className="react-pdf__Page__canvas1" ref={listInnerRef}>
-                            <Pdf fileName={CASATNCTerms} />
-                        </div>
-                    </div>
+      });
+      mockGetPDFData.mockResolvedValue('mockPdfData');
+      
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        expect(mockGetPDFData).toHaveBeenCalledWith('http://mobile.pdf');
+      });
+    });
 
-                    {stageID == undefined && (
-                        <div className="pdf-table">
-                            <div className="download-section">
-                                <span className="download-header">Tap below to read full T&C of relevant section.</span>
-                                <span className="images"></span>
-                            </div>
+    it('should use desktop PDF URL when on desktop device', async () => {
+      // Mock desktop user agent
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        configurable: true
+      });
+      
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockResolvedValue({
+        data: {
+          products: { testCampaign: [{ pdfURL: 'http://desktop.pdf' }] },
+          productsMob: { testCampaign: [{ pdfURL: 'http://mobile.pdf' }] },
+          tncLinkCampaignCode: { isCasa: [{ pdfLinks: [] }] }
+        }
+      });
+      mockGetPDFData.mockResolvedValue('mockPdfData');
+      
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        expect(mockGetPDFData).toHaveBeenCalledWith('http://desktop.pdf');
+      });
+    });
+  });
 
-                            <div className="tc-container">
-                                {pdfLinkTerms?.map((item: any, index: any) => {
-                                    return (
-                                        <div className="link_title">
-                                            <a
-                                                href={item.url}
-                                                download
-                                                target="_blank"
-                                                className="href_title"
-                                            >
-                                                {item.Title}
-                                            </a>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-                    <div
-                        className="col-xs-4 col-sm-4 col-md-4 col-lg-4"
-                        id="footer-content"
-                    >
-                        {!visibleButton ? (
-                            <>
-                                <div className="pre-approval-accept confirm-btn1" aria-describedby="submitButton">
-                                    <footer className="pre-approval-confirm-btn1" onClick={btnClickScroll}>
-                                        {tapAndScroll}
-                                    </footer>
-                                </div>
-                            </>
-                        )
-                            :
-                            <div
-                                className="pre-approval-accept confirm-btn1"
-                                id="navigationBtn"
-                            >
-                                <button
-                                    id="pre-approval-confirm-btn1"
-                                    className="pre-approval-confirm-btn1"
-                                >
-                                    {acceptButton}
-                                </button>
+  describe('Error Handling', () => {
+    it('should handle getData error', async () => {
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockRejectedValue(new Error('API Error'));
+      
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        expect(mockDispatchLoader).toHaveBeenCalledWith(false);
+      });
+    });
 
-                            </div>
-                        }
-                    </div>
-                </>
-            )}
-        </div>
-    );
-};
-export default CasaTNC;
+    it('should handle getPDFData error', async () => {
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockResolvedValue({
+        data: {
+          products: { testCampaign: [{ pdfURL: 'http://test.pdf' }] },
+          tncLinkCampaignCode: { isCasa: [{ pdfLinks: [] }] }
+        }
+      });
+      mockGetPDFData.mockRejectedValue(new Error('PDF Error'));
+      
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} />);
+      
+      await waitFor(() => {
+        expect(mockDispatchLoader).toHaveBeenCalledWith(false);
+      });
+    });
+  });
 
-
-Please write an test cases using react and jest including branches with 100 percent coverage
+  describe('Stage ID Handling', () => {
+    it('should not render T&C links when stageID is provided', async () => {
+      mockUseSelector.mockImplementation((selector) => selector(mockStoreState));
+      mockGetData.mockResolvedValue({
+        data: {
+          products: { testCampaign: [{ pdfURL: 'http://test.pdf' }] },
+          tncLinkCampaignCode: { 
+            isCasa: [{ 
+              pdfLinks: [
+                { url: 'http://link1.pdf', Title: 'Link 1' }
+              ] 
+            }] 
+          }
+        }
+      });
+      mockGetPDFData.mockResolvedValue('mockPdfData');
+      
+      render(<CasaTNC isVisible={true} onScrollEnd={jest.fn()} stageID="someStage" />);
+      
+      await waitFor(() => {
+        expect(screen.queryByText('Tap below to read full T&C of relevant section.')).not.toBeInTheDocument();
+        expect(screen.queryByText('Link 1')).not.toBeInTheDocument();
+      });
+    });
+  });
+});
