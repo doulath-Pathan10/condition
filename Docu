@@ -1,272 +1,129 @@
-import { useState, useEffect, useRef } from "react";
-import Pdf from "../../../../shared/components/pdf/pdf";
-import { getData, getPDFData } from "../../services/preApprovalServices";
-import { CATEGORIES, KFS_DOC_URL } from "../../services/constants";
-import { useDispatch, useSelector } from "react-redux";
-import { StoreModel } from "../../../../utils/model/common-model";
-import Spinner from "../../../../shared/components/spinner/spinner";
-import { preApprovalAction } from "../../store/preApproval-slice";
-import { dispatchLoader } from "../../../../services/common-service";
-import './casaTNC.scss';
-import CASATNCTerms from "../../../../assets/pdf-file/HK_Integrated_deposit.pdf";
-import './casaTNC.scss';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import CasaTNC from './CasaTNC';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import thunk from 'redux-thunk';
+import { StoreModel } from '../../../../utils/model/common-model';
 
-const CasaTNC: React.FC<any> = ({
-    isVisible,
-    onScrollEnd,
-    stageID,
-    // nextPage
-}) => {
+// Mock necessary modules
+jest.mock('../../../../shared/components/pdf/pdf', () => () => <div>PDF Viewer</div>);
+jest.mock('../../services/preApprovalServices', () => ({
+  getData: jest.fn(() => Promise.resolve({
+    data: {
+      products: { "campaignID": [{ pdfURL: "http://example.com/kfs.pdf" }] },
+      productsMob: { "campaignID": [{ pdfURL: "http://example.com/kfs-mob.pdf" }] },
+      tncLinkCampaignCode: { isCasa: [{ pdfLinks: [{ Title: "Test TnC", url: "http://example.com/tnc.pdf" }] }] },
+    },
+  })),
+  getPDFData: jest.fn(() => Promise.resolve("PDF_DATA")),
+}));
+jest.mock('../../../../services/common-service', () => ({
+  dispatchLoader: jest.fn(),
+}));
+jest.mock('../../store/preApproval-slice', () => ({
+  preApprovalAction: {
+    setKfsDocumentPdf: jest.fn(() => ({})),
+  },
+}));
 
-    const listInnerRef = useRef<HTMLDivElement>(null);
-    const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
-    const download = "Download";
-    const [kfsDocPDF, setkfsDocPDF] = useState("");
-    const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
-    const [pdfName, setPdfName] = useState('');
-    const [visibleButton, setVisibleButton] = useState(false);
-    const [showSpinner, setShowSpinner] = useState(true);
-    const tapAndScroll = "TAP TO SCROLL AND READ"
-    const acceptButton = "I ACCEPT";
-    const [Title, setTitle] = useState("Before you start your application:");
-    const [TnCBannerNotes, setTnCBannerNotes] = useState("Please READ the following Terms & Conditions by tapping on the button or using the scroll bar to read till the bottom of the screen to proceed");
-    const currentStage = useSelector((state: StoreModel) => state.preApproval.currentStage);
-    const formConfigmetaData = useSelector(
-        (state: StoreModel) => state?.preApproval.formConfigmetaData
-    );
-    const dispatch = useDispatch();
+// Mock global fetch for download
+global.fetch = jest.fn(() =>
+  Promise.resolve({
+    data: "mocked_pdf_data",
+  })
+) as jest.Mock;
 
+// Setup mock store
+const middlewares = [thunk];
+const mockStore = configureStore(middlewares);
 
-   
+const store = mockStore({
+  preApproval: {
+    currentStage: '',
+    formConfigmetaData: {
+      products: [{ campaign: "campaignID" }]
+    }
+  },
+});
 
-    useEffect(() => {
-        setShowSpinner(true);
-        dispatch(dispatchLoader(true));
-        setTitle('Before you start your application:');
-        setTnCBannerNotes("Please READ the following Terms & Conditions by tapping on the button or using the scroll bar to read till the bottom of the screen to proceed");
-        getData(KFS_DOC_URL)?.then((response: any) => {
-            const campaignID = formConfigmetaData?.products[0].campaign;
-            let pdfURLNew = "";
-            if (stageID === undefined) {
-                const userAgent = navigator.userAgent.toLowerCase();
-                const isMobile = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
-                const pdfURL = isMobile ? response.data.productsMob[campaignID] : response.data.products[campaignID];
-                const pdfMap = pdfURL.map((item: any) => item.pdfURL)
-                const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-                if (window.location.host === "localhost:3000") {
-                    if (pdfURL.length > 0 && typeof pdfURL[0] === 'object') {
-                        pdfURLNew = pdfURL[0]?.pdfURL?.replace(
-                            "https://pt.sc.com/",
-                            "http://localhost:3000/"
+describe('CasaTNC Component', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-                        );
-                        setPdfName(getPDFName);
-                    }
-                } else {
-                    pdfURLNew = pdfURL[0].pdfURL;
-                }
-                setkfsDocPDF(pdfURLNew);
-                getPDFData(pdfURLNew).then((response: any) => {
-                    const pdfurl: any = {};
-                    pdfurl.pdf = response;
-                    pdfurl.pdfurl = pdfURLNew;
-                    setkfsDocPDFDownload(response);
-                    dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
-                    // onScrollEnd(false); 
-                    setShowSpinner(false);
-                    dispatch(dispatchLoader(false));
-                });
-                const allPDFLinks = response?.data?.tncLinkCampaignCode.isCasa[0].pdfLinks;
-                setPdfLinkTerms(allPDFLinks)
-            }
-        })
-    }, []);
-
-    useEffect(() => {
-        const listInnerElement = listInnerRef.current;
-        /* istanbul ignore else */
-        if (listInnerElement) {
-            listInnerElement.addEventListener("scroll", scrollToBottom);
-            // Clean-up
-            return () => {
-                listInnerElement.removeEventListener("scroll", scrollToBottom);
-            };
-        }
-      
+  it('should render Spinner initially', async () => {
+    await act(async () => {
+      render(
+        <Provider store={store}>
+          <CasaTNC isVisible={true} onScrollEnd={jest.fn()} stageID={undefined} />
+        </Provider>
+      );
     });
 
-    const nextPage = () => {
-        console.log('next page');
+    expect(screen.getByText('Spinner')).toBeInTheDocument;
+  });
+
+  it('should render Title and Download button after loading', async () => {
+    await act(async () => {
+      render(
+        <Provider store={store}>
+          <CasaTNC isVisible={true} onScrollEnd={jest.fn()} stageID={undefined} />
+        </Provider>
+      );
+    });
+
+    expect(await screen.findByText('Before you start your application:')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download/i })).toBeInTheDocument();
+  });
+
+  it('should download PDF on download button click', async () => {
+    await act(async () => {
+      render(
+        <Provider store={store}>
+          <CasaTNC isVisible={true} onScrollEnd={jest.fn()} stageID={undefined} />
+        </Provider>
+      );
+    });
+
+    const downloadButton = await screen.findByRole('button', { name: /download/i });
+    fireEvent.click(downloadButton);
+
+    expect(global.fetch).toHaveBeenCalled();
+  });
+
+  it('should show Accept button after scrolling to bottom', async () => {
+    await act(async () => {
+      render(
+        <Provider store={store}>
+          <CasaTNC isVisible={true} onScrollEnd={jest.fn()} stageID={undefined} />
+        </Provider>
+      );
+    });
+
+    const scrollContainer = screen.getByText('PDF Viewer').parentElement;
+
+    if (scrollContainer) {
+      fireEvent.scroll(scrollContainer, {
+        target: { scrollTop: 1000 },
+      });
+
+      await act(async () => {
+        fireEvent.scroll(scrollContainer, { target: { scrollTop: 2000 } });
+      });
+
+      expect(await screen.findByText('I ACCEPT')).toBeInTheDocument();
     }
+  });
 
-    const downloadPdf = (link: any) => {
-        const lin = document.createElement('a');
-        fetch(link, {
-            mode: "no-cors",
-            headers: {
-                "Content-Type": "application/xml; charset=utf-8",
-                "Authorization": `${process.env.REACT_APP_RTOB_AUTHORIZATION}`,
-            },
-        }).then((response: any) => {
-            var blob = new Blob([response.data], { type: "application/pdf" });
-            if (
-                navigator.userAgent.indexOf("Chrome") !== -1 ||
-                navigator.userAgent.match("CriOS")
-            ) {
-                blob = new Blob([response.data], { type: "application/pdf" });
-            } else {
-                var pdfBase64Data = new Uint8Array(response.data);
-                blob = new Blob([pdfBase64Data], {
-                    type: "application/octet-stream",
-                });
-            }
-            const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
-            /* istanbul ignore else */
-            if (isSafari) {
-                blob = new Blob([response.data], { type: "application/pdf" });
-            }
-            const dataURL = window.URL.createObjectURL(blob);
-            lin.href = dataURL;
-            if (isSafari) {
-                lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
-                document.body.appendChild(lin);
-                lin.click();
-                document.body.removeChild(lin);
-            } else {
-                lin.download = pdfName;
-                document.body.appendChild(lin);
-                lin.click();
-                document.body.removeChild(lin);
-            }
-        });
-    }
+  it('should render TnC links', async () => {
+    await act(async () => {
+      render(
+        <Provider store={store}>
+          <CasaTNC isVisible={true} onScrollEnd={jest.fn()} stageID={undefined} />
+        </Provider>
+      );
+    });
 
-    const downloadPDFPreApproval = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e?.preventDefault()
-        const lin = document.createElement('a');
-        lin.href = CASATNCTerms;
-        const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
-        if (isSafari) {
-            lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
-            document.body.appendChild(lin);
-            lin.click();
-            document.body.removeChild(lin);
-        } else {
-            lin.download = 'hk-cx-important-info-n-ht-eng-03-2023s';
-            document.body.appendChild(lin);
-            lin.click();
-            document.body.removeChild(lin);
-        };
-    }
-    const btnClickScroll = () => {
-        listInnerRef.current?.scrollBy({ top: 2000, behavior: "smooth" });
-    };
-
-    const scrollToBottom = () => {
-        if (listInnerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
-            const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
-
-            if (isNearBottom) {
-                setVisibleButton(true);
-            }
-        }
-    };
-    useEffect(() => {
-        const listInnerElement = listInnerRef.current;
-        setVisibleButton(false);
-        if (listInnerElement) {
-            listInnerElement.addEventListener("scroll", scrollToBottom);
-            return () => {
-                listInnerElement.removeEventListener("scroll", scrollToBottom);
-            };
-        }
-    }, []);
-    return (
-        <div>
-            {showSpinner === true ? (
-                <Spinner></Spinner>
-            ) : (
-                <>
-                    <div>
-                        <div className="hk-banner-set">
-                            <div className="card-title">{Title}</div>
-                            <section className='banner_notes'>
-                                <p>{TnCBannerNotes}</p>
-                            </section>
-                        </div>
-                        <button
-                            onClick={(evt: React.MouseEvent<HTMLButtonElement>) => downloadPDFPreApproval(evt)}
-                            className="view-pdf"
-                     
-                        >
-                            {download}
-                        </button>
-                    </div>
-                    <div className="pdf-view">
-                        <div className="react-pdf__Page__canvas1" ref={listInnerRef}>
-                            <Pdf fileName={CASATNCTerms} />
-                        </div>
-                    </div>
-
-                    {stageID == undefined && (
-                        <div className="pdf-table">
-                            <div className="download-section">
-                                <span className="download-header">Tap below to read full T&C of relevant section.</span>
-                                <span className="images"></span>
-                            </div>
-
-                            <div className="tc-container">
-                                {pdfLinkTerms?.map((item: any, index: any) => {
-                                    return (
-                                        <div className="link_title">
-                                            <a
-                                                href={item.url}
-                                                download
-                                                target="_blank"
-                                                className="href_title"
-                                            >
-                                                {item.Title}
-                                            </a>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-                    <div
-                        className="col-xs-4 col-sm-4 col-md-4 col-lg-4"
-                        id="footer-content"
-                    >
-                        {!visibleButton ? (
-                            <>
-                                <div className="pre-approval-accept confirm-btn1" aria-describedby="submitButton">
-                                    <footer className="pre-approval-confirm-btn1" onClick={btnClickScroll}>
-                                        {tapAndScroll}
-                                    </footer>
-                                </div>
-                            </>
-                        )
-                            :
-                            <div
-                                className="pre-approval-accept confirm-btn1"
-                                id="navigationBtn"
-                            >
-                                <button
-                                    id="pre-approval-confirm-btn1"
-                                    className="pre-approval-confirm-btn1"
-                                >
-                                    {acceptButton}
-                                </button>
-
-                            </div>
-                        }
-                    </div>
-                </>
-            )}
-        </div>
-    );
-};
-export default CasaTNC;
-
-Please write an test cases using react and jest
+    expect(await screen.findByText('Test TnC')).toBeInTheDocument();
+  });
+});
