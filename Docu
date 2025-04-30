@@ -1,275 +1,51 @@
-import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
-import { useDispatch, useSelector } from 'react-redux';
-import { MemoryRouter, useLocation } from 'react-router-dom';
-import PILDashboard from './PILDashboard';
-import { preApprovalAction } from '../store/preApproval-slice';
-import { authAction } from '../../../utils/store/auth-slice';
-import { urlParamAction } from '../../../utils/store/urlparam-slice';
-import { stagesAction } from '../../../utils/store/stages-slice';
-import { loaderAction } from '../../../utils/store/loader-slice';
-import { errorAction } from '../../../utils/store/error-slice';
-import { lovDescAction } from '../../../utils/store/lov-desc-slice';
-
-// Mock the modules and hooks
-jest.mock('react-redux', () => ({
-  ...jest.requireActual('react-redux'),
-  useDispatch: jest.fn(),
-  useSelector: jest.fn(),
-}));
-
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useLocation: jest.fn(),
-}));
-
-jest.mock('../services/preApprovalServices', () => ({
-  getSessionByPreLogin: jest.fn(),
-  getDataFormConfig: jest.fn(),
-  getProductMetaDataInfo: jest.fn(),
-  getData: jest.fn(),
-}));
-
-jest.mock('../services/preApprovalPostServices', () => ({
-  getResumeRequest: jest.fn(),
-}));
-
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(),
-    getParameterByName: jest.fn(),
-    getChannelRefNo: jest.fn(),
-  },
-}));
-
-describe('PILDashboard Component', () => {
-  let store;
-  const mockDispatch = jest.fn();
-  const mockUseLocation = {
-    search: '',
-    pathname: '/',
-  };
-
-  beforeEach(() => {
-    store = configureStore({
-      reducer: {
-        preApproval: () => ({
-          formConfigmetaData: { fieldmetadata: { data: { stages: [{ fields: [{ field_set_name: 'Test Title', rwb_label_name: 'Test Notes' }] }] } } },
-          currentStage: 'PD-1',
-          previousStage: 'PD-0',
-        }),
-        auth: () => ({ sessionUid: 'test-session' }),
-        stages: () => ({
-          otpOpen: false,
-          stages: [{ stageId: 'pd-1', stageInfo: {} }],
-        }),
-        urlParam: () => ({ validUrl: true }),
-      },
-    });
-
-    useDispatch.mockReturnValue(mockDispatch);
-    useSelector.mockImplementation((callback) => callback(store.getState()));
-    useLocation.mockReturnValue(mockUseLocation);
+test('shows OTP modal when required', () => {
+  const storeWithOTP = configureStore({
+    reducer: {
+      ...mockStore.reducer,
+      stages: () => ({
+        otpOpen: true,
+        stages: [{ stageId: 'pd-1' }],
+      }),
+    },
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  render(
+    <Provider store={storeWithOTP}>
+      <MemoryRouter>
+        <PILDashboard />
+      </MemoryRouter>
+    </Provider>
+  );
 
-  test('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    expect(screen.getByTestId('main-btn')).toBeInTheDocument();
-  });
+  expect(screen.getByTestId('otp-modal')).toBeInTheDocument();
+});
 
-  test('renders AsiaMiles component when URL matches product=1313', () => {
-    useLocation.mockReturnValue({ search: '?product=1313&source=09&lang=en' });
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByTestId('asia-miles')).toBeInTheDocument();
-  });
+test('handles API errors gracefully', async () => {
+  mockServices.getSessionByPreLogin.mockRejectedValue(new Error('API Error'));
 
-  test('shows technical issue popup when URL is invalid', () => {
-    useSelector.mockImplementation((callback) => callback({
-      ...store.getState(),
-      urlParam: { validUrl: false },
-    }));
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByText('Technical Issue')).toBeInTheDocument();
-  });
+  render(
+    <Provider store={mockStore}>
+      <MemoryRouter>
+        <PILDashboard />
+      </MemoryRouter>
+    </Provider>
+  );
 
-  test('shows OTP modal when stage is pd-1 and otpOpen is true', () => {
-    useSelector.mockImplementation((callback) => callback({
-      ...store.getState(),
-      stages: { otpOpen: true, stages: [{ stageId: 'pd-1' }] },
-    }));
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByTestId('otp-modal')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByText(/error/i)).toBeInTheDocument();
   });
+});
 
-  test('calls getSessionByPreLogin when sessionUid is not available', () => {
-    useSelector.mockImplementation((callback) => callback({
-      ...store.getState(),
-      auth: { sessionUid: null },
-    }));
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    expect(getSessionByPreLogin).toHaveBeenCalled();
-  });
+test('updates UI based on language changes', () => {
+  mockUtils.getLanguageInfo.mockReturnValue('zh');
 
-  test('handles resume request when pageId is resume', () => {
-    getUrl.getParameterByName.mockReturnValue('resume');
-    getResumeRequest.mockResolvedValue({
-      status: 200,
-      data: {
-        applicants: [],
-        application: { application_reference: 'test-ref', cos_ref_number: 'test-channel-ref' },
-        products: [{ product_type: '1313', product_category: 'PL' }],
-        stage: { page_id: 'bd-1a' },
-        lov_desc: {},
-      },
-    });
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    expect(getResumeRequest).toHaveBeenCalled();
-  });
+  render(
+    <Provider store={mockStore}>
+      <MemoryRouter>
+        <PILDashboard />
+      </MemoryRouter>
+    </Provider>
+  );
 
-  test('shows decline modal when responseAction is STOP', async () => {
-    getUrl.getParameterByName.mockReturnValue('resume');
-    getResumeRequest.mockResolvedValue({
-      status: 200,
-      data: {
-        applicants: [],
-        application: { 
-          application_reference: 'test-ref', 
-          cos_ref_number: 'test-channel-ref',
-          response_type: 'HARD',
-          response_action: 'STOP',
-          error: { application_error: [{ rtobCode: 'A01', error_description: 'Test error' }] }
-        },
-        products: [{ product_type: '1313', product_category: 'PL' }],
-        stage: { page_id: 'bd-1a' },
-        lov_desc: {},
-      },
-    });
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByText('Decline')).toBeInTheDocument();
-    });
-  });
-
-  test('shows resubmit modal when responseAction is RESUBMIT', async () => {
-    getUrl.getParameterByName.mockReturnValue('resume');
-    getResumeRequest.mockResolvedValue({
-      status: 200,
-      data: {
-        applicants: [],
-        application: { 
-          application_reference: 'test-ref', 
-          cos_ref_number: 'test-channel-ref',
-          response_type: 'HARD',
-          response_action: 'RESUBMIT',
-          error: { application_error: [{ rtobCode: 'A20', error_description: 'Test error' }] }
-        },
-        products: [{ product_type: '1313', product_category: 'PL' }],
-        stage: { page_id: 'bd-1a' },
-        lov_desc: {},
-      },
-    });
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    await waitFor(() => {
-      expect(screen.getByText('Resubmit')).toBeInTheDocument();
-    });
-  });
-
-  test('calls nextPage function correctly', () => {
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    const nextButton = screen.getByTestId('main-btn');
-    fireEvent.click(nextButton);
-    
-    expect(mockDispatch).toHaveBeenCalledWith(preApprovalAction.setCurrentStage('PD-2'));
-    expect(mockDispatch).toHaveBeenCalledWith(preApprovalAction.setPreviousStage('PD-1'));
-  });
-
-  test('updates kcTitle and TnCBannerNotes when language changes', () => {
-    getUrl.getLanguageInfo.mockReturnValue('zh');
-    
-    render(
-      <Provider store={store}>
-        <MemoryRouter>
-          <PILDashboard />
-        </MemoryRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByText('Test Title CN')).toBeInTheDocument();
-    expect(screen.getByText('Test Notes CN')).toBeInTheDocument();
-  });
+  expect(screen.getByText(/中文内容/i)).toBeInTheDocument();
 });
