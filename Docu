@@ -1,349 +1,375 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureMockStore from 'redux-mock-store';
-import thunk from 'redux-thunk';
-import DucumentUploadMainSCR from './DucumentUploadMainSCR';
-import { CONSTANTS } from '../../../../../utils/common/constants';
+import "./onboarding-before-start.scss";
+import { useState, useEffect, useRef } from "react";
+import Pdf from "../../../../shared/components/pdf/pdf";
+import { getData, getPDFData } from "../../services/preApprovalServices";
+import { CATEGORIES, KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../services/constants";
+import { useDispatch, useSelector } from "react-redux";
+import { StoreModel } from "../../../../utils/model/common-model";
+import Spinner from "../../../../shared/components/spinner/spinner";
+import { preApprovalAction } from "../../store/preApproval-slice";
+import { dispatchLoader } from "../../../../services/common-service";
+import { getUrl } from "../../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../../utils/common/constants";
+import PILPdfUrl1 from "../../../../assets/pdf-file/PIL/hk-personal-loan-terms-pil-aug09.pdf";
+import PILPdfUrl2 from "../../../../assets/pdf-file/PIL/hk-gn175.pdf";
+import PILPdfUrl3 from "../../../../assets/pdf-file/PIL/hk-loans-personal-instalment-loan-eng.pdf";
+import CCPdfUrl1 from "../../../../assets/pdf-file/CC/hk-gn175.pdf";
+import CCPdfUrl2 from "../../../../assets/pdf-file/CC/hk-gn177.pdf";
+import CCPdfUrl3 from "../../../../assets/pdf-file/CC/hk-cc-tncs-downloadnow.pdf";
+import CCPdfUrl4 from "../../../../assets/pdf-file/CC/e-statement-en.pdf";
+import CCPdfUrl5 from "../../../../assets/pdf-file/CC/hk-rewards-tncs-en.pdf";
+import CCPdfUrl6 from "../../../../assets/pdf-file/CC/hk-tnc-credit-card-instalment-plan-en.pdf";
 
-const middlewares = [thunk];
-const mockStore = configureMockStore(middlewares);
+const OnboardingBeforeStart: React.FC<any> = ({
+  isVisible,
+  onScrollEnd,
+  stageID,
+  nextPage
+}) => {
+  const listInnerRef = useRef<HTMLDivElement>(null);
+  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+  const [kfsDocPDF, setkfsDocPDF] = useState("");
+  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+  const [pdfName, setPdfName] = useState('')
+  const [showSpinner, setShowSpinner] = useState(true);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const campaignId = stageSelector[0]?.stageInfo?.products[0]?.campaign;
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
+  // const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const dispatch = useDispatch();
+  const language = getUrl.getLanguageInfo("lang");  
+  console.log(process.env.REACT_APP_KFS_DOC_URL)
+  useEffect(() => {
+    setShowSpinner(true);
+    dispatch(dispatchLoader(true));
+    let KFS;
+    if(language==='zh'){
+      KFS=process.env.REACT_APP_KFS_DOC_URL_Chinees
+    }else{
+      KFS=process.env.REACT_APP_KFS_DOC_URL
+    }
 
-// Mock child components to simplify testing
-jest.mock('../documentType/document-type-dynamic', () => () => (
-  <div>DocumentTypeDynamic Mock</div>
-));
+    getData(KFS)?.then((response: any) => {
+      const campaignID = formConfigmetaData?.products[0].campaign;
+      let pdfURLNew = "";
+      if (stageID === 0) {
+        const pdfURL = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.productsMob[campaignID] : response.data.products[campaignID];
+        const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        if (window.location.host === "localhost:3000") {
+          pdfURLNew = pdfURL[0].pdfURL.replace(
+            "https://pt.sc.com/",
+            "http://localhost:3000/"
 
-jest.mock('../../../../../shared/components/spinner/spinner', () => () => (
-  <div data-testid="spinner">Spinner Mock</div>
-));
-
-jest.mock('../../../../../shared/components/close/close', () => () => (
-  <div>Close Mock</div>
-));
-
-describe('DocumentUploadMainSCR Component', () => {
-  let store: any;
-
-  const baseState = {
-    stages: {
-      stages: [
-        {
-          stageId: 'ld-1',
-          stageInfo: {
-            application: {
-              channel_reference: 'test123'
-            },
-            products: [
-              {
-                product_category: 'CC'
-              }
-            ],
-            applicant_documents: [
-              {
-                document_list: [
-                  {
-                    document_options: [
-                      {
-                        document_types: [
-                          {
-                            uploaded_documents: null
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
+          );
+        } else {
+          pdfURLNew = pdfURL[0].pdfURL;
         }
-      ],
-      dynamicDocumentsUpload: {
-        documentData: {},
-        HKIDQRCodeData: null,
-        changeIconColorIdentityProof: false,
-        documentCount: 0,
-        success: true,
-        fileSectionData: null
+        setPdfName(getPDFName);
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          const pdfurl: any = {};
+          pdfurl.pdf = response;
+          pdfurl.pdfurl = pdfURLNew;
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
       }
-    },
-    preApproval: {
-      resumeAllowed: 'N',
-      currentStage: 'PD-1'
+      else if (stageID === 1) {
+        const pdfURLCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.CampaignTnCMob[campaignID] : response.data.CampaignTnC[campaignID];
+        const pdfMap = pdfURLCheck.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        if (window.location.host === "localhost:3000") {
+          pdfURLNew =pdfURLCheck[0]?.pdfURL.replace("https://pt.sc.com/", "http://localhost:3000/");
+        } else {
+          pdfURLNew = pdfURLCheck[0]?.pdfURL;
+        }
+        setPdfName(getPDFName);
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setTandCDocumentPdf(pdfURLNew));
+          dispatch(preApprovalAction.setDownloadPDFData(response));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+      }
+      const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+      setPdfLinkTerms(allPDFLinks);
+    });
+  }, [stageID]);
+
+  useEffect(() => {
+    const listInnerElement = listInnerRef.current;
+        /* istanbul ignore else */
+    if (listInnerElement) {
+      listInnerElement.addEventListener("scroll", scrollToBottom);
+      // Clean-up
+      return () => {
+        listInnerElement.removeEventListener("scroll", scrollToBottom);
+      };
+    }
+    window.history.replaceState("", "", "/hk/before-start")
+  });
+
+  //For future reference we need this code
+  // const downloadPdf = (link: any) => {
+  //   const lin = document.createElement('a');
+  //   fetch(link, {
+  //     mode: "no-cors",
+  //     headers: {
+  //       "Content-Type": "application/xml; charset=utf-8",
+  //       "Authorization": `${process.env.REACT_APP_RTOB_AUTHORIZATION}`,
+  //     },
+  //   }).then((response: any) => {
+  //     var blob = new Blob([response.data], { type: "application/pdf" });
+  //     if (
+  //       navigator.userAgent.indexOf("Chrome") !== -1 ||
+  //       navigator.userAgent.match("CriOS")
+  //     ) {
+  //       blob = new Blob([response.data], { type: "application/pdf" });
+  //     } else {
+  //       var pdfBase64Data = new Uint8Array(response.data);
+  //       blob = new Blob([pdfBase64Data], {
+  //         type: "application/octet-stream",
+  //       });
+  //     }
+  //     const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+  //         /* istanbul ignore else */
+  //     if (isSafari) {
+  //       blob = new Blob([response.data], { type: "application/pdf" });
+  //     }
+  //     const dataURL = window.URL.createObjectURL(blob);
+  //     lin.href = dataURL;
+  //     if (isSafari) {
+  //       lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+  //       document.body.appendChild(lin);
+  //       lin.click();
+  //       document.body.removeChild(lin);
+  //     } else {
+  //       lin.download = pdfName;
+  //       document.body.appendChild(lin);
+  //       lin.click();
+  //       document.body.removeChild(lin);
+  //     }
+  //   });
+  // }
+
+ //Added for mock pdf
+  const downloadPdf = (title: any) => {
+    const lin = document.createElement('a');
+    if(campaignId === "HKPIL23PLSTP10" || campaignId === "HKBDC23PESTP10") {
+      if(title === "II. Personal Loan Terms") {
+        lin.href = PILPdfUrl1;
+      } else if(title === "III. Client Terms") {
+        lin.href = PILPdfUrl2;
+      } else if(title === "Welcome Offers"){
+        lin.href = PILPdfUrl3;
+      }
+    } else if(campaignId === "HKSOG20VAWV000" || campaignId === "HKSPG17VAWV000" || campaignId === "HKSPB17VAWV000" || campaignId === "HKSOA16VAWP000" || campaignId === "HKSOA16MCWP000" || campaignId=== "HKSOZ00MCWB000"|| campaignId=== "HKSOZ01MCWB000"|| campaignId=== "HKSOZ02MCWB000") {
+      if(title === "III. Client Terms" || title === "III.Client Terms "){
+        lin.href = CCPdfUrl1;
+      } else if(title === "III. Credit Card Terms"){
+        lin.href = CCPdfUrl2;
+      } else if(title === "VI. Welcome Offers" || title === "IV. Welcome Offers" ||  title === 'VI. Welcome Offers '){
+        lin.href = CCPdfUrl3;
+      } else if(title === "IX.  E-Statement Service" || title === "IX. E-Statement Service" || title === "IX.E-Statement Service" || title === "IX.E-Statement Service "){
+        lin.href = CCPdfUrl4;
+      } else if(title === "X. Points Redemption"){
+        lin.href = CCPdfUrl5;
+      } else if(title === "XI. Credit Card Instalment Plan" || title === "X.Credit Card Installment Plan " || title === "X.Credit Card Installment Plan"){
+        lin.href = CCPdfUrl6;
+      }
+    }
+    const urlParts = lin.href.split("/");
+    const extractedPDFName = urlParts[urlParts.length - 1].split(".")[0];
+    lin.download = extractedPDFName;
+    document.body.appendChild(lin);
+    lin.click();
+    document.body.removeChild(lin);
+  }
+
+  const downloadPDFPreApproval = (e:React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    const lin = document.createElement('a');
+    lin.href = kfsDocPDFDownload;
+    const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+    if (isSafari) {
+      lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
+    } else {
+      lin.download = pdfName;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
     }
   };
 
-  beforeEach(() => {
-    // Mock external utility functions
-    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getLanguageInfo')
-      .mockReturnValue(CONSTANTS.LANG_EN);
-    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getParameterByName')
-      .mockReturnValue(null);
+  const btnClickScroll = () => {
+    listInnerRef.current?.scrollBy({ top: stageID===0 ? 200 : 5000, behavior: "smooth" });
+  };
 
-    store = mockStore(baseState);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('renders the basic layout', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    expect(screen.getByText('Please provide the following documents')).toBeInTheDocument();
-    expect(screen.getByText('Upload documents')).toBeInTheDocument();
-    expect(screen.getByText('0/1')).toBeInTheDocument();
-    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
-  });
-
-  it('shows spinner when showSpinner is true and stage is ld-1', () => {
-    // Update the store to trigger spinner
-    const customStore = mockStore({
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        stages: [{ ...baseState.stages.stages[0], stageId: 'ld-1' }]
+  const scrollToBottom = () => {
+        /* istanbul ignore else */
+    if (listInnerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      /* istanbul ignore else */
+      if (isNearBottom) {
+        onScrollEnd(false);
       }
-    });
+    }
+  };
+  var className= "";
+  var isIPHONE = (navigator.userAgent.match('iPad') != null || navigator.userAgent.match('iPhone') != null || navigator.userAgent.match('iPod') != null);
+  var isANDROID = (navigator.userAgent.match('Android') != null);
+  if (isIPHONE) {
+    var isSafari = !!navigator.userAgent.match(/Version\/[\d\.]+.*Safari/);
+    if (isSafari) { 
+      // $('body').addClass("iphoneDeviceSafari"); 
+      className="iphoneDeviceSafari"
+    }
+    else { 
+      // $('body').addClass("iphoneDevice"); 
+      className="iphoneDevice"
+    }
+  } else if (isANDROID) {
+    // $('body').addClass("andriodDevice");
+    className="andriodDevice"
+  } else {
+    // $rootScope.DesktopDevice = true;
+    // $('body').addClass("desktopDevice");
+    className="desktopDevice"
+  }
+  return (
+    <div>
+      {showSpinner === true ? (
+        <Spinner></Spinner>
+      ) : (
+        <>
+          <div>
+            <button 
+              onClick={(e:React.MouseEvent<HTMLButtonElement>) => {
+                downloadPDFPreApproval(e);
+              }}
+              className="view-pdf"
+              // ng-if="source_sys == 'sc.com' || source_sys == 'asiamiles'" //for future reference
+            >
+              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+            </button>
+          </div>
+          <div className="pdf-view">
+            <div
+              // style={{ maxHeight: stageID == 0 ? "45vh" : "22vh" }}
+              className={stageID == 0 ? "react-pdf__Page__canvas pdf__kfs__page" : "react-pdf__Page__canvas pdf__tnc__page"}
+              ref={listInnerRef}
+            >
+              <Pdf fileName={kfsDocPDF} />
+            </div>
+          </div>
 
-    render(
-      <Provider store={customStore}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
+          {stageID == 1 && (
+            <div className="pdf-table">
+              <div className="download-section">
+                <span className="download-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadHeader : language === CONSTANTS.LANG_CN? CONSTANTS.DownloadHeader_CN : CONSTANTS.DownloadHeader_HK}</span>
+                <span className="images"></span>
+              </div>
 
-    expect(screen.getByTestId('spinner')).toBeInTheDocument();
-  });
+              <div className="tc-container">
+                <table className="tcTable" border={1}>
+                  <tbody>
+                    {pdfLinkTerms?.map((item: any, index: any) => {
+                      return (
+                        <tr key={index}>
+                          <td className="tcTable__title">{item.Title}</td>
+                          <td className="tcTable__read">
+                            <a
+                              href={item.url}
+                              download
+                              target="_blank"
+                            >
+                             {language === CONSTANTS.LANG_EN ? CONSTANTS.ReadBtn : language === CONSTANTS.LANG_CN? CONSTANTS.ReadBtn_CN : CONSTANTS.ReadBtn_HK}
+                            </a>
+                            <span> / </span>
+                            <span className="tcTable__download"
+                              onClick={() => {
+                                downloadPdf(item.Title);
+                              }}
+                            >
+                              
+                              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="remarks-section">
+                <span className="remarks-section__span">
+                  {" "}
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.Remarks : language === CONSTANTS.LANG_CN? CONSTANTS.Remarks_CN : CONSTANTS.Remarks_HK}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          <div className="footer-button-list app__footer">
+            {isVisible ? (
+              <>
+                <div className="next-arrow" aria-describedby="submitButton">
+                  <footer
+                  // className={`${stageSelector[0].stageId!=='ad-9a'? 'footer-next1 enabled' : 'footer-next enabled'}`}
+                    className="footer-next enabled"
+                    onClick={btnClickScroll}
+                  >
+                    <i className="next-btn"></i>
+                  </footer>
+                </div>
+              </>
+            )
+              :
+              // <>
+              //   <div className="next-arrow" aria-describedby="submitButton">
+              //     <footer
+              //     // className={`${stageSelector[0].stageId!=='ad-9a'? 'footer-next1 enabled' : 'footer-next enabled'}`}
+              //       className="pre-approval-accept confirm-btn1"
+              //       onClick={nextPage}
+              //     >
+              //       {language === CONSTANTS.LANG_EN ? CONSTANTS.acceptButton : language === CONSTANTS.LANG_CN? CONSTANTS.acceptButton_CN : CONSTANTS.acceptButton_HK}
+              //     </footer>
+              //   </div>
+              // </>
+              // <div
+              //   className="accept-button"
+              //   // id="navigationBtn"
+              // >
+                <button
+                  className="pre-approval-accept-button"
+                  onClick={nextPage}
+                >
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.acceptButton : language === CONSTANTS.LANG_CN? CONSTANTS.acceptButton_CN : CONSTANTS.acceptButton_HK}
+                </button>
 
-  it('disables continue button when not all documents are uploaded', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    expect(continueButton).toBeDisabled();
-  });
-
-  it('enables continue button when all documents are uploaded', () => {
-    const customStore = mockStore({
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        dynamicDocumentsUpload: {
-          ...baseState.stages.dynamicDocumentsUpload,
-          documentCount: 1
-        }
-      }
-    });
-
-    render(
-      <Provider store={customStore}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    expect(continueButton).not.toBeDisabled();
-  });
-
-  it('handles resume allowed flow', () => {
-    const customStore = mockStore({
-      ...baseState,
-      preApproval: {
-        ...baseState.preApproval,
-        resumeAllowed: 'Y'
-      }
-    });
-
-    render(
-      <Provider store={customStore}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    // Add specific assertions for resume flow
-    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
-  });
-
-  it('handles resume page parameter', () => {
-    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getParameterByName')
-      .mockReturnValue('resume');
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    // Add specific assertions for resume page
-    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
-  });
-
-  it('renders different language versions', () => {
-    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getLanguageInfo')
-      .mockReturnValue(CONSTANTS.LANG_CN);
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    // Add assertions for Chinese text if needed
-    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
-  });
-
-  it('does not render footer when fileSectionData exists', () => {
-    const customStore = mockStore({
-      ...baseState,
-      stages: {
-        ...baseState.stages,
-        dynamicDocumentsUpload: {
-          ...baseState.stages.dynamicDocumentsUpload,
-          fileSectionData: { some: 'data' }
-        }
-      }
-    });
-
-    render(
-      <Provider store={customStore}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    expect(screen.queryByText('Note:')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /continue/i })).not.toBeInTheDocument();
-  });
-});
-
-describe('API Interaction Tests', () => {
-  let store: any;
-
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [
-          {
-            stageId: 'ld-1',
-            stageInfo: {
-              application: {
-                channel_reference: 'test123'
-              },
-              products: [
-                {
-                  product_category: 'CC'
-                }
-              ],
-              applicant_documents: [
-                {
-                  document_list: [
-                    {
-                      document_options: [
-                        {
-                          document_types: [
-                            {
-                              uploaded_documents: null
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
+              // </div>
             }
-          }
-        ],
-        dynamicDocumentsUpload: {
-          documentData: {},
-          HKIDQRCodeData: null,
-          changeIconColorIdentityProof: false,
-          documentCount: 1, // All documents uploaded
-          success: true,
-          fileSectionData: null
-        }
-      },
-      preApproval: {
-        resumeAllowed: 'N',
-        currentStage: 'PD-1'
-      }
-    });
 
-    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getLanguageInfo')
-      .mockReturnValue(CONSTANTS.LANG_EN);
-  });
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+export default OnboardingBeforeStart;
 
-  it('calls nextStage when continue button is clicked', async () => {
-    // Mock API responses
-    jest.spyOn(require('../../../../preApproval/services/preApprovalPostServices'), 'postTMXUserSession')
-      .mockResolvedValue({ status: 200, data: { review_status: 'pass' } });
-    jest.spyOn(require('../../../../preApproval/services/preApprovalPostServices'), 'postFinalAcknowledge')
-      .mockResolvedValue({ status: 202 });
-    jest.spyOn(require('../../../../preApproval/services/preApprovalPostServices'), 'postDocSaveData')
-      .mockResolvedValue({ 
-        status: 200, 
-        data: { 
-          application: { 
-            response_type: 'INFO', 
-            response_action: 'CONTINUE' 
-          },
-          applicants: [],
-          applicant_documents: []
-        } 
-      });
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(continueButton);
-
-    // Verify loading state
-    expect(store.getActions()).toContainEqual(
-      expect.objectContaining({
-        type: 'common/dispatchLoader',
-        payload: true
-      })
-    );
-  });
-
-  it('handles API errors in nextStage', async () => {
-    jest.spyOn(require('../../../../preApproval/services/preApprovalPostServices'), 'postTMXUserSession')
-      .mockRejectedValue(new Error('API Error'));
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(continueButton);
-
-    // Verify error action was dispatched
-    const actions = store.getActions();
-    expect(actions).toContainEqual(
-      expect.objectContaining({
-        type: 'error/getError',
-        payload: {
-          statusCode: 'error',
-          statusText: 'no response'
-        }
-      })
-    );
-  });
-});
+Please write an test cases using react and jest
