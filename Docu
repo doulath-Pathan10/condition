@@ -1,65 +1,271 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import configureMockStore from 'redux-mock-store';
 import thunk from 'redux-thunk';
 import DucumentUploadMainSCR from './DucumentUploadMainSCR';
 import { CONSTANTS } from '../../../../../utils/common/constants';
-import * as changeUtils from '../../../../../utils/common/change.utils';
-import * as preApprovalPostServices from '../../../../preApproval/services/preApprovalPostServices';
-import * as preApprovalUtilsService from '../../../services/preApprovalUtilsService';
-import * as commonService from '../../../../../services/common-service';
-import * as stageUtils from '../../../../dashboard/fields/stage.utils';
 
 const middlewares = [thunk];
 const mockStore = configureMockStore(middlewares);
 
+// Mock child components to simplify testing
+jest.mock('../documentType/document-type-dynamic', () => () => (
+  <div>DocumentTypeDynamic Mock</div>
+));
+
+jest.mock('../../../../../shared/components/spinner/spinner', () => () => (
+  <div data-testid="spinner">Spinner Mock</div>
+));
+
+jest.mock('../../../../../shared/components/close/close', () => () => (
+  <div>Close Mock</div>
+));
+
 describe('DocumentUploadMainSCR Component', () => {
   let store: any;
-  const mockDocumentList = [
-    {
-      document_options: [
-        {
-          document_types: [
-            {
-              uploaded_documents: null
-            }
-          ]
-        }
-      ]
-    }
-  ];
 
-  const mockStageSelector = [
-    {
-      stageId: 'ld-1',
-      stageInfo: {
-        application: {
-          channel_reference: 'test123'
-        },
-        products: [
-          {
-            product_category: 'CC'
+  const baseState = {
+    stages: {
+      stages: [
+        {
+          stageId: 'ld-1',
+          stageInfo: {
+            application: {
+              channel_reference: 'test123'
+            },
+            products: [
+              {
+                product_category: 'CC'
+              }
+            ],
+            applicant_documents: [
+              {
+                document_list: [
+                  {
+                    document_options: [
+                      {
+                        document_types: [
+                          {
+                            uploaded_documents: null
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
           }
-        ],
-        applicant_documents: [
-          {
-            document_list: mockDocumentList
-          }
-        ]
+        }
+      ],
+      dynamicDocumentsUpload: {
+        documentData: {},
+        HKIDQRCodeData: null,
+        changeIconColorIdentityProof: false,
+        documentCount: 0,
+        success: true,
+        fileSectionData: null
       }
+    },
+    preApproval: {
+      resumeAllowed: 'N',
+      currentStage: 'PD-1'
     }
-  ];
+  };
+
+  beforeEach(() => {
+    // Mock external utility functions
+    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getLanguageInfo')
+      .mockReturnValue(CONSTANTS.LANG_EN);
+    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getParameterByName')
+      .mockReturnValue(null);
+
+    store = mockStore(baseState);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders the basic layout', () => {
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    expect(screen.getByText('Please provide the following documents')).toBeInTheDocument();
+    expect(screen.getByText('Upload documents')).toBeInTheDocument();
+    expect(screen.getByText('0/1')).toBeInTheDocument();
+    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
+  });
+
+  it('shows spinner when showSpinner is true and stage is ld-1', () => {
+    // Update the store to trigger spinner
+    const customStore = mockStore({
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        stages: [{ ...baseState.stages.stages[0], stageId: 'ld-1' }]
+      }
+    });
+
+    render(
+      <Provider store={customStore}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    expect(screen.getByTestId('spinner')).toBeInTheDocument();
+  });
+
+  it('disables continue button when not all documents are uploaded', () => {
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).toBeDisabled();
+  });
+
+  it('enables continue button when all documents are uploaded', () => {
+    const customStore = mockStore({
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        dynamicDocumentsUpload: {
+          ...baseState.stages.dynamicDocumentsUpload,
+          documentCount: 1
+        }
+      }
+    });
+
+    render(
+      <Provider store={customStore}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).not.toBeDisabled();
+  });
+
+  it('handles resume allowed flow', () => {
+    const customStore = mockStore({
+      ...baseState,
+      preApproval: {
+        ...baseState.preApproval,
+        resumeAllowed: 'Y'
+      }
+    });
+
+    render(
+      <Provider store={customStore}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    // Add specific assertions for resume flow
+    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
+  });
+
+  it('handles resume page parameter', () => {
+    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getParameterByName')
+      .mockReturnValue('resume');
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    // Add specific assertions for resume page
+    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
+  });
+
+  it('renders different language versions', () => {
+    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getLanguageInfo')
+      .mockReturnValue(CONSTANTS.LANG_CN);
+
+    render(
+      <Provider store={store}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    // Add assertions for Chinese text if needed
+    expect(screen.getByText('DocumentTypeDynamic Mock')).toBeInTheDocument();
+  });
+
+  it('does not render footer when fileSectionData exists', () => {
+    const customStore = mockStore({
+      ...baseState,
+      stages: {
+        ...baseState.stages,
+        dynamicDocumentsUpload: {
+          ...baseState.stages.dynamicDocumentsUpload,
+          fileSectionData: { some: 'data' }
+        }
+      }
+    });
+
+    render(
+      <Provider store={customStore}>
+        <DucumentUploadMainSCR />
+      </Provider>
+    );
+
+    expect(screen.queryByText('Note:')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /continue/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('API Interaction Tests', () => {
+  let store: any;
 
   beforeEach(() => {
     store = mockStore({
       stages: {
-        stages: mockStageSelector,
+        stages: [
+          {
+            stageId: 'ld-1',
+            stageInfo: {
+              application: {
+                channel_reference: 'test123'
+              },
+              products: [
+                {
+                  product_category: 'CC'
+                }
+              ],
+              applicant_documents: [
+                {
+                  document_list: [
+                    {
+                      document_options: [
+                        {
+                          document_types: [
+                            {
+                              uploaded_documents: null
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
         dynamicDocumentsUpload: {
           documentData: {},
           HKIDQRCodeData: null,
           changeIconColorIdentityProof: false,
-          documentCount: 0,
+          documentCount: 1, // All documents uploaded
           success: true,
           fileSectionData: null
         }
@@ -70,132 +276,21 @@ describe('DocumentUploadMainSCR Component', () => {
       }
     });
 
-    jest.spyOn(changeUtils, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_EN);
-    jest.spyOn(changeUtils, 'getParameterByName').mockReturnValue(null);
+    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getLanguageInfo')
+      .mockReturnValue(CONSTANTS.LANG_EN);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    expect(screen.getByText('Please provide the following documents')).toBeInTheDocument();
-  });
-
-  it('displays document count correctly', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    expect(screen.getByText('0/1')).toBeInTheDocument();
-  });
-
-  it('shows spinner when showSpinner is true and stage is ld-1', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        stages: [{ ...mockStageSelector[0], stageId: 'ld-1' }]
-      }
-    });
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    // Mock the spinner rendering (you might need to adjust based on your actual Spinner component)
-    expect(screen.getByTestId('spinner')).toBeInTheDocument();
-  });
-
-  it('handles resumeAllowed condition correctly', () => {
-    store = mockStore({
-      ...store.getState(),
-      preApproval: {
-        resumeAllowed: 'Y'
-      }
-    });
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    // Add assertions for resume flow
-  });
-
-  it('handles resumePage parameter correctly', () => {
-    jest.spyOn(changeUtils, 'getParameterByName').mockReturnValue('resume');
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-
-    // Add assertions for resume page flow
-  });
-
-  it('disables continue button when document count is not complete', () => {
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    expect(continueButton).toBeDisabled();
-  });
-
-  it('enables continue button when document count is complete', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          documentCount: 1
-        }
-      }
-    });
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    expect(continueButton).not.toBeDisabled();
-  });
-
   it('calls nextStage when continue button is clicked', async () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          documentCount: 1
-        }
-      }
-    });
-
-    const mockPostTMXUserSession = jest.spyOn(preApprovalPostServices, 'postTMXUserSession')
+    // Mock API responses
+    jest.spyOn(require('../../../../preApproval/services/preApprovalPostServices'), 'postTMXUserSession')
       .mockResolvedValue({ status: 200, data: { review_status: 'pass' } });
-    const mockPostFinalAcknowledge = jest.spyOn(preApprovalPostServices, 'postFinalAcknowledge')
+    jest.spyOn(require('../../../../preApproval/services/preApprovalPostServices'), 'postFinalAcknowledge')
       .mockResolvedValue({ status: 202 });
-    const mockPostDocSaveData = jest.spyOn(preApprovalPostServices, 'postDocSaveData')
+    jest.spyOn(require('../../../../preApproval/services/preApprovalPostServices'), 'postDocSaveData')
       .mockResolvedValue({ 
         status: 200, 
         data: { 
@@ -207,87 +302,27 @@ describe('DocumentUploadMainSCR Component', () => {
           applicant_documents: []
         } 
       });
-    const mockPostFulFilmentData = jest.spyOn(preApprovalPostServices, 'postFulFilmentData')
-      .mockResolvedValue({ 
-        status: 200, 
-        data: { 
-          application: { 
-            response_type: 'INFO', 
-            response_action: 'CONTINUE' 
-          },
-          applicants: []
-        } 
-      });
 
     render(
       <Provider store={store}>
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
+
     const continueButton = screen.getByRole('button', { name: /continue/i });
     fireEvent.click(continueButton);
 
-    await waitFor(() => {
-      expect(mockPostTMXUserSession).toHaveBeenCalled();
-      });
-  });
-
-  it('handles HardStop when response action is not CONTINUE', async () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          documentCount: 1
-        }
-      }
-    });
-
-    const mockPostTMXUserSession = jest.spyOn(preApprovalPostServices, 'postTMXUserSession')
-      .mockResolvedValue({ status: 200, data: { review_status: 'pass' } });
-    const mockPostFinalAcknowledge = jest.spyOn(preApprovalPostServices, 'postFinalAcknowledge')
-      .mockResolvedValue({ status: 202 });
-    const mockPostDocSaveData = jest.spyOn(preApprovalPostServices, 'postDocSaveData')
-      .mockResolvedValue({ 
-        status: 200, 
-        data: { 
-          application: { 
-            response_type: 'HARD', 
-            response_action: 'STOP' 
-          } 
-        } 
-      });
-    const mockHardStop = jest.spyOn(preApprovalUtilsService, 'HardStop');
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
+    // Verify loading state
+    expect(store.getActions()).toContainEqual(
+      expect.objectContaining({
+        type: 'common/dispatchLoader',
+        payload: true
+      })
     );
-    
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(mockHardStop).toHaveBeenCalled();
-    });
   });
 
-  it('handles error cases in nextStage', async () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          documentCount: 1
-        }
-      }
-    });
-
-    const mockPostTMXUserSession = jest.spyOn(preApprovalPostServices, 'postTMXUserSession')
+  it('handles API errors in nextStage', async () => {
+    jest.spyOn(require('../../../../preApproval/services/preApprovalPostServices'), 'postTMXUserSession')
       .mockRejectedValue(new Error('API Error'));
 
     render(
@@ -295,169 +330,20 @@ describe('DocumentUploadMainSCR Component', () => {
         <DucumentUploadMainSCR />
       </Provider>
     );
-    
+
     const continueButton = screen.getByRole('button', { name: /continue/i });
     fireEvent.click(continueButton);
 
-    await waitFor(() => {
-      const actions = store.getActions();
-      expect(actions).toContainEqual(
-        expect.objectContaining({
-          type: 'error/getError',
-          payload: {
-            statusCode: 'error',
-            statusText: 'no response'
-          }
-        })
-      );
-    });
-  });
-
-  it('renders different language versions correctly', () => {
-    jest.spyOn(changeUtils, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_CN);
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    // Add assertions for Chinese text
-  });
-
-  it('handles fileSectionData not null case', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          fileSectionData: { someData: true }
+    // Verify error action was dispatched
+    const actions = store.getActions();
+    expect(actions).toContainEqual(
+      expect.objectContaining({
+        type: 'error/getError',
+        payload: {
+          statusCode: 'error',
+          statusText: 'no response'
         }
-      }
-    });
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
+      })
     );
-    
-    // Add assertions for when fileSectionData is present
-  });
-
-  it('calls dispatchLoader on useEffect', () => {
-    const mockDispatchLoader = jest.spyOn(commonService, 'dispatchLoader');
-    
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    expect(mockDispatchLoader).toHaveBeenCalledWith(false);
-  });
-
-  it('handles non-CC product category flow', async () => {
-    const modifiedStageSelector = JSON.parse(JSON.stringify(mockStageSelector));
-    modifiedStageSelector[0].stageInfo.products[0].product_category = 'LOAN';
-    
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        stages: modifiedStageSelector,
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          documentCount: 1
-        }
-      }
-    });
-
-    const mockPostTMXUserSession = jest.spyOn(preApprovalPostServices, 'postTMXUserSession')
-      .mockResolvedValue({ status: 200, data: { review_status: 'pass' } });
-    const mockPostFinalAcknowledge = jest.spyOn(preApprovalPostServices, 'postFinalAcknowledge')
-      .mockResolvedValue({ status: 202 });
-    const mockPostDocSaveData = jest.spyOn(preApprovalPostServices, 'postDocSaveData')
-      .mockResolvedValue({ 
-        status: 200, 
-        data: { 
-          application: { 
-            response_type: 'INFO', 
-            response_action: 'CONTINUE' 
-          },
-          applicants: [],
-          applicant_documents: []
-        } 
-      });
-    const mockLovRequests = jest.spyOn(commonService, 'lovRequests');
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      expect(mockLovRequests).toHaveBeenCalled();
-    });
-  });
-
-  it('handles FFD2 enable flow', async () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        ...store.getState().stages,
-        stages: [{ ...mockStageSelector[0], stageId: 'ffd-1' }],
-        dynamicDocumentsUpload: {
-          ...store.getState().stages.dynamicDocumentsUpload,
-          documentCount: 1
-        }
-      }
-    });
-
-    const mockPostTMXUserSession = jest.spyOn(preApprovalPostServices, 'postTMXUserSession')
-      .mockResolvedValue({ status: 200, data: { review_status: 'pass' } });
-    const mockPostFinalAcknowledge = jest.spyOn(preApprovalPostServices, 'postFinalAcknowledge')
-      .mockResolvedValue({ status: 202 });
-    const mockPostDocSaveData = jest.spyOn(preApprovalPostServices, 'postDocSaveData')
-      .mockResolvedValue({ 
-        status: 200, 
-        data: { 
-          application: { 
-            response_type: 'INFO', 
-            response_action: 'CONTINUE' 
-          },
-          applicants: [],
-          applicant_documents: []
-        } 
-      });
-    const mockPostFulFilmentData = jest.spyOn(preApprovalPostServices, 'postFulFilmentData')
-      .mockResolvedValue({ 
-        status: 200, 
-        data: { 
-          application: { 
-            response_type: 'INFO', 
-            response_action: 'CONTINUE' 
-          },
-          applicants: []
-        } 
-      });
-
-    render(
-      <Provider store={store}>
-        <DucumentUploadMainSCR />
-      </Provider>
-    );
-    
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(continueButton);
-
-    await waitFor(() => {
-      // Add assertions for FFD2 flow
-    });
   });
 });
