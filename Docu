@@ -1,930 +1,338 @@
-import { nextStage } from "../modules/dashboard/fields/stage.utils";
-import {
-  FindIndex,
-  getUrl,
-} from "../utils/common/change.utils";
-import { CONSTANTS } from "../utils/common/constants";
-import {
-  FormConfigModel,
-  KeyWithAnyModel,
-  MyinfoNoResponseModel,
-  UserFields,
-} from "../utils/model/common-model";
-import axios, { AxiosError } from "axios";
-import { errorAction } from "../utils/store/error-slice";
-import { loaderAction } from "../utils/store/loader-slice";
-import { lovAction } from "../utils/store/lov-slice";
-import { stagesAction } from "../utils/store/stages-slice";
-import { store } from "../utils/store/store";
-import { urlParamAction } from "../utils/store/urlparam-slice";
-import { ValueUpdateAction } from "../utils/store/value-update-slice";
-import { exceptionCheck } from "./exception-handling-utils";
-import generatePayload from "./payload";
-import submitService from "./submit-service";
+import axios from 'axios';
+import { 
+  dispatchError, 
+  dispatchLoader, 
+  getLovData, 
+  postRequest, 
+  lovRequests,
+  gbaGenerate,
+  gbaVerify,
+  ibankEncrypt,
+  ibankRegisterUserData,
+  aofDownload,
+  preserveRequest,
+  resumeRequest,
+  addressSearchRequest,
+  asiaMilesJson,
+  checkProductDetails
+} from './your-utility-file';
+import { store } from '../utils/store/store';
+import { getUrl } from '../utils/common/change.utils';
+import { CONSTANTS } from '../utils/common/constants';
+import { ibankEncryptMock, ibankRegisterUserDataMock } from '../assets/_mock-data/authorize-mock';
 
-import { ibankEncryptMock, ibankRegisterUserDataMock } from "../assets/_mock-data/authorize-mock"; //Added for mock json for authorize call till csl integration
-import encrypt from "../services/encryption";
-import { pendingApplicationAction } from "../utils/store/pendingApplication-slice";
-import { lovDescAction } from "../utils/store/lov-desc-slice";
-import { getData } from "../modules/preApproval/services/preApprovalServices";
+// Mock modules
+jest.mock('axios');
+jest.mock('../utils/common/change.utils');
+jest.mock('../utils/store/store');
+jest.mock('./submit-service');
+jest.mock('../modules/preApproval/services/preApprovalServices');
 
-export type AppDispatch = typeof store.dispatch;
-
-/**
- * To get the selected product information from product.json
- * @param products
- * @param productInfoResponse
- * @returns
- */
-
-
-/**
- * The method used to show error popup model based on API failure status
- * @param error fetching response status code
- * @returns
- */
-export const dispatchError = (error: AxiosError | MyinfoNoResponseModel) => {
-  return (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(false));
-    if (error && error.response) {
-      dispatch(
-        errorAction.getError({
-          statusCode: error.response.status,
-          statusText: error.response.statusText,
-        })
-      );
-    } else {
-      dispatch(
-        errorAction.getError({
-          statusCode: "error",
-          statusText: "no response",
-        })
-      );
-    }
+describe('Utility Functions', () => {
+  const mockDispatch = jest.fn();
+  const mockStore = {
+    getState: jest.fn(),
+    dispatch: mockDispatch
   };
-};
 
-/**
- * Used to show loader indicator while making API request.
- * @param loader sending Boolean flag to show/hide loader
- * @returns
- */
-export const dispatchLoader = (loader: boolean): any => {
-  return (dispatch: AppDispatch) => {
-    dispatch(
-      loaderAction.getState({
-        isFetching: loader,
-      })
-    );
-  };
-};
-
-/**
- * LOV API request
- * @param field Based on logical field initiating LOV API request
- * @returns
- */
-export const getLovData = (field: string, searchKey?: string, cityKey?: any, resumeFlag?: any, resData?: any): any => {
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const lovRef = process.env.REACT_APP_RTOB_LOVREF;
-  const formType = process.env.REACT_APP_RTOB_FORMTYPE;
-  const endpoint = searchKey
-    ? `${lovRef + field + formType}&size=25&q=${searchKey}`
-    : cityKey ? `${lovRef + field + formType}&nestedFieldName=${cityKey}` : `${lovRef + field}`;
-
-  const url = baseUrl + endpoint;
-
-  return async (dispatch: AppDispatch) => {
-    try {
-      const res = await axios.get(url);
-      if (res.data) {
-        const refValue = res.data
-        if (refValue.length > 0) {
-          const removedDuplicatesRefValue = refValue.filter((refValue: KeyWithAnyModel, index: number, self: KeyWithAnyModel) =>
-            index === self.findIndex((t: KeyWithAnyModel) => (t.CODE_DESC === refValue.CODE_DESC && t.CODE_VALUE === refValue.CODE_VALUE)))
-          dispatch(
-            lovAction.getLovData({
-              label: field,
-              value: removedDuplicatesRefValue,
-            })
-          );
-        }
-        if (resumeFlag) {
-          if (refValue.length > 0 && resData.applicants[0][field]) {
-            const filterData = refValue.filter((refValue: KeyWithAnyModel) =>
-              (refValue.CODE_VALUE === resData.applicants[0][field]))
-            dispatch(
-              lovDescAction.addLovData({
-                fieldData: {
-                  fieldName: field,
-                  code_desc: filterData[0].CODE_DESC,
-                  code_value: filterData[0].CODE_VALUE
-                }
-              })
-            );
-          }
-        }
-        return await Promise.resolve(res);
-      } else {
-        defaultError();
-      }
-    } catch (err: any) {
-      /**Commented for local setup */
-      dispatch(dispatchError(err));
-      return await Promise.reject(err.response);
-    }
-  };
-};
-
-/**
- * The method used to get dedupe call and form-config request
- * @param channelRef setting channel reference number
- * @param payload attaching payload based on current stage user inputs
- * @returns
- */
-/* istanbul ignore next */
-export const postRequest = (
-  data: any,
-  currentStageFields: any,
-  currentStageId: string,
-  applicationJourney: string | null,
-  stageSelectorApplicants?: any,
-): any => {
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const createEndPoint = `${process.env.REACT_APP_RTOB_CREATE_END_POINT}`;
-  const basicEndPoint = `${process.env.REACT_APP_RTOB_BASIC_END_POINT}`;
-  const partnerVerifyEndPoint = `${process.env.REACT_APP_RTOB_PARTNER_VERIFY_END_POINT}`;
-  const saveEndPoint = `${process.env.REACT_APP_RTOB_SAVE_END_POINT}`;
-  const applyEndPoint = `${process.env.REACT_APP_RTOB_APPLY_END_POINT}`;
-  const confirmEndPoint = `${process.env.REACT_APP_RTOB_CONFIRM_END_POINT}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const channelRefNo = getUrl.getChannelRefNo().channelRefNo;
-  const applicationRefNo = getUrl.getChannelRefNo().applicationRefNo;
-  const saveUrl = `${application + channelRefNo + saveEndPoint}`;
-  const createUrl = `${application + channelRefNo + createEndPoint}`;
-  const basicDataUrl = `${application + channelRefNo + basicEndPoint}`;
-  const partnerVerifyUrl = `${application + channelRefNo + partnerVerifyEndPoint}`;
-  const applyUrl = `${application + channelRefNo + applyEndPoint}`;
-  const confirmUrl = `${application + channelRefNo + confirmEndPoint}`;
-  let url = baseUrl + saveUrl;
-  if (currentStageId === CONSTANTS.STAGE_NAMES.SSF_1) {
-    url = baseUrl + createUrl;
-  } else if (currentStageId === CONSTANTS.STAGE_NAMES.BD_3) {
-    url = baseUrl + basicDataUrl;
-  } else if (currentStageId === CONSTANTS.STAGE_NAMES.BD_2) {
-    url = baseUrl + partnerVerifyUrl;
-  } else if (currentStageId === CONSTANTS.STAGE_NAMES.AD_2) {
-    url = baseUrl + applyUrl;
-  } else if (currentStageId === CONSTANTS.STAGE_NAMES.RP) {
-    url = baseUrl + confirmUrl;
-  }
-
-  /* Skip Preserve call in ibank registration*/
-  if (currentStageId === CONSTANTS.STAGE_NAMES.AD_3) {
-    return async (dispatch: AppDispatch) => {
-      const stageTo = nextStage(currentStageId, applicationJourney);
-      dispatch(stagesAction.updateStageId(stageTo));
-      dispatch(lovRequests(data.stageInfo, stageTo));
-      return Promise.resolve();
-    }
-  }
-
-  let payload = generatePayload.createPayload(data, currentStageFields, url, stageSelectorApplicants, 'NORESUME');
-
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    try {
-      let res: any;
-      await dispatch(exceptionCheck(await axios.post(url, payload))).then(
-        (response: any) => {
-          if (response !== "Rejected") {
-            res = response;
-            if (res) {
-              if (res.data) {
-                dispatch(
-                  stagesAction.setJourneyType(res.data.application.journey_type)
-                );
-              }
-              if (!applicationRefNo && res.data) { dispatch(urlParamAction.getAuthorize({ "applicationRefNo": res.data.application.application_reference })) }
-              if (!applicationJourney) {
-                // dispatch(stagesAction.deleteStageInput())
-                dispatch(
-                  stagesAction.setJourneyType(res.data.application.journey_type)
-                );
-                applicationJourney = res.data.application.journey_type;
-              }
-              const stageTo = nextStage(currentStageId, applicationJourney);
-              dispatch(stagesAction.updateStageId(stageTo));
-              dispatch(lovRequests(data.stageInfo, stageTo));
-              return Promise.resolve(res);
-            }
-          }
-        }
-      );
-    } catch (error: any) {
-      /* commented for local setup */
-      if (error !== "Rejected") {
-        dispatch(dispatchError(error));
-      }
-      return await Promise.reject(error.response);
-      /* commented for local setup */
-    }
-  };
-};
-
-/**
- * Initiating Lov data request if myinfo/manual form-config request completed
- */
-
-export const lovRequests = (
-  res: any,
-  isBdStage: string,
-  missingFields?: any,
-  resumeFlag?: any
-): any => {
-  const campaignID = store.getState().stages.stages[0].stageInfo.products[0].campaign;
-  return (dispatch: AppDispatch) => {
-    if (res) {
-      const requestAll = async () => {
-        let currentStage = [isBdStage];
-        // Passing an array of promises that are already resolved to trigger Promise.all as soon as possible
-        let resolvedLov: any = [];
-        currentStage.forEach(async (stage: string) => {
-          const index = FindIndex(res, stage === 'ld-1' ? "ad-11" : stage);
-          if (res.fieldMetaData?.data.stages[index]) {
-            res.fieldMetaData?.data.stages[index].fields.map(
-              async (lov: KeyWithAnyModel) => {
-                try {
-                  if (!resumeFlag) {
-                    if (isBdStage !== CONSTANTS.STAGE_NAMES.RP) {
-                      if (lov.lov === "Yes" && (isBdStage !== "bd-5")) {
-                        if (isBdStage !== CONSTANTS.STAGE_NAMES.BD_3 && isBdStage !== CONSTANTS.STAGE_NAMES.AD_1) {
-                          if (lov.lov === "Yes" && lov.rwb_category === isBdStage) {
-                            // if(lov.logical_field_name !== "client_sc_consent_title" || lov.logical_field_name !== "client_pl_sc_consent" || lov.logical_field_name !== "client_pl_sc_consent2" || lov.logical_field_name !== "client_pl_sc_consent5") {
-                            //   console.log('lov.logical_field_name--',lov.logical_field_name)
-                            //   resolvedLov.push(
-                            //     dispatch(getLovData(lov.logical_field_name))
-                            //   );
-                            // }
-                            if (lov.component_type === 'Text' || lov.component_type === 'Selection Box' || lov.component_type === 'Radio With Label' || lov.component_type === 'short-text' || lov.component_type === 'Phone' || lov.component_type === 'Multi Selection Box') {
-                              resolvedLov.push(
-                                dispatch(getLovData(lov.logical_field_name))
-                              );
-                            }
-                            // else {
-                            //   console.log('lov.logical_field_name--',lov.logical_field_name)
-                            //   resolvedLov.push(
-                            //     dispatch(getLovData(lov.logical_field_name))
-                            //   );
-
-                            // }
-                          }
-                        } 
-                         else if (isBdStage === CONSTANTS.STAGE_NAMES.BD_3
-                          && (lov.logical_field_name !== CONSTANTS.LOGICAL_FIELD_NAMES.INVESTMENT_EXPERIENCE)
-                          && (lov.logical_field_name !== CONSTANTS.LOGICAL_FIELD_NAMES.SUPPLEMENTARY_INVEST_EXPERINECE)
-                          && (lov.logical_field_name !== CONSTANTS.LOGICAL_FIELD_NAMES.FINANCIAL_PRODUCT)
-                          && (lov.logical_field_name !== CONSTANTS.LOGICAL_FIELD_NAMES.FINANCIAL_PRODUCT_2)
-                        ) {
-                          resolvedLov.push(
-                            dispatch(getLovData(lov.logical_field_name))
-                          );
-                        }
-                        else if (isBdStage === CONSTANTS.STAGE_NAMES.AD_1
-                          && (lov.logical_field_name !== CONSTANTS.LOGICAL_FIELD_NAMES.COUNTRY_OF_TAX_RESIDENCE + "_1")
-                          && (lov.logical_field_name !== CONSTANTS.LOGICAL_FIELD_NAMES.COUNTRY_OF_TAX_RESIDENCE + "_2")
-                          && (lov.logical_field_name !== CONSTANTS.LOGICAL_FIELD_NAMES.COUNTRY_OF_TAX_RESIDENCE + "_3")
-                          && (lov.logical_field_name !== CONSTANTS.LOGICAL_FIELD_NAMES.COUNTRY_OF_TAX_RESIDENCE + "_4")
-                        ) {
-                          if (lov.lov === "Yes" && campaignID === 'HKSOZ00MCWB000') {
-                            if ((lov.logical_field_name === "preferred_relationship_branch_EA" || lov.logical_field_name === 'nationality' || lov.logical_field_name === 'gender' || lov.logical_field_name === 'purpose_of_account' || lov.logical_field_name === 'place_of_birth' || lov.logical_field_name === 'mailing_address_rwb') ) {
-                              resolvedLov.push(
-                                dispatch(getLovData(lov.logical_field_name))
-                              );
-                            }
-                          } else if (lov.lov === "Yes" && campaignID === 'HKSOZ01MCWB000') {
-                            if (lov.logical_field_name === "preferred_relationship_branch_PB" || lov.logical_field_name === 'nationality' || lov.logical_field_name === 'gender' || lov.logical_field_name === 'purpose_of_account' || lov.logical_field_name === 'place_of_birth' || lov.logical_field_name === 'mailing_address_rwb') {
-                              resolvedLov.push(
-                                dispatch(getLovData(lov.logical_field_name))
-                              );
-                            }
-                          } else if (lov.lov === "Yes" && campaignID === 'HKSOZ02MCWB000') {
-                            if (lov.logical_field_name === "preferred_relationship_branch_PP" || lov.logical_field_name === 'nationality' || lov.logical_field_name === 'gender' || lov.logical_field_name === 'purpose_of_account' || lov.logical_field_name === 'place_of_birth' || lov.logical_field_name === 'mailing_address_rwb') {
-                              resolvedLov.push(
-                                dispatch(getLovData(lov.logical_field_name))
-                              );
-                            }
-                          }
-                          else {
-                            resolvedLov.push(
-                            dispatch(getLovData(lov.logical_field_name))
-                          );
-                          }
-                        }
-                      } else if (lov.lov === "Yes" && (isBdStage === "bd-5" && (lov.logical_field_name === CONSTANTS.LOGICAL_FIELD_NAMES.RES_COUNTRY_1))) {
-                        resolvedLov.push(dispatch(getLovData(CONSTANTS.LOGICAL_FIELD_NAMES.RES_COUNTRY_1)))
-                      } else if (lov.lov === "Yes" && (isBdStage === "bd-5" && (lov.logical_field_name === CONSTANTS.LOGICAL_FIELD_NAMES.ALT_ADDRESS_SAME_AS_RES_ADDRESS_2))) {
-                        resolvedLov.push(dispatch(getLovData(CONSTANTS.LOGICAL_FIELD_NAMES.ALT_ADDRESS_SAME_AS_RES_ADDRESS_2)))
-                      }
-                      else if (lov.lov === "No" && (lov.logical_field_name === "mobile_number")) {
-                        resolvedLov.push(
-                          dispatch(getLovData(lov.logical_field_name))
-                        );
-                      }
-                      else if (lov.lov === "No" && (lov.logical_field_name === "tax_resident_of_any_country_region" || lov.logical_field_name === "tax_resident_other_countries_regions" || lov.logical_field_name === "us_citizen" || lov.logical_field_name === "us_resident" || lov.logical_field_name === "green_card_holder")) {
-                        resolvedLov.push(
-                          dispatch(getLovData(lov.logical_field_name))
-                        );
-                      }
-                    }
-                  }
-                  else {
-                    if (lov.lov === "Yes" && (lov.logical_field_name !== 'tax_residence_countries' || lov.logical_field_name !== 'direct_marketing' || lov.logical_field_name !== 'acknowledgement_cert' || lov.logical_field_name !== 'client_declaration_cert' || lov.logical_field_name !== 'client_sc_consent_title')) {
-                      resolvedLov.push(
-                        dispatch(getLovData(lov.logical_field_name, '', '', resumeFlag, res))
-                      );
-                    } else if (lov.lov === "No" && lov.logical_field_name === 'residential_address_eng' && res.applicants[0][CONSTANTS.LOGICAL_FIELD_NAMES.RES_COUNTRY_1]) {
-                      dispatch(getLovData(CONSTANTS.LOGICAL_FIELD_NAMES.RES_COUNTRY_1, '', '', resumeFlag, res))
-                    } else if (lov.lov === "No" && lov.logical_field_name === 'mailing_address_eng' && res.applicants[0][CONSTANTS.LOGICAL_FIELD_NAMES.RES_COUNTRY_2]) {
-                      dispatch(getLovData(CONSTANTS.LOGICAL_FIELD_NAMES.RES_COUNTRY_2, '', '', resumeFlag, res))
-                    }
-
-                  }
-                } catch (err) {
-                  console.log(err);
-                }
-              }
-            );
-          }
-        });
-        return await Promise.all(resolvedLov);
-      };
-      return requestAll().then(() => {
-        dispatch(dispatchLoader(false));
-      });
-    }
-  };
-};
-
-/**
- * The method used to swape the missing mandatory fields to other myinfo page.
- * @param formConfigRes retriving from from-config response to swipe the missing logical fields to ssf-2
- * @returns updated
- */
-export const fieldLevelSwipe = (
-  formConfigRes: FormConfigModel
-): FormConfigModel => {
-  formConfigRes.fieldMetaData.data.stages[1].fields.sort(
-    (a: KeyWithAnyModel, b: KeyWithAnyModel) => {
-      return parseInt(a.seq_no) - parseInt(b.seq_no);
-    }
-  );
-  return formConfigRes;
-};
-
-export const technicalError = (data: any) => {
-  const error = {
-    response: {
-      status: data["status-code"],
-      statusText: "no response",
-    },
-  };
-  return error;
-};
-/**
- * Used to identify whether user landed on new screen or changes observed on current screen to make API request.
- * @param data
- * @returns
- */
-export const isFormUpdate = (data: boolean | null): any => {
-  return (dispatch: AppDispatch) => {
-    dispatch(ValueUpdateAction.getValueUpdate(data));
-  };
-};
-
-export const sortByAscendingOrder = (payload: any) => {
-  let sorted_data = payload;
-  sorted_data["applicant"] = sortingList(payload["applicant"], 'object');
-  sorted_data["application"] = sortingList(payload["application"], 'object');
-  return sorted_data;
-};
-
-export const sortingList = (list: any, type: string) => {
-  return list && Object.keys(list)
-    .sort()
-    .reduce((accumulator: any, key: any) => {
-      accumulator[key] = list[key];
-      return accumulator;
-    }, type === 'array' ? [] : {});
-};
-
-/**
- * To remove unwanted product details
- */
-export const filterProducDetails = () => {
-  const product = JSON.parse(JSON.stringify(getUrl.getProductInfo()));
-  product.filter((item: any) => {
-    delete item.company_category;
-    delete item.premiumCode;
-    delete item.product_title;
-    return item;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (store.dispatch as jest.Mock) = mockDispatch;
+    (store.getState as jest.Mock) = mockStore.getState;
   });
-  return product;
-};
 
-/**
- * The method used to get field meta data through authorize call
- * @returns
- */
-
-
-
-/**
- * The method used to generate the gba-generate call
- * @returns
- */
-export const gbaGenerate = (data: KeyWithAnyModel): any => {
-  const channelRefNo = getUrl.getChannelRefNo()?.channelRefNo;
-  let url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${channelRefNo}${process.env.REACT_APP_RTOB_GBA_GENERATE}`;
-  if (data.flowType === CONSTANTS.OTP_FLOW.RESUME)
-    url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${submitService.generateUUID}${process.env.REACT_APP_RTOB_GBA_GENERATE}`;
-  // const payload = { data };
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    return axios
-      .post(url, sortByAscendingOrder(data))
-      .then((response) => {
-        if (response.data) {
-          dispatch(dispatchLoader(false));
-          return Promise.resolve(response.data); //After csl integration
+  describe('dispatchError', () => {
+    it('should dispatch error with response data when available', () => {
+      const error = {
+        response: {
+          status: 404,
+          statusText: 'Not Found'
         }
-        // else {
-        //   defaultError();
-        // }
-      })
-      .catch((error) => {
-        dispatch(dispatchError(error));  //After csl integration
-        return Promise.reject(error);
-      });
-  };
-};
+      };
+      dispatchError(error)(mockDispatch);
+      expect(mockDispatch).toHaveBeenCalledWith(expect.any(Function));
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'loader/getState',
+          payload: { isFetching: false }
+        })
+      );
+    });
 
-export const dispatchPendingApplication = (pendingApplications: any): any => {
-  return (dispatch: AppDispatch) => {
-    dispatch(pendingApplicationAction.createPendingApplication(pendingApplications));
-  };
-};
-
-/** * The method used to generate the gba-verify call
- * @returns
- */
-export const gbaVerify = (data: KeyWithAnyModel): any => {
-  const channelRefNo = getUrl.getChannelRefNo()?.channelRefNo;
-  let url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${channelRefNo}${process.env.REACT_APP_RTOB_GBA_VERIFY}`;
-  if (data['flow-type'] === CONSTANTS.OTP_FLOW.RESUME)
-    url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${submitService.generateUUID}${process.env.REACT_APP_RTOB_GBA_VERIFY}`;
-  // const payload = { data };
-
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    return axios
-      .post(url, sortByAscendingOrder(data))
-      .then((response) => {
-        if (response.status === 200) {
-          dispatch(dispatchLoader(false));
-          if (response.data && response.data["status"] === "SUCCESS" && response.data.Application) {
-            dispatch(dispatchPendingApplication(response.data.Application));
+    it('should dispatch default error when no response', () => {
+      const error = {};
+      dispatchError(error)(mockDispatch);
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'error/getError',
+          payload: {
+            statusCode: "error",
+            statusText: "no response"
           }
-          return Promise.resolve(response.data);    //After csl integration
-        } else {
-          defaultError();
-        }
-      })
-      .catch((error) => {
-        dispatch(dispatchError(error)); //Commented for local setup
-        return Promise.reject(error);  //Commented for local setup
-      });
-  };
-};
+        })
+      );
+    });
+  });
 
-/**
- * The method used to set hard stop if request fail
- * @returns
- */
-export const defaultError = () => {
-  return async (dispatch: AppDispatch) => {
-    const error = {
-      response: {
-        status: "error",
-        statusText: "no response",
-      },
+  describe('dispatchLoader', () => {
+    it('should dispatch loader action with true', () => {
+      dispatchLoader(true)(mockDispatch);
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'loader/getState',
+          payload: { isFetching: true }
+        })
+      );
+    });
+
+    it('should dispatch loader action with false', () => {
+      dispatchLoader(false)(mockDispatch);
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'loader/getState',
+          payload: { isFetching: false }
+        })
+      );
+    });
+  });
+
+  describe('getLovData', () => {
+    it('should fetch LOV data without search key', async () => {
+      const mockResponse = { data: [{ CODE_DESC: 'Test', CODE_VALUE: '1' }] };
+      (axios.get as jest.Mock).mockResolvedValue(mockResponse);
+      
+      await getLovData('testField')(mockDispatch);
+      
+      expect(axios.get).toHaveBeenCalled();
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'lov/getLovData',
+          payload: {
+            label: 'testField',
+            value: mockResponse.data
+          }
+        })
+      );
+    });
+
+    it('should fetch LOV data with search key', async () => {
+      const mockResponse = { data: [{ CODE_DESC: 'Test', CODE_VALUE: '1' }] };
+      (axios.get as jest.Mock).mockResolvedValue(mockResponse);
+      
+      await getLovData('testField', 'searchTerm')(mockDispatch);
+      
+      expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('q=searchTerm'));
+    });
+
+    it('should handle error when fetching LOV data', async () => {
+      const mockError = new Error('Failed');
+      (axios.get as jest.Mock).mockRejectedValue(mockError);
+      
+      await expect(getLovData('testField')(mockDispatch)).rejects.toEqual(mockError.response);
+    });
+  });
+
+  describe('postRequest', () => {
+    const mockData = {
+      stageInfo: {},
+      fieldMetaData: { data: { stages: [] } }
     };
-    dispatch(dispatchError(error));
-  };
-};
-/**
- * The method is used to check Product Details for standlone and buddles cards
- */
+    const mockCurrentStageFields = [];
+    const mockCurrentStageId = 'ssf-1';
 
-export const checkProductDetails = (noOfProducts: KeyWithAnyModel) => {
-  let hasCC, hasPL, hasCA, hasSA, hasCASA, hasCCPL, hasOnlyCCPL, hasOnlyCASA;
-  let CAProduct, SAProduct, CCProduct, PLProduct;
-  let CAProductLength: number = 0,
-    SAProductLength: number = 0,
-    CCProductLength: number = 0,
-    PLProductLength: number = 0;
-  let returnValue;
+    beforeEach(() => {
+      (getUrl.getChannelRefNo as jest.Mock).mockReturnValue({
+        channelRefNo: 'test123',
+        applicationRefNo: 'app123'
+      });
+    });
 
-  if (noOfProducts.length === 1) {
-    CAProduct = noOfProducts[0].product_category === "CA";
-    SAProduct = noOfProducts[0].product_category === "SA";
-    CCProduct = noOfProducts[0].product_category === "CC";
-    PLProduct = noOfProducts[0].product_category === "PL";
-    if (CAProduct || SAProduct) {
-      returnValue = true;
-    }
-    if (CCProduct || PLProduct) {
-      returnValue = false;
-    }
-  }
-  if (noOfProducts.length > 1) {
-    for (let i = 0; i < noOfProducts.length; i++) {
-      if (noOfProducts[i].product_category === "CA") {
-        CAProductLength = CAProductLength + 1;
-      }
-      if (noOfProducts[i].product_category === "SA") {
-        SAProductLength = CAProductLength + 1;
-      }
-      if (noOfProducts[i].product_category === "CC") {
-        CCProductLength = CAProductLength + 1;
-      }
-      if (noOfProducts[i].product_category === "PL") {
-        PLProductLength = CAProductLength + 1;
-      }
-    }
-    hasPL = PLProductLength >= 1;
-    hasCC = CCProductLength >= 1;
-    hasCA = CAProductLength >= 1;
-    hasSA = SAProductLength >= 1;
-    hasCASA = CAProductLength >= 1 || SAProductLength >= 1;
-    hasCCPL = CCProductLength >= 1 || PLProductLength >= 1;
-    hasOnlyCCPL =
-      (CCProductLength >= 1 || PLProductLength >= 1) &&
-      !(CAProductLength >= 1 || SAProductLength >= 1);
-    hasOnlyCASA =
-      (CAProductLength >= 1 || SAProductLength >= 1) &&
-      !(CCProductLength >= 1 || PLProductLength >= 1);
-    if (hasCASA || hasSA || hasCA || hasOnlyCASA) returnValue = true;
-    if (hasCCPL || hasOnlyCCPL || hasPL || hasCC) returnValue = false;
-  }
-  return returnValue;
-};
-
-
-export const ibankEncrypt = (userInputSelector: UserFields): any => {
-  const channelRefNo = getUrl.getChannelRefNo()?.channelRefNo;
-  const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${channelRefNo}${process.env.REACT_APP_RTOB_IBANK_ENCRYPT}`;
-  const randomNumber = Math.random();
-
-  const payload = {
-    "random_number": randomNumber
-  };
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    return await axios
-      .post(url, payload)
-      .then(async (responses) => {
-        /**Added for local setup start */
-        const response = responses?.data?.error_code ? ibankEncryptMock : responses.data
-        /**Added for local setup end */
-        const secNonce = response["ibank-encryptions"].securityNonce;
-        const modules = response["ibank-encryptions"].modules;
-        const exponent = response["ibank-encryptions"].exponent
-        const plain = encrypt(exponent, modules, secNonce, userInputSelector.applicants[0].password_a_1, 'Ibanking');
-        handleFieldDispatch('password_a_1', plain, dispatch)
-        handleFieldDispatch('reconfirm_password', '', dispatch)
-        // return Promise.resolve(response.data);
-        return await dispatch(ibankRegisterUserData(secNonce, plain))
-          .then(async (ibankresponse: any) => {
-            return Promise.resolve(ibankresponse);
-          })
-
-      })
-      .catch(async (error) => {
-        /**Added for local setup start */
-        const response = error.data.error_code ? ibankEncryptMock : error.data
-        const secNonce = response["ibank-encryptions"].securityNonce;
-        const modules = response["ibank-encryptions"].modules;
-        const exponent = response["ibank-encryptions"].exponent
-        const plain = encrypt(exponent, modules, secNonce, userInputSelector.applicants[0].password_a_1, 'Ibanking');
-
-        handleFieldDispatch('password', plain, dispatch)
-        handleFieldDispatch('reconfirm_password', '', dispatch)
-        // return Promise.resolve(response.data);
-        return await dispatch(ibankRegisterUserData(secNonce, plain))
-          .then(async (ibankresponse: any) => {
-            return Promise.resolve(ibankresponse);
-          })
+    it('should make create request for ssf-1 stage', async () => {
+      (axios.post as jest.Mock).mockResolvedValue({ 
+        status: 200,
+        data: { 
+          application: { 
+            application_reference: 'newRef',
+            journey_type: 'testJourney'
+          } 
+        }
+      });
       
-      });
-  };
-};
-
-/**
- * The method used for ibank Registration User Data
- */
-export const ibankRegisterUserData = (nonce: string, pwd: String): any => {
-  const channelRefNo = store.getState()?.stages.stages?.[0]?.stageInfo?.application.channel_reference;
-  const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${channelRefNo}${process.env.REACT_APP_RTOB_IBANK_REGISTER_USER_DATA}`;
-
-  let payload = JSON.parse(
-    JSON.stringify(store.getState().stages.stages?.[0]?.stageInfo || {})
-  );
-  // delete payload.applicants;
-  let lovDesc = JSON.parse(
-    JSON.stringify(store.getState()?.lovDesc?.lovDesc)
-  );
-  let lauth_key = "";
-  let lovDescData: any = {};
-  for (let i in lovDesc) {
-    if (lovDesc[i].code_desc !== "") {
-      lovDescData[lovDesc[i].label + "_a_1_desc"] = lovDesc[i].code_desc;
-      lauth_key =
-        lauth_key === ""
-          ? lauth_key + lovDesc[i].label + "_a_1_desc"
-          : lauth_key + "," + lovDesc[i].label + "_a_1_desc";
-    }
-  }
-
-  let applicant = store.getState()?.stages?.stages?.[0]?.stageInfo?.applicants[0];
-  payload["applicants"] = JSON.parse(JSON.stringify(applicant || {}));
-  payload.applicants.password_a_1 = pwd;
-  payload.applicants.reconfirm_password_a_1 = "";
-  payload.applicants.securityNonce = nonce;
-  payload.stage['page_id'] = 'ad-7';
-  payload.stage['stage_id'] = 'AD';
-  payload.stage['stage_status'] = "incomplete";
-  payload["lov_desc"] = lovDescData;
-
-  return async (dispatch: AppDispatch) => {
-    handleFieldDispatch('securityNonce', nonce, dispatch)
-    return axios
-      .post(url, payload)
-      .then((responses) => {
-        /**Added for local setup start */
-        // const response :any = ibankRegisterUserDataMock
-        const response = responses.data.error_code ? ibankRegisterUserDataMock : responses.data
-        /**Added for local setup end */
-        dispatch(dispatchLoader(false));
-        handleFieldDispatch('is_banking_registered', responses?.data?.applicants?.is_banking_registered, dispatch)
-        handleFieldDispatch('ibankingregDate', responses?.data?.applicants?.ibankingregDate, dispatch);
-        //setting like this in angular
-        //handleFieldDispatch('password', '',dispatch); 
-        // handleFieldDispatch('securityNonce','',dispatch);
-        //setting like this in angular
-        return Promise.resolve(responses);
-      })
-      .catch((error) => {
-        /**Added for local setup start */
-        const response = ibankRegisterUserDataMock
-
-        handleFieldDispatch('is_banking_registered', error.data.applicants.is_banking_registered, dispatch)
-        handleFieldDispatch('ibankingregDate', error.data.applicants.ibankingregDate, dispatch)
-        return Promise.resolve();
-       
-      });
-  };
-};
-
-export const ibnkProfileEnquiry = (): any => {
-  const channelRefNo = getUrl.getChannelRefNo()?.channelRefNo;
-  var ibnkURL = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${channelRefNo}${process.env.REACT_APP_RTOB_IBANK_PROFILE_ENQUIRY}`;
-  var ibnkBody = {
-    "existing_relationship_id_a_1": JSON.parse(
-      JSON.stringify(store?.getState()?.stages?.stages[0]?.stageInfo.applicants[0]?.existing_relationship_id_a_1))
-  }
-
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    return await axios
-      .post(ibnkURL, ibnkBody)
-      .then(async (responses) => {
-        console.log("response : " + JSON.stringify(responses.data));
-        dispatch(dispatchLoader(false));
-        return Promise.resolve(responses)
-      }).catch(function (error) {
-        console.log("error : " + JSON.stringify(error));
-      });
-  }
-}
-
-
-/** * The method used to generate the gba-verify call
- * @returns
- */
-export const convertPinyin = (data: KeyWithAnyModel): any => {
-  const channelRefNo = getUrl.getChannelRefNo()?.channelRefNo;
-  const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${channelRefNo}${process.env.REACT_APP_RTOB_PINYIN_TRANSLATOR}`;
-  const payload = data;
-
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    return axios
-      .post(url, payload)
-      .then((response) => {
-        if (response.status === 200) {
-          dispatch(dispatchLoader(false));
-          return Promise.resolve(response.data);    //After csl integration
-        } else {
-          defaultError();
-        }
-      })
-      .catch((error) => {
-        dispatch(dispatchError(error)); //Commented for local setup
-        return Promise.reject(error);  //Commented for local setup
-      });
-  };
-};
-
-
-
-/**
- * The method used for AOF Dowload
- */
-export const aofDownload = (): any => {
-  const channelRefNo = getUrl && getUrl.getChannelRefNo()?.channelRefNo;
-  const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}${channelRefNo}${process.env.REACT_APP_RTOB_AOF_DOWNLOAD}`;
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    return axios
-      .get(url, { responseType: 'blob' })
-      .then((response) => {
-        if (response.status === 200) {
-          dispatch(dispatchLoader(false));
-          //After csl integration
-          const link = document.createElement('a');
-          var blob = new Blob([response.data], { type: "application/pdf" });
-          if ((navigator.userAgent.indexOf("Chrome") !== -1 || navigator.userAgent.match('CriOS'))) {
-            blob = new Blob([response.data], { type: "application/pdf" });
-          } else {
-            var pdfBase64Data = new Uint8Array(response.data);
-            blob = new Blob([pdfBase64Data], { type: "application/octet-stream" });
-          }
-          const dataURL = window.URL.createObjectURL(blob);
-          link.href = dataURL;
-          link.download = getUrl.getChannelRefNo().applicationRefNo + ".pdf";
-          link.click();
-          window.URL.revokeObjectURL(dataURL);
-        } else {
-          defaultError();
-        }
-      })
-      .catch((error) => {
-        dispatch(dispatchError(error));  //After csl integration
-        return Promise.reject(error);
-      });
-  };
-};
-
-/**
- * The method used to get save and resume request - Save Call
- * @param channelRef setting channel reference number
- * @param payload attaching payload based on current stage user inputs
- * @returns
- */
-export const preserveRequest = (
-  data: any,
-  currentStageFields: any,
-  stageSelectorApplicants?: any,
-): any => {
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const saveEndPoint = `${process.env.REACT_APP_RTOB_SAVE_END_POINT}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const channelRefNo = getUrl.getChannelRefNo().channelRefNo;
-  const saveUrl = `${application + channelRefNo + saveEndPoint}`;
-  let url = baseUrl + saveUrl;
-
-  let payload = generatePayload.createPayload(data, currentStageFields, url, stageSelectorApplicants, 'RESUME');
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    return axios
-      .post(url, payload)
-      .then((response) => {
-        if (response.status === 200) {
-          dispatch(dispatchLoader(false));
-          return Promise.resolve(response);    //After csl integration
-        } else {
-          defaultError();
-        }
-      })
-      .catch((error) => {
-        dispatch(dispatchError(error)); //Commented for local setup
-        return Promise.reject(error);  //Commented for local setup
-      });
-  }
-};
-
-
-/**
- * The method used for Resume flow
- */
-
-export const resumeRequest = (appRef: string | null): any => {
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const endPoint = appRef + `${process.env.REACT_APP_RTOB_RESUME_END_POINT}`;
-  const url = `${baseUrl +
-    process.env.REACT_APP_RTOB_APPLICATION_END_POINT +
-    endPoint
-    }`;
-
-  return async (dispatch: AppDispatch) => {
-    dispatch(dispatchLoader(true));
-    return await axios.get(url)
-      .then((response: any) => {
-        if (response.data) {
-          dispatch(dispatchLoader(false));
-          dispatch(urlParamAction.getAuthorize({ channelRefNo: response.data.application.channel_reference }));
-          return Promise.resolve(response.data);
-        }
-      })
-      .catch((error) => {
-        dispatch(dispatchError(error)); //Commented for local setup
-        return Promise.reject(error);  //Commented for local setup
-      });
-  };
-};
-
-/**
- * The method used for address search
- */
-
-export const addressSearchRequest = (searchValue: string): any => {
-
-  const isMock = false; // Set to true when using mock data
-  const url = isMock ? `${process.env.REACT_APP_RTOB_BUILDING_ESTATE}` + '/mock-data.xml' : `https://www.als.ogcio.gov.hk/lookup?q=${encodeURIComponent(searchValue)}`;
-
-  return async (dispatch: AppDispatch) => {
-    try {
-      const token = "foobar";
-      const response = await fetch(url, {
-        headers: {
-          "Content-Type": "application/xml; charset=utf-8",
-          "Authorization": `Bearer ${token}`,
-        }
-      });
-      const responseText = await response.text();
-      const parsedData = new DOMParser().parseFromString(responseText, "text/xml");
-      return Promise.resolve(parsedData);
-    } catch (error: any) {
-      // dispatch(dispatchError(error));
-      return Promise.resolve(error);
-    }
-  };
-};
-
-const handleFieldDispatch = (
-  fieldName: string,
-  childData: string | number,
-  dispatch: AppDispatch,
-) => {
-  dispatch(
-    stagesAction.modifyStage({
-      fieldData: {
-        fieldName: fieldName,
-        value: childData,
-      }
-    })
-  );
-};
-
-
-/**
- * The method used to get json data for asia miles
- * @returns
- */
-export const asiaMilesJson = (): any => {
-  console.log("green")
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const endPoint = `${process.env.REACT_APP_RTOB_ASIA_MILES}`;
-  const url = `${baseUrl +
-    endPoint
-    }`;
-  
-  console.log(url, "ur;l")
-
-  return axios.get(url)
-    .then((response) => {
-      console.log("greenup")
-      if (response.status === 200) {
-        console.log("green 1")
-        return Promise.resolve(response);
+      await postRequest(mockData, mockCurrentStageFields, mockCurrentStageId, null)(mockDispatch);
       
-      } else {
-        console.log("error")
-        defaultError();
+      expect(axios.post).toHaveBeenCalled();
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'stages/updateStageId'
+        })
+      );
+    });
+
+    it('should handle AD_3 stage without API call', async () => {
+      await postRequest(mockData, mockCurrentStageFields, CONSTANTS.STAGE_NAMES.AD_3, 'testJourney')(mockDispatch);
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it('should handle API error', async () => {
+      const mockError = new Error('Failed');
+      (axios.post as jest.Mock).mockRejectedValue(mockError);
+      
+      await expect(
+        postRequest(mockData, mockCurrentStageFields, mockCurrentStageId, null)(mockDispatch)
+      ).rejects.toEqual(mockError.response);
+    });
+  });
+
+  describe('lovRequests', () => {
+    const mockRes = {
+      fieldMetaData: {
+        data: {
+          stages: [{
+            fields: [
+              { logical_field_name: 'field1', lov: 'Yes', rwb_category: 'bd-1', component_type: 'Text' },
+              { logical_field_name: 'field2', lov: 'No', rwb_category: 'bd-1' }
+            ]
+          }]
+        }
       }
-    })
+    };
 
-};
+    it('should dispatch LOV requests for fields with lov=Yes', async () => {
+      await lovRequests(mockRes, 'bd-1')(mockDispatch);
+      expect(mockDispatch).toHaveBeenCalledWith(expect.any(Function));
+    });
 
-Please write an test cases using react and jest including branches with 90 percent coverage
+    it('should handle resume flag scenario', async () => {
+      const mockResWithApplicants = {
+        ...mockRes,
+        applicants: [{ field1: 'value1' }]
+      };
+      await lovRequests(mockResWithApplicants, 'bd-1', null, true)(mockDispatch);
+      expect(mockDispatch).toHaveBeenCalledWith(expect.any(Function));
+    });
+  });
+
+  describe('gbaGenerate', () => {
+    it('should make gba generate request', async () => {
+      const mockData = { test: 'data' };
+      const mockResponse = { data: 'success' };
+      (axios.post as jest.Mock).mockResolvedValue(mockResponse);
+      
+      const result = await gbaGenerate(mockData)(mockDispatch);
+      expect(result).toEqual(mockResponse.data);
+      expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'loader/getState'
+      }));
+    });
+  });
+
+  describe('ibankEncrypt', () => {
+    const mockUserInput = {
+      applicants: [{
+        password_a_1: 'test123',
+        reconfirm_password: 'test123'
+      }]
+    };
+
+    it('should handle successful encryption', async () => {
+      (axios.post as jest.Mock).mockResolvedValue({ data: ibankEncryptMock });
+      
+      const result = await ibankEncrypt(mockUserInput)(mockDispatch);
+      expect(result).toBeDefined();
+      expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'stages/modifyStage'
+      }));
+    });
+
+    it('should handle encryption error', async () => {
+      (axios.post as jest.Mock).mockRejectedValue({ data: ibankEncryptMock });
+      
+      const result = await ibankEncrypt(mockUserInput)(mockDispatch);
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('aofDownload', () => {
+    it('should download AOF document', async () => {
+      const mockBlob = new Blob(['test'], { type: 'application/pdf' });
+      (axios.get as jest.Mock).mockResolvedValue({ 
+        status: 200,
+        data: mockBlob 
+      });
+      
+      await aofDownload()(mockDispatch);
+      expect(axios.get).toHaveBeenCalled();
+    });
+  });
+
+  describe('checkProductDetails', () => {
+    it('should return true for CA product', () => {
+      const products = [{ product_category: 'CA' }];
+      expect(checkProductDetails(products)).toBe(true);
+    });
+
+    it('should return false for CC product', () => {
+      const products = [{ product_category: 'CC' }];
+      expect(checkProductDetails(products)).toBe(false);
+    });
+
+    it('should handle multiple products', () => {
+      const products = [
+        { product_category: 'CA' },
+        { product_category: 'CC' }
+      ];
+      expect(checkProductDetails(products)).toBe(true);
+    });
+  });
+
+  describe('asiaMilesJson', () => {
+    it('should fetch Asia Miles data', async () => {
+      const mockResponse = { status: 200, data: {} };
+      (axios.get as jest.Mock).mockResolvedValue(mockResponse);
+      
+      const result = await asiaMilesJson();
+      expect(result).toEqual(mockResponse);
+    });
+  });
+
+  describe('resumeRequest', () => {
+    it('should fetch resume data', async () => {
+      const mockResponse = { 
+        status: 200, 
+        data: { 
+          application: { 
+            channel_reference: 'test123' 
+          } 
+        } 
+      };
+      (axios.get as jest.Mock).mockResolvedValue(mockResponse);
+      
+      await resumeRequest('app123')(mockDispatch);
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'urlParam/getAuthorize'
+        })
+      );
+    });
+  });
+
+  describe('addressSearchRequest', () => {
+    it('should fetch address data', async () => {
+      global.fetch = jest.fn(() =>
+        Promise.resolve({
+          text: () => Promise.resolve('<test>mock</test>'),
+          headers: new Headers(),
+          ok: true,
+          redirected: false,
+          status: 200,
+          statusText: 'OK',
+          type: 'basic',
+          url: ''
+        })
+      ) as jest.Mock;
+      
+      const result = await addressSearchRequest('test query')(mockDispatch);
+      expect(result).toBeDefined();
+    });
+  });
+});
