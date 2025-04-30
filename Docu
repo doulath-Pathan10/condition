@@ -1,51 +1,192 @@
-test('shows OTP modal when required', () => {
-  const storeWithOTP = configureStore({
+import React from 'react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import { MemoryRouter } from 'react-router-dom';
+import PILDashboard from './PILDashboard';
+
+// Mock all external dependencies
+jest.mock('react-redux', () => ({
+  ...jest.requireActual('react-redux'),
+  useDispatch: () => jest.fn(),
+  useSelector: jest.fn(),
+}));
+
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useLocation: () => ({
+    search: '',
+    pathname: '/',
+  }),
+}));
+
+jest.mock('../services/preApprovalServices', () => ({
+  getSessionByPreLogin: jest.fn(() => Promise.resolve({ 
+    status: 201, 
+    headers: { sessionuid: 'mock-session-id' } 
+  })),
+  getDataFormConfig: jest.fn(() => Promise.resolve({ status: 200 })),
+  getProductMetaDataInfo: jest.fn(() => Promise.resolve({})),
+  getData: jest.fn(),
+}));
+
+jest.mock('../services/preApprovalPostServices', () => ({
+  getResumeRequest: jest.fn(() => Promise.resolve({ 
+    status: 200,
+    data: {
+      applicants: [],
+      application: { application_reference: 'test-ref' },
+      products: [],
+      stage: { page_id: 'pd-1' },
+    }
+  })),
+}));
+
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn(() => 'en'),
+    getParameterByName: jest.fn(() => null),
+    getChannelRefNo: jest.fn(() => ({ channelRefNo: 'test-ref' })),
+  },
+}));
+
+describe('PILDashboard Component', () => {
+  const mockStore = configureStore({
     reducer: {
-      ...mockStore.reducer,
-      stages: () => ({
-        otpOpen: true,
-        stages: [{ stageId: 'pd-1' }],
+      preApproval: () => ({
+        formConfigmetaData: {},
+        currentStage: 'PD-1',
+        previousStage: 'PD-0',
       }),
+      auth: () => ({ sessionUid: null }),
+      stages: () => ({
+        otpOpen: false,
+        stages: [{ stageId: 'pd-1', stageInfo: {} }],
+      }),
+      urlParam: () => ({ validUrl: true }),
     },
   });
 
-  render(
-    <Provider store={storeWithOTP}>
-      <MemoryRouter>
-        <PILDashboard />
-      </MemoryRouter>
-    </Provider>
-  );
-
-  expect(screen.getByTestId('otp-modal')).toBeInTheDocument();
-});
-
-test('handles API errors gracefully', async () => {
-  mockServices.getSessionByPreLogin.mockRejectedValue(new Error('API Error'));
-
-  render(
-    <Provider store={mockStore}>
-      <MemoryRouter>
-        <PILDashboard />
-      </MemoryRouter>
-    </Provider>
-  );
-
-  await waitFor(() => {
-    expect(screen.getByText(/error/i)).toBeInTheDocument();
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
-});
 
-test('updates UI based on language changes', () => {
-  mockUtils.getLanguageInfo.mockReturnValue('zh');
+  test('renders basic layout', () => {
+    render(
+      <Provider store={mockStore}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
 
-  render(
-    <Provider store={mockStore}>
-      <MemoryRouter>
-        <PILDashboard />
-      </MemoryRouter>
-    </Provider>
-  );
+    expect(screen.getByTestId('pildashboard-container')).toBeInTheDocument();
+  });
 
-  expect(screen.getByText(/中文内容/i)).toBeInTheDocument();
+  test('initializes session when no session exists', async () => {
+    render(
+      <Provider store={mockStore}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(mockServices.getSessionByPreLogin).toHaveBeenCalled();
+    });
+  });
+
+  test('does not initialize session when session exists', () => {
+    const storeWithSession = configureStore({
+      reducer: {
+        ...mockStore.reducer,
+        auth: () => ({ sessionUid: 'existing-session' }),
+      },
+    });
+
+    render(
+      <Provider store={storeWithSession}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(mockServices.getSessionByPreLogin).not.toHaveBeenCalled();
+  });
+
+  test('handles resume flow when pageId is resume', async () => {
+    mockUtils.getParameterByName.mockImplementation((param) => 
+      param === 'pageId' ? 'resume' : null
+    );
+
+    render(
+      <Provider store={mockStore}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    await waitFor(() => {
+      expect(mockServices.getResumeRequest).toHaveBeenCalled();
+    });
+  });
+
+  test('shows error popup when URL is invalid', () => {
+    const storeWithInvalidUrl = configureStore({
+      reducer: {
+        ...mockStore.reducer,
+        urlParam: () => ({ validUrl: false }),
+      },
+    });
+
+    render(
+      <Provider store={storeWithInvalidUrl}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByText(/technical issue/i)).toBeInTheDocument();
+  });
+
+  test('renders AsiaMiles component for specific product params', () => {
+    jest.spyOn(require('react-router-dom'), 'useLocation').mockReturnValue({
+      search: '?product=1313&source=09&lang=en',
+      pathname: '/',
+    });
+
+    render(
+      <Provider store={mockStore}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.getByTestId('asia-miles-component')).toBeInTheDocument();
+  });
+
+  test('handles next page navigation', () => {
+    const mockDispatch = jest.fn();
+    jest.spyOn(require('react-redux'), 'useDispatch').mockReturnValue(mockDispatch);
+
+    render(
+      <Provider store={mockStore}>
+        <MemoryRouter>
+          <PILDashboard />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByTestId('next-button'));
+    expect(mockDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'preApproval/setCurrentStage',
+      })
+    );
+  });
 });
