@@ -190,3 +190,54 @@ describe('PILDashboard Component', () => {
     );
   });
 });
+test('shows OTP modal when required', () => {
+  const storeWithOTP = configureStore({
+    reducer: {
+      ...mockStore.reducer,
+      stages: () => ({
+        otpOpen: true,
+        stages: [{ stageId: 'pd-1' }],
+      }),
+    },
+  });
+
+  render(
+    <Provider store={storeWithOTP}>
+      <MemoryRouter>
+        <PILDashboard />
+      </MemoryRouter>
+    </Provider>
+  );
+
+  expect(screen.getByTestId('otp-modal')).toBeInTheDocument();
+});
+
+test('handles API errors gracefully', async () => {
+  mockServices.getSessionByPreLogin.mockRejectedValue(new Error('API Error'));
+
+  render(
+    <Provider store={mockStore}>
+      <MemoryRouter>
+        <PILDashboard />
+      </MemoryRouter>
+    </Provider>
+  );
+
+  await waitFor(() => {
+    expect(screen.getByText(/error/i)).toBeInTheDocument();
+  });
+});
+
+test('updates UI based on language changes', () => {
+  mockUtils.getLanguageInfo.mockReturnValue('zh');
+
+  render(
+    <Provider store={mockStore}>
+      <MemoryRouter>
+        <PILDashboard />
+      </MemoryRouter>
+    </Provider>
+  );
+
+  expect(screen.getByText(/中文内容/i)).toBeInTheDocument();
+});
