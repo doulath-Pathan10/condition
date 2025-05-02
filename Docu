@@ -1,786 +1,270 @@
-import { store } from "../../../utils/store/store";
-import PreApprovalUtil from "./preApprovalUtils";
-import { dispatchError, dispatchLoader } from "../../../services/common-service";
-import { adpayload } from "./payload";
-import { CONSTANTS } from "../../../utils/common/constants";
-import axios from "axios";
-import { StoreModel } from "../../../utils/model/common-model";
-import { useSelector } from "react-redux";
-import { getUrl } from "../../../utils/common/change.utils";
-import { getData } from "./preApprovalServices";
-import { stagesAction } from "../../../utils/store/stages-slice";
-export type AppDispatch = typeof store.dispatch;
+import MockAdapter from 'axios-mock-adapter';
+import axios from 'axios';
+import {
+  postSaveData,
+  postPeserveData,
+  getResumeRequest,
+  postDocSaveData,
+  getCASADetails,
+  postBasicData,
+  postAditionalData,
+  postDocuments,
+  postQRCodeZOLO,
+  postZOLOCheck,
+  postZolozAcknowledge,
+  postFinalAcknowledge,
+  postPdfPreview,
+  postTMXUserSession,
+  postFulFilmentData
+} from './services'; // Adjust the path to your services file
+import { store } from './__mocks__/store';
+import PreApprovalUtil from './__mocks__/preApprovalUtils';
+import { dispatchError } from './__mocks__/common-service';
+import { getUrl } from './__mocks__/change.utils';
+import { getData } from './__mocks__/preApprovalServices';
 
-export const postSaveData = (): any => {
-  const stageSelector = JSON.parse(JSON.stringify(store.getState()?.stages?.stages?.[0]));
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const channelRefNo = stageSelector?.stageInfo?.application?.channel_reference;
-  const next_page_values = JSON.parse(
-    JSON.stringify(store.getState().preApproval.nextStages)
-  );
-  const saveUrl = `${application + channelRefNo}`;
-  let url = baseUrl + saveUrl;
-  let currentStageData = JSON.parse(JSON.stringify(PreApprovalUtil.getFormConfigPayload() ||{}));
-  if(stageSelector.stageId === CONSTANTS.STAGE_NAMES.FFD_1 || stageSelector.stageId === CONSTANTS.STAGE_NAMES.FFD_2) {
-    currentStageData["applicant_documents"]= stageSelector.stageInfo.applicant_documents
-  }
-  currentStageData.stage['next_page_values']=next_page_values;
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
-    },
-    body: JSON.stringify(currentStageData),
-  };
-  const productCategory = store.getState().stages.stages[0].stageInfo.products[0].product_category;
-  if(productCategory === "CC") {
-    currentStageData.stage.stage_id = "AD";
-    currentStageData.applicants['password_a_1']= '';
-  }
+describe('API Service Functions', () => {
+  let mockAxios;
 
-  return axios
-    ?.post(url, JSON.stringify(currentStageData), { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      //console.log("clientResponse", error);
-      dispatchError(error);
-      return Promise.resolve(error);
-    });
-};
-
-export const postPeserveData = (): any => {
-  const documentsData = JSON.parse(JSON.stringify(store.getState().stages.dynamicDocumentsUpload.documentData));
-  const transactionData = JSON.parse(JSON.stringify(store.getState().stages.dynamicDocumentsUpload.HKIDQRCodeData));
-  const stageSelector = JSON.parse(JSON.stringify(store.getState()?.stages?.stages?.[0]));
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const channelRefNo = stageSelector?.stageInfo?.application?.channel_reference;
-  const next_page_values = JSON.parse(
-    JSON.stringify(store.getState()?.preApproval?.nextStages)
-  );
-  const saveUrl = `${application + channelRefNo}`;
-  let url = baseUrl + saveUrl;
-  let currentStageData = JSON.parse(JSON.stringify(PreApprovalUtil.getFormConfigPayload() ||{}));
-  if(stageSelector.stageId === "doc-3") {
-    if(documentsData && documentsData.length > 0 && documentsData[0].docId) {
-      currentStageData.applicants["ekycdocId"] = documentsData[0].docId;
-      currentStageData.applicants["ekycdocumentName"] = documentsData[0].documentName;
-    }
-    if(transactionData && transactionData.transactionId && transactionData.result) {
-      currentStageData.applicants["zoloz_transaction_id"] = transactionData.transactionId;
-      currentStageData.applicants["zoloz_value"] = transactionData.result.resultMessage;
-    }
-    currentStageData.applicants["address_match_flag"] = "N";
-    currentStageData.applicants["adsuccess"] = "true";
-    currentStageData.applicants["disb_flag"] = "Success_NoATM";
-    currentStageData.applicants["client_pl_consent4_a_1"] = null;
-    currentStageData.application["alipay_ref_number"] = "";
-    currentStageData.application["application_status"] = "Saved";
-    currentStageData.application["request_id"] = stageSelector.stageInfo.application.request_id;
-    currentStageData.application.version = null;
-    currentStageData.status["status-code"] = "200";
-    currentStageData["preapproved"] = null;
-    currentStageData["service_response"] = null;
-    currentStageData["temp_login_data"] = null;
-    currentStageData["status_data"] = null;
-    delete currentStageData.application.error;
-    delete currentStageData.application.response_action;
-    delete currentStageData.application.response_type;
-    delete currentStageData.customerDetails;
-    delete currentStageData.dedupeList;
-    delete currentStageData.preApprovedData;
-    delete currentStageData.stage.stage_params.authenticate_method;
-    delete currentStageData.stage.stage_params.authentication_required;
-    delete currentStageData.stage.stage_params.cuco_required;
-    delete currentStageData.stage.stage_params.staff_category;
-    currentStageData.products = [{
-      "name": stageSelector.stageInfo.products[0].name,
-      "relation_type_code": stageSelector.stageInfo.products[0].relation_type_code,
-      "insta_account_no": null,
-      "campaign": stageSelector.stageInfo.products[0].campaign,
-      "product_sequence_number": stageSelector.stageInfo.products[0].product_sequence_number,
-      "product_type": stageSelector.stageInfo.products[0].product_type,
-      "product_category": stageSelector.stageInfo.products[0].product_category,
-      "is_joint_allowed": null,
-      "is_supplementary": null,
-      "status": null,
-      "error": null,
-      "acct_details": null,
-      "offer_details": stageSelector.stageInfo.products[0].offer_details,
-      "bundle_name": null,
-      "product_image": null,
-      "company_category": null,
-      "assessment_type": null,
-      "segment": null,
-      "account_number": null,
-      "account_product_code": null,
-      "existing_loan_amount": null,
-      "existing_tenor": null,
-      "existing_loan_EMI": null,
-      "existing_loan_outstanding_amount": null,
-      "existing_loan_outstanding_tenor": null,
-      "disbursementDetails": null,
-      "card_activation_status": null,
-      "offer": null,
-      "handling_fee": null,
-      "product_minimum": null,
-      "first_Repayment_Date": null
-    }];
-    currentStageData.applicant_documents= [{
-      "document_list": stageSelector.stageInfo.applicant_documents[0].document_list,
-      "applicant_sequence_number": 1,
-      "journey_type": stageSelector.stageInfo.applicant_documents[0].journey_type,
-      "icdd_reference_no_availability": null,
-      "email_id_change": null,
-      "mobile_no_change": null,
-      "last_updated_credit_limit_date_flag": null,
-      "staff_category": null
-    }]
-  }
-  currentStageData.application.is_save_to_pega = "YES";
-  currentStageData.stage['next_page_values']=next_page_values;
-  currentStageData.stage['stage_status'] = "incomplete";
-  currentStageData.stage['page_id'] = stageSelector.stageId;
-  currentStageData.stage['stage_id'] = (stageSelector.stageId.match(/^[a-zA-Z]+/)[0].toUpperCase() === "RP" || stageSelector.stageId.match(/^[a-zA-Z]+/)[0].toUpperCase() === "LD") ? "FFD" : stageSelector.stageId.match(/^[a-zA-Z]+/)[0].toUpperCase();
-  if(stageSelector.stageId == "ad-7") {
-    delete currentStageData.applicants["user_id_a_1"];
-  }
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
-    },
-    body: JSON.stringify(currentStageData),
-  };
-
-  return axios
-    ?.post(url, JSON.stringify(currentStageData), { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      return Promise.reject(error);
-    });
-};
-
-export const getResumeRequest = (appRef: string | null): any => {
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const saveUrl = `${application + appRef}`;
-  const url = baseUrl + saveUrl;
-
-  return axios.get(url)
-      .then((response: any) => {
-        return Promise.resolve(response);
-      })
-      .catch((error) => {
-        dispatchError(error);
-        return Promise.reject(error);  
-      });
-  };
-
-
-export const postDocSaveData = (documentData: any, transactionData: any): any => {
-  const documentsData = JSON.parse(JSON.stringify(store.getState().stages.dynamicDocumentsUpload.documentData));
-  const stageSelector = JSON.parse(
-    JSON.stringify(store.getState().stages.stages[0])
-  );
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const channelRefNo = stageSelector.stageInfo.application.channel_reference;
-  const saveUrl = `${application + channelRefNo}`;
-  let url = baseUrl + saveUrl;
-  let currentStageData = JSON.parse(JSON.stringify(PreApprovalUtil.getFormConfigPayload()));
-  if(documentsData && documentsData.length > 0 && documentsData[0].docId) {
-    currentStageData.applicants["ekycdocId"] = documentsData[0].docId;
-    currentStageData.applicants["ekycdocumentName"] = documentsData[0].documentName;
-  }
-  if(transactionData && transactionData.transactionId && transactionData.result) {
-    currentStageData.applicants["zoloz_transaction_id"] = transactionData.transactionId;
-    currentStageData.applicants["zoloz_value"] = transactionData.result.resultMessage;
-  }
-  currentStageData.applicants["address_match_flag"] = "N";
-  currentStageData.applicants["adsuccess"] = "true";
-  currentStageData.applicants["disb_flag"] = "Success_NoATM";
-  currentStageData.applicants["client_pl_consent4_a_1"] = null;
-  currentStageData.application["alipay_ref_number"] = "";
-  currentStageData.application["application_status"] = "Saved";
-  currentStageData.application["request_id"] = stageSelector.stageInfo.application.request_id;
-  currentStageData.application.version = null;
-  currentStageData.status["status-code"] = "200";
-  currentStageData["preapproved"] = null;
-  currentStageData["service_response"] = null;
-  currentStageData["temp_login_data"] = null;
-  currentStageData["status_data"] = null;
-  delete currentStageData.application.error;
-  delete currentStageData.application.response_action;
-  delete currentStageData.application.response_type;
-  delete currentStageData.customerDetails;
-  delete currentStageData.dedupeList;
-  delete currentStageData.preApprovedData;
-  delete currentStageData.stage.stage_params.authenticate_method;
-  delete currentStageData.stage.stage_params.authentication_required;
-  delete currentStageData.stage.stage_params.cuco_required;
-  delete currentStageData.stage.stage_params.staff_category;
-  currentStageData.products = [{
-    "name": stageSelector.stageInfo.products[0].name,
-    "relation_type_code": stageSelector.stageInfo.products[0].relation_type_code,
-    "insta_account_no": null,
-    "campaign": stageSelector.stageInfo.products[0].campaign,
-    "product_sequence_number": stageSelector.stageInfo.products[0].product_sequence_number,
-    "product_type": stageSelector.stageInfo.products[0].product_type,
-    "product_category": stageSelector.stageInfo.products[0].product_category,
-    "is_joint_allowed": null,
-    "is_supplementary": null,
-    "status": null,
-    "error": null,
-    "acct_details": null,
-    "offer_details": stageSelector.stageInfo.products[0].offer_details,
-    "bundle_name": null,
-    "product_image": null,
-    "company_category": null,
-    "assessment_type": null,
-    "segment": null,
-    "account_number": null,
-    "account_product_code": null,
-    "existing_loan_amount": null,
-    "existing_tenor": null,
-    "existing_loan_EMI": null,
-    "existing_loan_outstanding_amount": null,
-    "existing_loan_outstanding_tenor": null,
-    "disbursementDetails": null,
-    "card_activation_status": null,
-    "offer": null,
-    "handling_fee": null,
-    "product_minimum": null,
-    "first_Repayment_Date": null
-  }];
-  currentStageData.applicant_documents= [{
-    "document_list": stageSelector.stageInfo.applicant_documents[0].document_list,
-    "applicant_sequence_number": 1,
-    "journey_type": stageSelector.stageInfo.applicant_documents[0].journey_type,
-    "icdd_reference_no_availability": null,
-    "email_id_change": null,
-    "mobile_no_change": null,
-    "last_updated_credit_limit_date_flag": null,
-    "staff_category": null
-  }]
-
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
-    },
-    body: JSON.stringify(currentStageData),
-  };
-
-
-  return axios
-    .post(url, JSON.stringify(currentStageData), { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      return Promise.resolve(error);
-    });
-};
-export const getCASADetails = (): any => {
-  const randomNumber = Math.random();
-  const url = `${process.env.REACT_APP_CASA_SEGMENT}?rnd=${randomNumber}`;
-   getData(url).then(async (res: any) => {
-    return await Promise.resolve(res);
-  })
-}
-
-export const postBasicData = (): any => {
-  const stageSelector = JSON.parse(
-    JSON.stringify(store.getState().stages.stages[0])
-  );
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const channelRefNo = stageSelector.stageInfo.application.channel_reference;
-  const basicData = `${process.env.REACT_APP_RTOB_BASIC_DATA_END_POINT}`;
-  const saveUrl = `${application + channelRefNo}`;
-  var url = baseUrl + saveUrl + basicData;
-  var currentStageData = JSON.parse(JSON.stringify(PreApprovalUtil.getFormConfigPayload()));
-  const productCategory = store.getState().stages.stages[0].stageInfo.products[0].product_category;
-  const product_type = store.getState().stages.stages[0].stageInfo.products[0].product_type;
-  const applicationJourney = store.getState().stages.stages[0].stageInfo.applicant_documents[0].journey_type;
-  if (productCategory === "CC") {
-    currentStageData.applicants["affiliation_a_1"] = getUrl.getParameterByName("affiliation");
-    currentStageData.applicants["card_type_a_1"] = getUrl.getParameterByName("cardType");
-    currentStageData.applicants["premium_a_1"] = getUrl.getParameterByName("premium");
-    currentStageData.applicants['preimumMGM_resume_a_1'] = getUrl.getParameterByName("campaign") + "undefined" + getUrl.getParameterByName("premium");
-  }
-  if(applicationJourney === "ETC") {
-    currentStageData.client["journey"] = "prelogin_etc_or_etp";
-  }
-
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
-    },
-    body: JSON.stringify(currentStageData),
-  };
-
-
-  return axios
-    .post(url, JSON.stringify(currentStageData), { headers: options.headers })
-    .then((response: any) => {
-      return Promise.resolve(response);
-    })
-    .catch((error: any) => {
-      //console.log("clientResponse", error);
-      return Promise.resolve(error);
-    });
-};
-
-export const postAditionalData = (): any => {
-  const stageSelector = JSON.parse(
-    JSON.stringify(store.getState().stages.stages[0])
-  );
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const additionalData = `${process.env.REACT_APP_RTOB_ADDITIONAL_DATA_END_POINT}`;
-  const channelRefNo = stageSelector.stageInfo.application.channel_reference;
-  const saveUrl = `${application + channelRefNo}`;
-  var url = baseUrl + saveUrl + additionalData; 
-  var currentStageData= JSON.parse(JSON.stringify(PreApprovalUtil.getADFormConfigPayload() || {}));
- 
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelRefNo),
-    },
-    body: JSON.stringify(currentStageData),
-  };
-
-
-  return axios
-    .post(url, JSON.stringify(currentStageData), { headers: options.headers })
-    .then((response: any) => {
-      return Promise.resolve(response);
-    })
-    .catch((error: any) => {
-      dispatchError(error);
-      //console.log("clientResponse", error);
-      return Promise.resolve(error);
-    });
-};
-
-export const postDocuments = (channelReference: any, file: any): any => {
-  const imageOrder = JSON.parse(JSON.stringify(store.getState().preApproval.incomeProofDocumentUpload));
-  
-  const documentJson: any = {
-    origin: "front-line-supporting-document",
-    documentCategoryCode: "R0005",
-    documentTypeCode: "A023",
-    applicantId: 1,
-    imageOrder: imageOrder?.length + 1,
-    period: 0,
-    isWatermarkRequired: "Y",
-    documentOptionSequence: "undefined",
-  };
-
-
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const endPoint = `${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-
-  const url = baseUrl + application + channelReference + endPoint;
-
-
-  let data = new FormData();
-  data.append("file", file);
-  data.append("documentJson", JSON.stringify(documentJson));
-
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "multipart/form-data",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
-    },
-    body: JSON.stringify(data),
-  };
-const docaxios = axios.create({
-    headers: options.headers,
+  beforeEach(() => {
+    mockAxios = new MockAdapter(axios);
+    jest.clearAllMocks();
   });
 
-   return docaxios
-   .post(url, data, options)
-   .then((response: any) => {
-          return Promise.resolve(response);
-        })
-        .catch((error: any) => {
-          dispatchError(error);
-          //console.log("clientResponse", error);
-          return Promise.resolve(error);
-        });
+  afterEach(() => {
+    mockAxios.reset();
+  });
 
-  }
+  describe('postSaveData', () => {
+    it('should post data successfully and return response', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
 
-export const postQRCodeZOLO = (channelReference: any, docType: any): any => {
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const endPoint = `${process.env.REACT_APP_RTOB_QRCODE_SMART_HKID_END_POINT}`
+      const response = await postSaveData();
 
-  const url = baseUrl + application + channelReference + endPoint;
-  const payload = {
-    docType: docType,
-    qrCodeFlag: "Y",
-    h5ModeConfig: {
-      completeCallbackUrl: "https://pt.sc.com/onboarding/hk/zolozThankYou.html?scbToken=" + channelReference + "&lang=en",
-      interruptCallbackUrl: "https://pt.sc.com/onboarding/hk/zoloz-error.html?scbToken=" + channelReference + "&lang=en",
-      locale: ""
-    }
-  }
-
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
-    },
-    body: JSON.stringify(payload),
-  };
-
-  return axios
-    .post(url, options.body, { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      //console.log("clientResponse", error);
-      return Promise.resolve(error);
+      expect(response).toEqual(mockResponse);
+      expect(PreApprovalUtil.getFormConfigPayload).toHaveBeenCalled();
+      expect(PreApprovalUtil.getAckMetaData).toHaveBeenCalledWith('12345');
+      expect(mockAxios.history.post[0].headers['Sc-Client-Context']).toBe('mocked-ack-metadata');
     });
-};
 
-export const postZOLOCheck = (channelReference: any, transactionId: any, docType: any): any => {
-  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const endPoint = `${process.env.REACT_APP_RTOB_ZOLO_CHECK_RESULT_END_POINT}`;
+    it('should handle error and dispatch error', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345`;
+      const mockError = { message: 'Network Error' };
+      mockAxios.onPost(url).reply(500, mockError);
 
-  const url = baseUrl + application + channelReference + endPoint;
-  const payload = {
-    transactionId: transactionId,
-    isReturnImage: "Y",
-    first_name_a_1: stageSelector.applicants.first_name_a_1,
-    last_name_a_1: stageSelector.applicants.last_name_a_1,
-    date_of_birth_a_1: stageSelector.applicants.date_of_birth_a_1,
-    HKID_a_1: stageSelector.applicants.HKID_a_1,
-    product_type: stageSelector.applicants.product_type,
-    product_category: stageSelector.applicants.product_category,
-    hkid_type: docType,
-    cos_ref_number: stageSelector.application.cos_ref_number
-  }
+      const response = await postSaveData();
 
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
-    },
-    body: JSON.stringify(payload),
-  };
-
-  return axios
-    .post(url, options.body, { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      //console.log("clientResponse", error);
-      return Promise.resolve(error);
+      expect(response).toEqual(mockError);
+      expect(dispatchError).toHaveBeenCalledWith(mockError);
     });
-};
+  });
 
+  describe('postPeserveData', () => {
+    it('should post preserve data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
 
+      const response = await postPeserveData();
 
-
-export const postZolozAcknowledge = (channelReference: any, documentsList?: any): any => {
-  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
-  const channel_reference = stageSelector.application.channel_reference
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const endPoint = `${process.env.REACT_APP_RTOB_ACKNOWLEDGE_END_POINT}`;
-  const documents = `${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}`;
-  const url = baseUrl + application + channel_reference + documents + endPoint;
-  url.replace('";', "");
-  const payload = {
-    applicationRefNo: stageSelector.application.application_reference,
-    documents: documentsList,
-    optionsSelected: [
-      {
-        applicantId: 1,
-        options: [
-          {
-            documentCategoryCode: "R0001",
-            documentTypeCode: "A001",
-            documentOptionSequence: "1"
-          }
-        ]
-      }
-    ],
-    stage: "Zoloz_ACK"
-  }
-
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
-    },
-    body: JSON.stringify(payload),
-  };
-
-  return axios
-    .post(url, options.body, { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      //console.log("clientResponse", error);
-      return Promise.resolve(error);
+      expect(response).toEqual(mockResponse);
+      expect(PreApprovalUtil.getFormConfigPayload).toHaveBeenCalled();
+      expect(mockAxios.history.post[0].data).toContain('"ekycdocId":"DOC123"');
     });
-};
 
-export const postFinalAcknowledge = (channelReference: any): any => {
-  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
-  const docSelector = JSON.parse(JSON.stringify(store.getState().preApproval.incomeProofDocumentUpload || {}));
-  const uploadedDocSelector = JSON.parse(JSON.stringify(store.getState().stages.dynamicDocumentsUpload.uploadedDocuments || {}));
-  let documentsList:any= [];
-  for(let i in uploadedDocSelector) {
-    // delete docSelector[i].file;
-    // delete docSelector[i].filename;
-    // delete docSelector[i].filesize;
-    uploadedDocSelector[i]["documentStatus"]= "Accepted";
-    documentsList.push(uploadedDocSelector[i])
-  }
-  console.log(documentsList);
-  const channel_reference = stageSelector.application.channel_reference
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const endPoint = `${process.env.REACT_APP_RTOB_ACKNOWLEDGE_END_POINT}`
-  const documents = `${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}`
+    it('should handle error and reject promise', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345`;
+      const mockError = { message: 'Network Error' };
+      mockAxios.onPost(url).reply(500, mockError);
 
-  const url = baseUrl + application + channel_reference + documents + endPoint;
-  url.replace('";', "");
-  const payload = {
-    applicationRefNo: stageSelector.application.application_reference,
-    documents: documentsList,
-    optionsSelected: [
-      {
-        applicantId: 1,
-        options: []
-      }
-    ],
-    stage: "Final_ACK"
-  }
-
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
-    },
-    body: JSON.stringify(payload),
-  };
-
-  return axios
-    .post(url, options.body, { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      //console.log("clientResponse", error);
-      return Promise.resolve(error);
+      await expect(postPeserveData()).rejects.toEqual(mockError);
+      expect(dispatchError).toHaveBeenCalledWith(mockError);
     });
-};
+  });
 
-export const postPdfPreview = (channelReference: any): any => {
-  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
-  const stageId = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageId));
-  const channel_reference = stageSelector.application.channel_reference
-  const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_DYNAMIC_DOCUMENT}${channel_reference}${process.env.REACT_APP_RTOB_PDF_PREVIEW}`;
-  url.replace('";', "");
-  const payload = {
-    appInRefNumber: stageSelector.application.application_reference,
-    template_name:  stageId === CONSTANTS.STAGE_NAMES.ACD_4 ? "all_in_one" : stageSelector.products[0].product_category==="CC" && stageId === CONSTANTS.STAGE_NAMES.DOC_3 ? "ekyc_report" : stageSelector.products[0].product_category==="CC" && stageId !== CONSTANTS.STAGE_NAMES.DOC_3 ? "all_in_one" : stageId === CONSTANTS.STAGE_NAMES.LD_1 ? "repayment_schedule" : "ekyc_report",
-    action: "generate",
-    page_id: "HK_ALIPAY_AOF_ENG.thy",
-  };
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
-    },
-    body: JSON.stringify(payload),
-  };
+  describe('getResumeRequest', () => {
+    it('should fetch resume data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}APP123`;
+      const mockResponse = { data: { application: {} } };
+      mockAxios.onGet(url).reply(200, mockResponse);
 
-  return axios
-    .post(url, options.body, { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      return Promise.resolve(error);
+      const response = await getResumeRequest('APP123');
+
+      expect(response).toEqual(mockResponse);
     });
-};
 
-export const postTMXUserSession = (channelReference: any): any => {
+    it('should handle error and reject promise', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}APP123`;
+      const mockError = { message: 'Not Found' };
+      mockAxios.onGet(url).reply(404, mockError);
 
-  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0].stageInfo));
-
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application =`${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const endPoint = `${process.env.REACT_APP_RTOB_VERIFY_TMX_USER_SESSION}` 
-
-  const url = baseUrl + application + channelReference+ endPoint
-    const payload = {
-      session_id_tmx: PreApprovalUtil.generateUUID(),
-      cos_ref_number: stageSelector.application.cos_ref_number,
-    };
- 
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channelReference),
-    },
-    body: JSON.stringify(payload),
-  };
-
-  return axios
-    .post(url, options.body, { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      //console.log("clientResponse", error);
-      return Promise.resolve(error);
+      await expect(getResumeRequest('APP123')).rejects.toEqual(mockError);
+      expect(dispatchError).toHaveBeenCalledWith(mockError);
     });
-};
+  });
 
-export const postFulFilmentData = (payload: any): any => {
+  describe('postDocSaveData', () => {
+    it('should post document data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
 
-  const stageSelector = JSON.parse(JSON.stringify(store.getState().stages.stages[0]));
-  const channel_reference = stageSelector.stageInfo.application.channel_reference
-  const baseUrl = `${process.env.REACT_APP_RTOB_BASE_URL}`;
-  const application = `${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}`;
-  const endPoint = `${process.env.REACT_APP_RTOB_FULFILMENT_DATA}`
+      const response = await postDocSaveData([], { transactionId: 'TX123', result: { resultMessage: 'Success' } });
 
-  const url = baseUrl + application + channel_reference + endPoint
-
-  payload = JSON.parse(JSON.stringify(payload));
-  payload.stage.page_id = stageSelector.stageId;
-  payload.stage.workflow_stage_id = stageSelector.stageId.split("-")[0].toUpperCase();
-  payload.stage.stage_id = stageSelector.stageId.replace("-", "").toUpperCase();
-  payload.stage.stage_status = "incomplete";
-  payload.status_data = null;
-  payload.preapproved = null;
-  payload.stage.stage_params = {
-    "is_dedupe_required": false,
-    "current_applicant": 0,
-    "eb_status": null
-  };
-  payload.temp_login_data = null;
-  payload.service_response = null;
-  payload.application.service_type = stageSelector.stageId.replace("-", "").toUpperCase();
-  payload.application.alipay_ref_number = null;
-  payload.application.ext_acceptance_reference_number = null;
-  payload.application.ext_authentication_reference_number = null;
-  payload.application.stage_wise = null;
-  payload.application.version = null;
-  payload.application.source_system_name = '3';
-  payload.application.page_wise = null;
-  payload["applicant_bureau_details"] = null;
-  payload.applicants = payload.applicants.length > 0 ? payload.applicants[0] : payload.applicants;
-  payload.applicants["repayment_account_bank_code_a_1"]= payload.applicants.oth_bank_name_a_1;
-  payload.applicants["repayment_account_number_a_1"]= payload.applicants.oth_bank_number_a_1;
-  payload.applicants["draw_down_amount_a_1"]= payload.applicants.requested_loan_amount_a_1;
-  payload.applicants["repayment_oth_bank_name_a_1"]= null;
-  payload.applicants["repayment_oth_bank_number_a_1"]= null;
-  payload.applicants["repayment_scb_bank_number_a_1"]= null;
-  payload.applicants["repayment_select_account_a_1"]= null;
-  // payload.applicants["net-disbursement-amount"]= payload.applicants.requested_loan_amount_a_1;
-  payload.client = {
-    "journey": "prelogin_ntc_or_ntp",
-    "auth-type": "manual",
-    "login-type": "prelogin"
-  }
-  delete payload.application.page_status;
-  delete payload.application.is_save_to_pega;
-  delete payload.application.armcode;
-  delete payload.application.arm_code;
-  delete payload.application.journey_type_hk;
-  delete payload.application.is_td_with_casa;
-  delete payload.application.notification_required;
-  delete payload.application.sub_segment;
-  delete payload.application.segment;
-  delete payload.application.closing_id;
-  delete payload.application.error;
-  delete payload.application.response_type;
-  delete payload.application.response_action;
-  delete payload.applicants.client_pl_consent4_a_1;
-  delete payload.customerDetails;
-
-  const options = {
-    method: "POST",
-    url,
-    headers: {
-      "Content-Type": "application/json;charset=UTF-8",
-      "Sc-Client-Context": PreApprovalUtil.getAckMetaData(channel_reference),
-    },
-    body: JSON.stringify(payload),
-  };
-
-  return axios
-    .post(url, options.body, { headers: options.headers })
-    .then((response) => {
-      return Promise.resolve(response);
-    })
-    .catch((error) => {
-      dispatchError(error);
-      //console.log("clientResponse", error);
-      return Promise.resolve(error);
+      expect(response).toEqual(mockResponse);
+      expect(PreApprovalUtil.getFormConfigPayload).toHaveBeenCalled();
     });
-};
+  });
 
+  describe('getCASADetails', () => {
+    it('should fetch CASA details successfully', async () => {
+      const url = `${process.env.REACT_APP_CASA_SEGMENT}?rnd=`;
+      const mockResponse = { data: { details: {} } };
+      getData.mockResolvedValue(mockResponse);
 
+      const response = await getCASADetails();
 
+      expect(response).toEqual(mockResponse);
+      expect(getData).toHaveBeenCalledWith(expect.stringContaining(url));
+    });
+  });
 
-export { getData };
+  describe('postBasicData', () => {
+    it('should post basic data for CC product category', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_BASIC_DATA_END_POINT}`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
 
-Please write an test cases using react and jest
+      const response = await postBasicData();
+
+      expect(response).toEqual(mockResponse);
+      expect(getUrl.getParameterByName).toHaveBeenCalledWith('affiliation');
+      expect(mockAxios.history.post[0].data).toContain('"affiliation_a_1":"AFF123"');
+    });
+  });
+
+  describe('postAditionalData', () => {
+    it('should post additional data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_ADDITIONAL_DATA_END_POINT}`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const response = await postAditionalData();
+
+      expect(response).toEqual(mockResponse);
+      expect(PreApprovalUtil.getADFormConfigPayload).toHaveBeenCalled();
+    });
+  });
+
+  describe('postDocuments', () => {
+    it('should post document file successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const file = new Blob(['file content'], { type: 'image/png' });
+      const response = await postDocuments('12345', file);
+
+      expect(response).toEqual(mockResponse);
+      expect(mockAxios.history.post[0].headers['Content-Type']).toContain('multipart/form-data');
+    });
+  });
+
+  describe('postQRCodeZOLO', () => {
+    it('should post QR code data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_QRCODE_SMART_HKID_END_POINT}`;
+      const mockResponse = { data: { qrCode: 'generated' } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const response = await postQRCodeZOLO('12345', 'HKID');
+
+      expect(response).toEqual(mockResponse);
+      expect(mockAxios.history.post[0].data).toContain('"docType":"HKID"');
+    });
+  });
+
+  describe('postZOLOCheck', () => {
+    it('should post ZOLO check data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_ZOLO_CHECK_RESULT_END_POINT}`;
+      const mockResponse = { data: { result: 'verified' } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const response = await postZOLOCheck('12345', 'TX123', 'HKID');
+
+      expect(response).toEqual(mockResponse);
+      expect(mockAxios.history.post[0].data).toContain('"transactionId":"TX123"');
+    });
+  });
+
+  describe('postZolozAcknowledge', () => {
+    it('should post Zoloz acknowledge data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}${process.env.REACT_APP_RTOB_ACKNOWLEDGE_END_POINT}`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const response = await postZolozAcknowledge('12345', []);
+
+      expect(response).toEqual(mockResponse);
+      expect(mockAxios.history.post[0].data).toContain('"stage":"Zoloz_ACK"');
+    });
+  });
+
+  describe('postFinalAcknowledge', () => {
+    it('should post final acknowledge data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_DOCUMENTS_END_POINT}${process.env.REACT_APP_RTOB_ACKNOWLEDGE_END_POINT}`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const response = await postFinalAcknowledge('12345');
+
+      expect(response).toEqual(mockResponse);
+      expect(mockAxios.history.post[0].data).toContain('"stage":"Final_ACK"');
+    });
+  });
+
+  describe('postPdfPreview', () => {
+    it('should post PDF preview data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_DYNAMIC_DOCUMENT}12345${process.env.REACT_APP_RTOB_PDF_PREVIEW}`;
+      const mockResponse = { data: { pdf: 'generated' } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const response = await postPdfPreview('12345');
+
+      expect(response).toEqual(mockResponse);
+      expect(mockAxios.history.post[0].data).toContain('"action":"generate"');
+    });
+  });
+
+  describe('postTMXUserSession', () => {
+    it('should post TMX user session data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_VERIFY_TMX_USER_SESSION}`;
+      const mockResponse = { data: { session: 'verified' } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const response = await postTMXUserSession('12345');
+
+      expect(response).toEqual(mockResponse);
+      expect(PreApprovalUtil.generateUUID).toHaveBeenCalled();
+    });
+  });
+
+  describe('postFulFilmentData', () => {
+    it('should post fulfillment data successfully', async () => {
+      const url = `${process.env.REACT_APP_RTOB_BASE_URL}${process.env.REACT_APP_RTOB_APPLICATION_END_POINT}12345${process.env.REACT_APP_RTOB_FULFILMENT_DATA}`;
+      const mockResponse = { data: { success: true } };
+      mockAxios.onPost(url).reply(200, mockResponse);
+
+      const payload = {
+        applicants: [{ requested_loan_amount_a_1: 10000, oth_bank_name_a_1: 'Bank', oth_bank_number_a_1: '123456' }],
+        stage: {},
+        application: {}
+      };
+      const response = await postFulFilmentData(payload);
+
+      expect(response).toEqual(mockResponse);
+      expect(mockAxios.history.post[0].data).toContain('"draw_down_amount_a_1":10000');
+    });
+  });
+});
