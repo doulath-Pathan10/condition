@@ -1,220 +1,323 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import { BrowserRouter } from 'react-router-dom';
-import PILDashboard from './PILDashboard'; // Adjust path as needed
-import * as preApprovalServices from '../services/preApprovalServices';
-import * as preApprovalPostServices from '../services/preApprovalPostServices';
-import { CONSTANTS } from '../../../utils/common/constants';
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import validateService from "../../../services/validation-service";
+import { KeyWithAnyModel, LovInputModel, StoreModel } from "../../../utils/model/common-model";
+import { fieldError, fieldIdAppend, getUrl, isFieldUpdate, isFieldValueUpdate } from "../../../utils/common/change.utils";
+import "../phone/phone.scss";
+import errorMsg from "../../../assets/_json/error.json";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
+import { lastAction } from "../../../utils/store/last-accessed-slice";
+import { addressSearchRequest, getLovData } from "../../../services/common-service";
+import { fieldErrorAction } from "../../../utils/store/field-error-slice";
 
-// Mock Redux hooks
-jest.mock('react-redux', () => ({
-  ...jest.requireActual('react-redux'),
-  useDispatch: jest.fn(),
-  useSelector: jest.fn(),
-}));
+export const AddressSearch = (props: KeyWithAnyModel) => {
 
-// Mock useLocation
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useLocation: jest.fn(),
-}));
+  const [lovData, setLovData] = useState<any>([]);
+  const [error, setError] = useState('');
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const fieldErrorSelector = useSelector(
+    (state: StoreModel) => state.fielderror.error
+  );
+  const dispatch = useDispatch();
+  let propsData = props && props.data;
+  const [defaultValue, setDefaultValue] = useState("");
+  const [placeholder, setPlaceHolder] = useState(propsData && props.data.rwb_label_name)
+  const language = getUrl.getLanguageInfo("lang")
+  const regexAlphaNumeric = /^[a-zA-Z0-9 ]+$/;
+  const resregex = /^[A-Za-z\\0-9:().,'+&]+(?: [A-Za-z\\0-9:().,'+&]+)*$/;
+  const regexChinese = /[\u4e00-\u9fa5]/;
+  const userInputSelector = useSelector(
+    (state: StoreModel) => state.stages.userInput
+  );
+  const [suggestedAddresses, setSuggestedAddresses] = useState<any[]>([]);
+  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
+  const resumePage = getUrl.getParameterByName("pageId")
 
-// Mock services
-jest.mock('../services/preApprovalServices', () => ({
-  getSessionByPreLogin: jest.fn(),
-  getData: jest.fn(),
-  getDataFormConfig: jest.fn(),
-  getProductMetaDataInfo: jest.fn(),
-}));
+  useEffect(() => {
+    /*istanbul ignore else*/
+    if (userInputSelector && userInputSelector.applicants[0] && userInputSelector.applicants[0][props.data.logical_field_name]) {
+      const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
+      setDefaultValue(displayValue);
 
-jest.mock('../services/preApprovalPostServices', () => ({
-  getResumeRequest: jest.fn(),
-}));
+    }
+    /*istanbul ignore else*/
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
+      /*istanbul ignore else*/
+      if (stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"]
+      ) {
+        const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
+        setDefaultValue(displayValue);
+      }
+    }
+  }, []);
 
-// Mock window.location
-const mockLocation = {
-  search: '?product=1313&source=09&lang=en',
+  useEffect(() => {
+    /*istanbul ignore else*/
+    if (error === "") {
+      dispatch(ContinueBtnAction.getContinueEnableState(true));
+    } else {
+      dispatch(ContinueBtnAction.getContinueEnableState(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps  
+  }, [error, dispatch])
+
+  const changeHandler = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    setDefaultValue(event.target.value);
+    props.handleCallback(props.data, event.target.value);
+    props.handleFieldDispatch(props.data.logical_field_name, event.target.value);
+    setError('');
+    if ((props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") && event.target.value.length === 0) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      return;
+    }
+    else if (props?.data?.logical_field_name === "res_building_estate_pt" && !(event.target.value)) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateRequired : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateRequired_CN : errorMsg.buildingEstateRequired_HK}`);
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        }));
+      return;
+    }
+    else if(!resregex.test(event.target.value)) {
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        }));
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateSplChar : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateSplChar_CN : errorMsg.buildingEstateSplChar_HK}`);
+      return
+    }
+    else if (event.target.value.length > 2) {
+      const isChinese = regexChinese.test(event.target.value);
+      const isEnglish = regexAlphaNumeric.test(event.target.value);
+      let detectedLanguage = CONSTANTS.LANG_EN;
+      /*istanbul ignore else*/
+      if (isChinese) {
+        detectedLanguage = CONSTANTS.LANG_CN;
+      }
+      /*istanbul ignore else*/
+      if (!isEnglish && !isChinese) {
+        const errorMessage = detectedLanguage === CONSTANTS.LANG_EN
+          ? errorMsg.buildingEstateSplChar
+          : detectedLanguage === CONSTANTS.LANG_CN
+            ? errorMsg.buildingEstateSplChar_CN
+            : errorMsg.buildingEstateSplChar_HK;
+        setError(errorMessage);
+        setError(language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateSplChar : language === CONSTANTS.LANG_CN?errorMsg.buildingEstateSplChar_CN : errorMsg.buildingEstateSplChar_HK)
+        return;
+      }
+      setError("");
+      dispatch(fieldErrorAction.removeToggleFieldError(props.data.logical_field_name));
+      const processAddressSearch = (lang: string) => {
+        dispatch(addressSearchRequest(event.target.value))?.then((res: any) => {
+         
+          const addressLookupResult = res.getElementsByTagName("AddressLookupResult")[0];
+          const suggestedAddress = addressLookupResult?.getElementsByTagName("SuggestedAddress");
+          /*istanbul ignore else*/
+          if (suggestedAddress && suggestedAddress.length > 0) {
+            const estateNamesSet = new Set<string>();
+            const suggestedAddressArray = Array.from(suggestedAddress);
+
+            setSuggestedAddresses(suggestedAddressArray)
+    
+            suggestedAddressArray.forEach((suggestion: any) => {
+              let estateName = '';
+              if (lang === CONSTANTS.LANG_EN) {
+                estateName = suggestion.querySelector('PremisesAddress > EngPremisesAddress > EngEstate > EstateName')?.textContent || '';
+              } else if (lang === CONSTANTS.LANG_CN) {
+                estateName = suggestion.querySelector('PremisesAddress > ChiPremisesAddress > ChiEstate > EstateName')?.textContent || '';
+              } else {
+                estateName = suggestion.querySelector('PremisesAddress > EngPremisesAddress > EngEstate > EstateName')?.textContent || '';
+              }
+              /*istanbul ignore else*/
+
+              if (estateName) {
+                estateNamesSet.add(estateName)
+              }
+            });
+            let newData= Array.from(estateNamesSet)
+            let filteredData: any = newData.filter((estateName: any) => estateName.toLowerCase().includes(event.target.value.toLowerCase()));
+            setLovData(filteredData);
+          }
+        });
+      };
+      if (isChinese) {
+        processAddressSearch(detectedLanguage);
+      } else if (isEnglish) {
+        processAddressSearch(detectedLanguage);
+      }
+    }
+    dispatch(lastAction.getField(fieldName))
+  };
+
+  useEffect(() => {
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0] && (resumeAllowed === "Y" || resumePage === "resume")) {
+      if (props.data.logical_field_name) {
+        var DisplayValue = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"] || "";
+        setDefaultValue(DisplayValue);
+      }
+    }
+  }, [])
+
+  const handleEstateSelection = (selectedEstateName: any) => {
+    const matchedAddress = suggestedAddresses.find((suggestion) => {
+      const estateElement = suggestion as Element;
+      
+      // Handle Estate Name (English & Chinese)
+      const estateNameText = language === CONSTANTS.LANG_CN
+        ? estateElement.querySelector('PremisesAddress > ChiPremisesAddress > ChiEstate > EstateName')?.textContent?.trim() || ''
+        : estateElement.querySelector('PremisesAddress > EngPremisesAddress > EngEstate > EstateName')?.textContent?.trim() || '';
+  
+      return estateNameText === selectedEstateName.trim();
+    }) as Element | undefined;
+  
+    if (!matchedAddress) {
+      return;
+    }
+  
+    // Handle Street Name (English & Chinese)
+    const selectedStreetName = language === CONSTANTS.LANG_CN
+      ? matchedAddress.querySelector('PremisesAddress > ChiPremisesAddress > ChiStreet > StreetName')?.textContent?.trim() || ''
+      : matchedAddress.querySelector('PremisesAddress > EngPremisesAddress > EngStreet > StreetName')?.textContent?.trim() || '';
+
+    // Handle District Name (English & Chinese)
+    const selectedDistrictName = language === CONSTANTS.LANG_CN
+      ? matchedAddress.querySelector('PremisesAddress > ChiPremisesAddress > ChiDistrict > DcDistrict')?.textContent?.trim() || ''
+      : matchedAddress.querySelector('PremisesAddress > EngPremisesAddress > EngDistrict > DcDistrict')?.textContent?.trim() || '';
+  
+    // Handle Region Name (English & Chinese)
+    const selectedRegionName = language === CONSTANTS.LANG_CN
+      ? matchedAddress.querySelector('PremisesAddress > ChiPremisesAddress > Region')?.textContent?.trim() || ''
+      : matchedAddress.querySelector('PremisesAddress > EngPremisesAddress > Region')?.textContent?.trim() || '';
+  
+      if(stageSelector[0].stageId == "bd-1") {
+        props.handleFieldDispatch("res_name_of_Street", selectedStreetName);
+        props.handleFieldDispatch("res_district", selectedDistrictName);
+      
+        const regionCodeMap: Record<string, string> = {
+          HK: "A00",
+          KLN: "A01",
+          NT: "A03"
+        };
+      
+        const regionCode = regionCodeMap[selectedRegionName] || selectedRegionName;
+        props.handleFieldDispatch("res_city", regionCode);
+      } 
+      if(stageSelector[0].stageId == "ad-3") {
+        props.handleFieldDispatch("off_name_of_Street", selectedStreetName);
+        props.handleFieldDispatch("off_district", selectedDistrictName);
+      
+        const regionCodeMap: Record<string, string> = {
+          HK: "A00",
+          KLN: "A01",
+          NT: "A03"
+        };
+      
+        const regionCode = regionCodeMap[selectedRegionName] || selectedRegionName;
+        props.handleFieldDispatch("off_city", regionCode);
+      } 
+  };
+
+  const bindHandler = (fieldName: string, event: any) => {
+    if ((props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") && event.target.value.length === 0) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      return;
+    }
+    if(event.target.value.length > 0 && !resregex.test(event.target.value)) {
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        }));
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateSplChar : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateSplChar_CN : errorMsg.buildingEstateSplChar_HK}`);
+      return
+    }
+    if (event.target.validity.valid) {
+      const fieldValue = event.target.value;
+      dispatch(isFieldUpdate(props, fieldValue, fieldName));
+      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
+      props.handleFieldDispatch(props.data.logical_field_name, event.target.value);
+      setError('');
+      dispatch(fieldErrorAction.removeToggleFieldError(props.data.logical_field_name));
+    }
+    if (!event.target.validity.valid) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.buildingEstateRequired : language === CONSTANTS.LANG_CN ? errorMsg.buildingEstateRequired_CN : errorMsg.buildingEstateRequired_HK}`);
+    }
+  };
+
+  const focusHandler = (fieldName: string, event: React.FocusEvent<HTMLInputElement>) => {
+    dispatch(lastAction.getField(fieldName))
+  }
+  
+  const keyDownvalidations = (fieldName: string, event: any) => {
+    if ((props.data.logical_field_name === 'res_building_estate_pt' || props.data.logical_field_name === 'off_building_estate_pt') && event.target.value === '') {
+      setError(`${language === CONSTANTS.LANG_EN ? props?.data?.rwb_label_name + ' ' + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.required_mandatory_CN + props?.data?.rwb_label_name : errorMsg.required_mandatory_HK + props?.data?.rwb_label_name}*`);
+    }
+  }
+
+  const keyDownHandler = (fieldName: string, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event?.key === 'Tab') {
+      keyDownvalidations(fieldName, event)
+    }
+  }
+
+  const noPlaceholder = props.data.logical_field_name === "email";
+
+  return (
+    <>
+      {propsData &&
+        <div className="text">
+          <label htmlFor={props.data.logical_field_name}>
+            {(defaultValue && !error) && <div className="tick-class"></div>}
+            <span style={(defaultValue && !error)?{marginLeft: "2em"}:{marginLeft:'0'}}> {props.data.rwb_label_name}</span>
+            {props.data.logical_field_name === "email" ? '*' :''}
+          </label>
+          <div>
+            <input
+              type="text"
+              name={props.data.logical_field_name + '_1'}
+              aria-label={props.data.logical_field_name}
+              id={props.data.logical_field_name + '_1'}
+              placeholder={noPlaceholder ? "" : placeholder}
+              value={defaultValue}
+              // minLength={props.data.min_length}
+              maxLength={props.data.length}
+              // pattern={props.data.regex}
+              onChange={changeHandler.bind(this, props.data.logical_field_name)}
+              onBlur={bindHandler.bind(this, props.data.logical_field_name)}
+              onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+              onInput={(e) => handleEstateSelection((e.target as HTMLInputElement).value)}
+              // required={
+              //   (props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") ? true : false
+              // }
+              onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
+              disabled={props.data.editable}
+              className={error ? 'input-error' : 'input-no-error'}
+              autoComplete="off"
+              list={props.data.logical_field_name}
+            />
+            <datalist id={props.data.logical_field_name}>
+              {(lovData.length > 0) &&
+                lovData.map((estateName: any, index: any) => {
+                  return (
+                    <option key={index} value={estateName} />
+                  );
+                })
+              }
+            </datalist>
+          </div>
+          {error && (
+            <div className="error-msg">
+              {error}
+            </div>
+          )}
+        </div>
+      }
+    </>
+  );
 };
-global.window = Object.create(window);
-Object.defineProperty(window, 'location', {
-  value: { search: mockLocation.search },
-  writable: true,
-});
 
-// Create mock Redux store
-const mockStore = configureStore([]);
-const initialState = {
-  preApproval: {
-    formConfigmetaData: {
-      fieldmetadata: {
-        data: {
-          stages: [{ fields: [{ field_set_name: 'Test Title', rwb_label_name: 'Test Notes' }] }],
-        },
-      },
-    },
-    currentStage: 'PD-0',
-  },
-  auth: { sessionUid: '12345' },
-  stages: { otpOpen: false, stages: [{ stageId: 'pd-1', stageInfo: {} }] },
-  urlParam: { validUrl: true },
-};
-const store = mockStore(initialState);
+export default AddressSearch;
 
-describe('PILDashboard Component', () => {
-  let mockDispatch;
 
-  beforeEach(() => {
-    mockDispatch = jest.fn();
-    jest.spyOn(React, 'useDispatch').mockReturnValue(mockDispatch);
-    jest.spyOn(React, 'useSelector').mockImplementation((callback) => callback(initialState));
-    jest.spyOn(require('react-router-dom'), 'useLocation').mockReturnValue({ search: mockLocation.search });
-
-    // Mock service responses
-    preApprovalServices.getSessionByPreLogin.mockResolvedValue({
-      status: 201,
-      headers: { sessionuid: '12345' },
-    });
-    preApprovalServices.getProductMetaDataInfo.mockResolvedValue({ data: { product: 'test' } });
-    preApprovalServices.getDataFormConfig.mockResolvedValue({ status: 200, data: {} });
-    preApprovalPostServices.getResumeRequest.mockResolvedValue({
-      status: 200,
-      data: {
-        applicants: {},
-        application: { application_status: 'SUCCESS', response_type: 'INFO' },
-        products: [{ product_type: '1313' }],
-      },
-    });
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  // Helper to render component with providers
-  const renderComponent = () =>
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <PILDashboard />
-        </BrowserRouter>
-      </Provider>
-    );
-
-  test('renders AsiaMiles component when URL parameters are valid', () => {
-    renderComponent();
-    expect(screen.getByTestId('asia-miles')).toBeInTheDocument(); // Assuming AsiaMiles has a data-testid
-  });
-
-  test('renders PopupModel when URL is invalid', () => {
-    jest.spyOn(React, 'useSelector').mockImplementation((callback) =>
-      callback({ ...initialState, urlParam: { validUrl: false } })
-    );
-    renderComponent();
-    expect(screen.getByTestId('popup-model')).toBeInTheDocument(); // Assuming PopupModel has a data-testid
-  });
-
-  test('displays OTPModel when otpOpen is true and stageId is pd-1', () => {
-    jest.spyOn(React, 'useSelector').mockImplementation((callback) =>
-      callback({
-        ...initialState,
-        stages: { otpOpen: true, stages: [{ stageId: 'pd-1', stageInfo: {} }] },
-      })
-    );
-    renderComponent();
-    expect(screen.getByTestId('otp-model')).toBeInTheDocument(); // Assuming OTPModel has a data-testid
-  });
-
-  test('renders DynamicComponent when sessionUid is present', () => {
-    renderComponent();
-    expect(screen.getByTestId('main-btn')).toBeInTheDocument();
-  });
-
-  test('updates stage and dispatches actions on nextPage call', () => {
-    renderComponent();
-    const nextPageButton = screen.getByTestId('main-btn'); // Assuming DynamicComponent has a button with this test ID
-    fireEvent.click(nextPageButton);
-
-    expect(mockDispatch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'preApproval/setCurrentStage',
-        payload: 'PD-1',
-      })
-    );
-    expect(mockDispatch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'preApproval/setPreviousStage',
-        payload: 'PD-0',
-      })
-    );
-  });
-
-  test('handles resume flow when pageId is resume', async () => {
-    jest.spyOn(require('react-router-dom'), 'useLocation').mockReturnValue({
-      search: '?pageId=resume&appRefNo=123&product=1313&source=09&lang=en',
-    });
-    renderComponent();
-
-    await waitFor(() => {
-      expect(preApprovalPostServices.getResumeRequest).toHaveBeenCalledWith('123');
-      expect(mockDispatch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'urlParam/isResume',
-          payload: true,
-        })
-      );
-    });
-  });
-
-  test('displays Decline modal when responseAction is STOP', async () => {
-    preApprovalPostServices.getResumeRequest.mockResolvedValue({
-      status: 200,
-      data: {
-        applicants: {},
-        application: {
-          application_status: 'SUCCESS',
-          response_type: 'HARD',
-          response_action: 'STOP',
-          error: { application_error: [{ rtobCode: 'A01', error_description: 'Declined' }] },
-        },
-        products: [{ product_type: '1313' }],
-      },
-    });
-    jest.spyOn(require('react-router-dom'), 'useLocation').mockReturnValue({
-      search: '?pageId=resume&appRefNo=123&product=1313&source=09&lang=en',
-    });
-    renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByTestId('alert-model')).toBeInTheDocument(); // Assuming AlertModel has a data-testid
-      expect(screen.getByText(/decline/i)).toBeInTheDocument(); // Adjust based on AlertModel content
-    });
-  });
-
-  test('calls goBack when Decline modal is closed', () => {
-    const mockGoBack = jest.fn();
-    jest.spyOn(window, 'location', 'get').mockReturnValue({
-      ...window.location,
-      href: '',
-    });
-    renderComponent();
-
-    // Simulate decline modal
-    fireEvent.click(screen.getByTestId('alert-model-close')); // Assuming AlertModel has a close button with this test ID
-    expect(window.location.href).toBe(process.env.REACT_APP_HOME_PAGE_URL);
-  });
-
-  test('sets correct kcTitle and TnCBannerNotes based on language', () => {
-    renderComponent();
-    expect(screen.getByText(CONSTANTS.kCTitle)).toBeInTheDocument();
-    expect(screen.getByText(CONSTANTS.TNCBannerNotes)).toBeInTheDocument();
-  });
-
-  test('handles scroll behavior and visibility', () => {
-    renderComponent();
-    const dynamicComponent = screen.getByTestId('main-btn');
-    fireEvent.scroll(window, { target: { scrollY: 100 } });
-    expect(dynamicComponent).toHaveAttribute('aria-hidden', 'false'); // Adjust based on actual visibility logic
-  });
-});
+Please write an test cases using react and jest including branches with 100 percent coverage
