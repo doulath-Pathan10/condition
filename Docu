@@ -1,450 +1,220 @@
-import { useEffect, useRef, useState } from "react";
-import { preApprovalAction } from "../store/preApproval-slice";
-import LeftSideBar from "../../dashboard/left-sidebar/left-sidebar";
-import { useDispatch, useSelector } from "react-redux";
-import { StoreModel } from "../../../utils/model/common-model";
-import DynamicComponent from "../dynamicComponent/dynamicComponent";
-import { dispatchLoader, lovRequests } from "../../../services/common-service";
-import {getData, getDataFormConfig, getProductMetaDataInfo, getSessionByPreLogin } from "../services/preApprovalServices";
-import { authAction } from "../../../utils/store/auth-slice";
-import '../styles/styles-hk/common.scss';
-import {  payloadFormConfig } from "../services/payload";
-import { getUrl } from "../../../utils/common/change.utils";
-import OTPModel from "../../../shared/components/otp-model/otp-model";
-import "../../dashboard/dashboard.scss";
-import HeaderRef from "../../../shared/components/header-ref/header-ref";
-import Close from "../../../shared/components/close/close";
-import PopupModel from "../../../shared/components/popup-model/popup-model";
-import Model from "../../../shared/components/model/model";
-import { urlParamAction } from "../../../utils/store/urlparam-slice";
-import { useLocation } from "react-router-dom";
-import { stagesAction } from "../../../utils/store/stages-slice";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { store } from "../../../utils/store/store";
-import { loaderAction } from "../../../utils/store/loader-slice";
-import { errorAction } from "../../../utils/store/error-slice";
-import AsiaMiles from "../commonComponents/asiaMiles/asiaMiles";
-import { getResumeRequest } from "../services/preApprovalPostServices";
-import { lovDescAction } from "../../../utils/store/lov-desc-slice";
-import PreApprovalUtil from "../services/preApprovalUtils";
-import AlertModel from "../alertModal/alert-modal";
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import { BrowserRouter } from 'react-router-dom';
+import PILDashboard from './PILDashboard'; // Adjust path as needed
+import * as preApprovalServices from '../services/preApprovalServices';
+import * as preApprovalPostServices from '../services/preApprovalPostServices';
+import { CONSTANTS } from '../../../utils/common/constants';
 
+// Mock Redux hooks
+jest.mock('react-redux', () => ({
+  ...jest.requireActual('react-redux'),
+  useDispatch: jest.fn(),
+  useSelector: jest.fn(),
+}));
 
-const PILDashboard : React.FC<any> = () => {
-  const language = getUrl.getLanguageInfo("lang");
-	const urlParams = useLocation();
- // const urlParamSelector= useSelector((state: StoreModel) => state.urlParam);
-  const [kcTitle, setKcTitle] = useState("");
-  const [TnCBannerNotes, setTnCBannerNotes] = useState("");
-  const [stage_Id, setStage_Id] = useState(0);
-	const [urlInvalid, setUrlInvalid] = useState(false);
-  const dispatch = useDispatch();
-  const formConfigmetaData = useSelector((state: StoreModel) => state.preApproval.formConfigmetaData);
-  const currentStage = useSelector((state: StoreModel) => state.preApproval.currentStage);
-  const sessionUid = useSelector((state: StoreModel) => state.auth.sessionUid);
-  const otpShowSelector = useSelector(
-    (state: StoreModel) => state.stages.otpOpen
-  );
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const [isVisible, setIsVisible] = useState(true);
-  const headerHeight = useRef<HTMLInputElement>(null);
-  //Added this for model popup
-  const [modelName, setModelName] = useState("");
-  const [declineModal, setDeclineModal] = useState(false);
-  const [resubmitModal, setResubmitModal] = useState(false);
-  const [alertErrorCode, setAlertErrorCode] = useState("");
-  const [modalMsg, setModalMsg] = useState("");
+// Mock useLocation
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useLocation: jest.fn(),
+}));
 
-   const  nextPage = () => {
-    if (stage_Id > 0) {
-      setKcTitle(formConfigmetaData?.fieldmetadata?.data?.stages[0]?.fields[0]?.field_set_name);
-      setTnCBannerNotes(formConfigmetaData?.fieldmetadata?.data?.stages[0]?.fields[0]?.rwb_label_name);
-    }
+// Mock services
+jest.mock('../services/preApprovalServices', () => ({
+  getSessionByPreLogin: jest.fn(),
+  getData: jest.fn(),
+  getDataFormConfig: jest.fn(),
+  getProductMetaDataInfo: jest.fn(),
+}));
 
-    let stageVal = (Number(currentStage.split('-')[1]) + 1);
-    dispatch(preApprovalAction.setCurrentStage("PD-" + stageVal));
-    dispatch(preApprovalAction.setPreviousStage(currentStage));
-    if (stage_Id + 1 === 1) {
-      setIsVisible(true);
-      setTnCBannerNotes(language === CONSTANTS.LANG_EN ? CONSTANTS.TNCBannerNotes1 : language === CONSTANTS.LANG_CN?CONSTANTS.TNCBannerNotes1_CN : CONSTANTS.TNCBannerNotes1_HK)
-    }
-    setStage_Id(stage_Id + 1);
-  };
+jest.mock('../services/preApprovalPostServices', () => ({
+  getResumeRequest: jest.fn(),
+}));
 
-  useEffect(() => {
-     {/* ?asiamiles.html?product=1313&source=09&lang=en */}
-    // if(window.location.search !== `?product=1313&source=09&lang=${language}`) {
-    if(window.location.search !== `?product=1313&source=09&lang=en` && window.location.search !== `?product=1313&source=09&lang=zh`) {
-      dispatch(urlParamAction.getUrlParameter(urlParams));
-      dispatch(dispatchLoader(true));
-      if (getUrl.getParameterByName("auth") !== "resume") {
-            dispatch(
-                stagesAction.getStage({
-                  id: CONSTANTS.STAGE_NAMES.DECLARE,
-                //   formConfig: fieldLevelSwipe(fieldSwaped),
-                })
-            );
-        }
-      if (!store.getState().urlParam.validUrl) {
-        dispatch(
-          loaderAction.getState({
-            isFetching: false,
-          })
-        );
-        setUrlInvalid(true);
-      }
-      else if (getUrl.getParameterByName("pageId") === "resume") {
-      	dispatch(urlParamAction.isResume(true));
-      	getSessionByPreLogin().then(async (response: any) => {
-          dispatch(dispatchLoader(true));
-          const appRefNo = getUrl.getParameterByName("appRefNo") ?? "";
-          await getResumeRequest(appRefNo).then(async (response: any) => {
-            if (response.status === 200) {
-              let applicants = response.data.applicants;
-              let application = response.data.application;
-              let stageData = Object.assign({},stageSelector[0]?.stageInfo);
-              for (let [key, value] of Object.entries(response.data)) {
-                if(key === "applicants") {
-                  stageData[key] = [value];
-                }
-                else {
-                  stageData[key] = value;
-                }
-              }
-              for(const [keys, values] of Object.entries(response?.data?.lov_desc || {})) {
-                let newVal = keys.replace("_a_a_1_desc","").replace("_a_1_desc","");
-                let fieldName = newVal + "_a_1"
-                dispatch(
-                  lovDescAction.addLovData({
-                    fieldData: {
-                      fieldName: newVal, 
-                      code_desc: values,
-                      code_value: response.data.applicants[fieldName], 
-                    },
-                  })
-                );
-              }
-              let stageId = response?.data?.stage?.page_id || ""; 
-              let productCatogery = Array.isArray(response?.data?.products) && response?.data?.products.length > 0 ? response?.data?.products[0]?.product_category : null;
-              if(stageId === ""){
-                if(stageId === "" && productCatogery === "PL") {
-                  stageId = "bd-1a"
-                } else if(stageId === "" && productCatogery === "CC") {
-                  stageId = "bd-1"
-                }
-              }
-              let productType:any= Array.isArray(response?.data?.products) && response?.data?.products.length > 0 ? response?.data?.products[0]?.product_type : null;
-              if(productType === '1313'){
-                if(stageId === "ssf-1" && productCatogery === "CC") {
-                  stageId = "bd-1"
-                }
-              }
-              dispatch(stagesAction.updateStageId(stageId));
-              dispatch(urlParamAction.getAuthorize({ "applicationRefNo": response.data.application.application_reference, "channelRefNo": response.data.application.cos_ref_number }));
-              if (response.data.application.application_status === "E01") { 
-                dispatch(
-                  errorAction.getError({
-                    statusCode: "error",
-                    statusText: "no response",
-                  })
-                );
-                return
-              }
-              var responseType = response.data.application.response_type && response.data.application.response_type.toUpperCase();
-              var responseAction = response.data.application.response_action && response.data.application.response_action.toUpperCase();
-              var errorResp = response.data.application.error;
-              var errorCode = (errorResp?.application_error && errorResp.application_error?.length > 0)
-                              ? errorResp.application_error[0]?.rtobCode
-                              : null;
-              if(response.data.applicant_documents !== null && response.data.applicant_documents.length > 0) {
-                dispatch(stagesAction.setJourneyType(response.data.applicant_documents[0].journey_type));
-              }
-              var errorResp = response.data.application.error;
-              let statusText = '';
-              let statusCode = '';
-              if (errorResp.application_error?.length > 0 || errorResp.applicant_error?.length > 0 || errorResp.product_error?.length > 0) {
-                if (errorResp.application_error !== null && errorResp.application_error.length > 0 && errorResp.application_error[0].error_description && errorResp.application_error[0]["error_description"] !== null) {
-                  statusText = errorResp.application_error[0]["error_description"]
-                  statusCode = errorResp.application_error[0]["rtobCode"]
-                }
-                if (errorResp.applicant_error !== null && errorResp.applicant_error.length > 0 && errorResp.applicant_error[0].error_description && errorResp.applicant_error[0]["error_description"] !== null) {
-                  statusText = errorResp.applicant_error[0]["error_description"]
-                  statusCode = errorResp.applicant_error[0]["rtobCode"]
-                }
-                if (errorResp.product_error !== null && errorResp.product_error.length > 0 && errorResp.product_error[0].error_description && errorResp.product_error[0]["error_description"] !== null) {
-                  statusText = errorResp.product_error[0]["error_description"]
-                  statusCode = errorResp.product_error[0]["rtobCode"]
-                }
-              }
-              if (responseAction === 'SUCCESS' || responseType === 'INFO' || (responseType === 'SOFT' && responseAction === 'CONTINUE')) {
-                let formStageData = JSON.parse(JSON.stringify(formConfigmetaData));
-                formStageData.applicants = applicants;
-                dispatch(stagesAction.getStage({
-                  id: stageId,
-                  formConfig: stageData,
-                }))
-                dispatch(preApprovalAction.setFormConfigMetaData(formStageData));
-                dispatch(getDataFormConfig(PreApprovalUtil.getFormConfigPayload())).then((response: any) => {
-                  if (response.status === 200) {
-                    dispatch(dispatchLoader(false));
-                    if(stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2) {
-                      dispatch(preApprovalAction.setCurrentStage("LD"));
-                    }
-                    else if(stageId === CONSTANTS.STAGE_NAMES.DOC_3) {
-                      dispatch(preApprovalAction.setCurrentStage("DC"));
-                    }
-                    else {
-                      dispatch(preApprovalAction.setCurrentStage("PD-3"));
-                    }
-                    if (response.data.application.application_status === "E01") {
-                      dispatch(
-                        errorAction.getError({
-                          statusCode: "error",
-                          statusText: "no response",
-                        })
-                      );
-                    }
-                    if (responseType === 'HARD' && (responseAction === 'STOP' || responseAction === 'RESUBMIT')) {
-                      //'Sorry we are currently unable to process your application.'
-                      if (responseAction === 'STOP') {
-                        if(errorCode==="A55"){
-                          setModelName("DECLINERLS");
-                        }else{
-                          setModelName("DECLINE");
-                          setDeclineModal(true);
-                        }
-                      } else if (responseAction === 'RESUBMIT') {
-                        if(errorCode ==="A20" || errorCode ==="A26"){
-                          setModelName("ErrorCode");
-                          setAlertErrorCode(errorCode);
-                        }else{ 
-                          setModelName("RESUBMIT");
-                          setResubmitModal(true);
-                        }
-                      }
-                    }
-                    if (responseType === 'HARD' && responseAction === 'CORRECT RESUBMIT') {
-                      //'Sorry we are currently unable to process your application.'
-                      setModelName("RESUBMIT");
-                      setResubmitModal(true);
-                    }
-                  }
-                })
-                if(response.data.products[0].product_type === "1313") {
-                  const randomNumber = Math.random();
-                  const url = `${process.env.REACT_APP_CASA_SEGMENT}?rnd=${randomNumber}`;
-                  getData(url).then(async (res: any) => {
-                    dispatch(stagesAction.updateCasa(res.data))
-                  })
-                }
-              }
-              if (responseType === 'HARD' && (responseAction === 'STOP' || responseAction === 'RESUBMIT')) {
-                //'Sorry we are currently unable to process your application.'
-                if (responseAction === 'STOP') {
-                  if(errorCode==="A55"){
-                    setModelName("DECLINERLS");
-                  }else{
-                    setModelName("DECLINE");
-                    setDeclineModal(true);
-                  }
-                }
-                else if (responseAction === 'RESUBMIT') {
-                  if(errorCode ==="A20" || errorCode ==="A26"){
-                    setModelName("ErrorCode");
-                    setAlertErrorCode(errorCode);
-                  }else{
-                    dispatch(dispatchLoader(false));
-                    setModelName("RESUBMIT");
-                    setResubmitModal(true);
-                    if (errorResp.application_error.length > 0 || errorResp.applicant_error.length > 0 || errorResp.product_error.length > 0) {
-                      setModalMsg(errorResp.application_error[0]["error_description"] || errorResp.applicant_error[0]["error_description"] || errorResp.product_error[0]["error_description"])
-                    }
-                  }
-                }
-              }
-              if (responseType === 'HARD' && responseAction === 'CORRECT RESUBMIT') {
-                //'Sorry we are currently unable to process your application.'
-                setModelName("Resubmit");
-              }
-              if(errorCode==='A02' || errorCode==='A03' ){
-                setModelName("ErrorCode");
-                setAlertErrorCode(errorCode);
-              }
-              if(errorCode == 'CSL-REG-104') {
-                dispatch(dispatchLoader(false));
-                setModelName("ErrorCode");
-                setAlertErrorCode(errorCode);
-              }
-              if(errorCode == 'CSL-REG-203') {
-                dispatch(dispatchLoader(false));
-                setModelName("RESUBMIT");
-                setResubmitModal(true);
-                  if (errorResp.application_error.length > 0 || errorResp.applicant_error.length > 0 || errorResp.product_error.length > 0) {
-                    setModalMsg(errorResp.application_error[0]["error_description"] || errorResp.applicant_error[0]["error_description"] || errorResp.product_error[0]["error_description"])
-                  }
-              }
-            }
-            else{
-              dispatch(
-                errorAction.getError({
-                  statusCode: "error",
-                  statusText: "no response",
-                })
-              );
-            }
-          })
-      	});
-      }
-      else {
-        if (!sessionUid) {
-          getSessionByPreLogin().then(async (res: any) => {
-            if(res.status === 201) {
-              var sessionUid = res.headers["sessionuid"]
-              await dispatch(getProductMetaDataInfo(urlParams)).then(async (res:any)=> {
-                let payload= payloadFormConfig;
-                payload.products= res;
-                dispatch(urlParamAction.productDetails(res));
-                await dispatch(getDataFormConfig(payload))
-                dispatch(authAction.getSession({ sessionuid:sessionUid }));
-                // dispatch(dispatchLoader(false));
-              }) 
-            }
-            else {
-              if (res && res.response) {
-                dispatch(
-                  errorAction.getError({
-                    statusCode: res.response.status,
-                    statusText: res.response.statusText,
-                  })
-                );
-              }
-              else {
-                dispatch(
-                  errorAction.getError({
-                    statusCode: "error",
-                    statusText: "no response",
-                  })
-                );
-              }
-            }
-          });
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[]);
+// Mock window.location
+const mockLocation = {
+  search: '?product=1313&source=09&lang=en',
+};
+global.window = Object.create(window);
+Object.defineProperty(window, 'location', {
+  value: { search: mockLocation.search },
+  writable: true,
+});
 
-  useEffect(()=>{
-    setKcTitle(language === CONSTANTS.LANG_EN ? CONSTANTS.kCTitle:language === CONSTANTS.LANG_CN ? CONSTANTS.kCTitle_CN:CONSTANTS.kCTitle_HK);
-    setTnCBannerNotes(language === CONSTANTS.LANG_EN ? CONSTANTS.TNCBannerNotes : language === CONSTANTS.LANG_CN?CONSTANTS.TNCBannerNotes_CN : CONSTANTS.TNCBannerNotes_HK);
-  },[language])
+// Create mock Redux store
+const mockStore = configureStore([]);
+const initialState = {
+  preApproval: {
+    formConfigmetaData: {
+      fieldmetadata: {
+        data: {
+          stages: [{ fields: [{ field_set_name: 'Test Title', rwb_label_name: 'Test Notes' }] }],
+        },
+      },
+    },
+    currentStage: 'PD-0',
+  },
+  auth: { sessionUid: '12345' },
+  stages: { otpOpen: false, stages: [{ stageId: 'pd-1', stageInfo: {} }] },
+  urlParam: { validUrl: true },
+};
+const store = mockStore(initialState);
 
-  const onScrollEnd = (isVisible: any) => {
-    setIsVisible(isVisible);
-  }
-  
-  const applicationRefNo = getUrl?.getChannelRefNo()?.channelRefNo;
+describe('PILDashboard Component', () => {
+  let mockDispatch;
 
-  const goBack = () => {
-    if(modelName==="DECLINE"){
-      setDeclineModal(false)
-    }
-    window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
-  }
-  const reTry = () => {
-    setResubmitModal(false)
-  }
+  beforeEach(() => {
+    mockDispatch = jest.fn();
+    jest.spyOn(React, 'useDispatch').mockReturnValue(mockDispatch);
+    jest.spyOn(React, 'useSelector').mockImplementation((callback) => callback(initialState));
+    jest.spyOn(require('react-router-dom'), 'useLocation').mockReturnValue({ search: mockLocation.search });
 
-  return (
-    <>
-      {(window.location.search === "?product=1313&source=09&lang=en"  || window.location.search === "?product=1313&source=09&lang=zh") ?
-        <AsiaMiles/>
-        :
-        <>
-        
-          {(urlInvalid) && (
-            <PopupModel displayPopup={urlInvalid}>
-              {urlInvalid && <Model name="techincalissue" />}
-            </PopupModel>
-          )}
-          {stageSelector &&
-            stageSelector[0] &&
-            stageSelector[0].stageId === "pd-1" && otpShowSelector && <OTPModel />}
+    // Mock service responses
+    preApprovalServices.getSessionByPreLogin.mockResolvedValue({
+      status: 201,
+      headers: { sessionuid: '12345' },
+    });
+    preApprovalServices.getProductMetaDataInfo.mockResolvedValue({ data: { product: 'test' } });
+    preApprovalServices.getDataFormConfig.mockResolvedValue({ status: 200, data: {} });
+    preApprovalPostServices.getResumeRequest.mockResolvedValue({
+      status: 200,
+      data: {
+        applicants: {},
+        application: { application_status: 'SUCCESS', response_type: 'INFO' },
+        products: [{ product_type: '1313' }],
+      },
+    });
+  });
 
-          {stageSelector && stageSelector.length > 0 && !otpShowSelector && (
-            <div className="app" style={{ overflow: "hidden" }}>
-              <div className="appHeight" style={{ overflowY: (currentStage === 'PD-0' || currentStage === 'PD-1' || currentStage === 'RP' || currentStage === 'DC') ? "hidden" :  currentStage === 'DC' ? "scroll" : "scroll", height: (currentStage === 'PD-0' || currentStage === 'PD-1' || currentStage === 'RP' || currentStage === 'DC' || currentStage === 'LD' || currentStage === 'FFD') ? "100vh" : "calc(100vh - 100px)", overflowX: 'hidden' }}>
-                <div className="app__header">
-                  <div>
-                    <LeftSideBar />
-                  </div>
-                  <div ref={headerHeight}>
-                    {applicationRefNo && (currentStage !== 'DC' || currentStage !== 'LD' || currentStage !== 'FFD') ?
-                      <HeaderRef applicationNo={applicationRefNo} />
-                      :
-                      <div className="header-wrapper-hk">
-                        {(currentStage === 'DC' && currentStage === 'LD' && currentStage === 'FFD') ?
-                          <div className="hk-banner" style={{height: 60}}>
-                          </div>
-                          :
-                          <>
-                            <div className="hk-banner">
-                              <span className="banner-icon"></span>
-                              <div className="hk-banner-set">
-                                <div className="card-title">{kcTitle}</div>
-                                <section className={stage_Id === 2 ? 'pre-approva-note-red' : 'pre-approva-note'}>
-                                  <p>{TnCBannerNotes}</p>
-                                </section>
-                              </div>
-                              {currentStage ==='PD-2' &&
-                                <div className="headerclose-btnH">
-                                  {/* <button type="button" className="headerclose-btn" onClick={headerPopUP}></button> */}
-                                  <Close authType="resume" />
-                                </div>
-                              }
-                            </div>
-                          </>
-                        }
-                      </div>
-                    }
-                  </div>
-                </div>
-                <div className="app__body" style={{padding: (currentStage === 'PD-0' || currentStage === 'PD-1') ? "15px 10px" : currentStage === 'rp' ? "0px 0px 20px" : "0px 20px 20px"}}>
-                  <div className="app__right"style={{height: currentStage === 'DC' ? "450px" : 0}}>
-                    {/* {sessionUid &&  */}
-                      <DynamicComponent role="button" data-testid="main-btn" isVisible={isVisible} onScrollEnd={onScrollEnd} stageId={stage_Id} nextPage={nextPage} />
-                    {/* } */}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      }
-      {modelName && modelName === "DECLINE" && declineModal &&
-        <PopupModel displayPopup={declineModal}>
-          <AlertModel alertType={modelName} goBack={goBack} />
-        </PopupModel>
-      }
-      {modelName && modelName === "DECLINERLS" && 
-        <PopupModel displayPopup={true}>
-          <AlertModel alertType={modelName} goBack={goBack} />
-        </PopupModel>
-      }
-      {modelName && modelName === "RESUBMIT" && resubmitModal &&
-        <PopupModel displayPopup={resubmitModal}>
-          <AlertModel alertType={modelName} goBack={reTry} message={modalMsg} />
-        </PopupModel>
-      }
-      {modelName && modelName ==="ErrorCode" &&
-        <PopupModel displayPopup={true}>
-          <AlertModel alertType={modelName} goBack={goBack} errorCode={alertErrorCode} />
-        </PopupModel>
-      }
-    </>
-  )
-}
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-export default PILDashboard;
+  // Helper to render component with providers
+  const renderComponent = () =>
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <PILDashboard />
+        </BrowserRouter>
+      </Provider>
+    );
 
-Please write an test cases using react and jest
+  test('renders AsiaMiles component when URL parameters are valid', () => {
+    renderComponent();
+    expect(screen.getByTestId('asia-miles')).toBeInTheDocument(); // Assuming AsiaMiles has a data-testid
+  });
+
+  test('renders PopupModel when URL is invalid', () => {
+    jest.spyOn(React, 'useSelector').mockImplementation((callback) =>
+      callback({ ...initialState, urlParam: { validUrl: false } })
+    );
+    renderComponent();
+    expect(screen.getByTestId('popup-model')).toBeInTheDocument(); // Assuming PopupModel has a data-testid
+  });
+
+  test('displays OTPModel when otpOpen is true and stageId is pd-1', () => {
+    jest.spyOn(React, 'useSelector').mockImplementation((callback) =>
+      callback({
+        ...initialState,
+        stages: { otpOpen: true, stages: [{ stageId: 'pd-1', stageInfo: {} }] },
+      })
+    );
+    renderComponent();
+    expect(screen.getByTestId('otp-model')).toBeInTheDocument(); // Assuming OTPModel has a data-testid
+  });
+
+  test('renders DynamicComponent when sessionUid is present', () => {
+    renderComponent();
+    expect(screen.getByTestId('main-btn')).toBeInTheDocument();
+  });
+
+  test('updates stage and dispatches actions on nextPage call', () => {
+    renderComponent();
+    const nextPageButton = screen.getByTestId('main-btn'); // Assuming DynamicComponent has a button with this test ID
+    fireEvent.click(nextPageButton);
+
+    expect(mockDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'preApproval/setCurrentStage',
+        payload: 'PD-1',
+      })
+    );
+    expect(mockDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'preApproval/setPreviousStage',
+        payload: 'PD-0',
+      })
+    );
+  });
+
+  test('handles resume flow when pageId is resume', async () => {
+    jest.spyOn(require('react-router-dom'), 'useLocation').mockReturnValue({
+      search: '?pageId=resume&appRefNo=123&product=1313&source=09&lang=en',
+    });
+    renderComponent();
+
+    await waitFor(() => {
+      expect(preApprovalPostServices.getResumeRequest).toHaveBeenCalledWith('123');
+      expect(mockDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'urlParam/isResume',
+          payload: true,
+        })
+      );
+    });
+  });
+
+  test('displays Decline modal when responseAction is STOP', async () => {
+    preApprovalPostServices.getResumeRequest.mockResolvedValue({
+      status: 200,
+      data: {
+        applicants: {},
+        application: {
+          application_status: 'SUCCESS',
+          response_type: 'HARD',
+          response_action: 'STOP',
+          error: { application_error: [{ rtobCode: 'A01', error_description: 'Declined' }] },
+        },
+        products: [{ product_type: '1313' }],
+      },
+    });
+    jest.spyOn(require('react-router-dom'), 'useLocation').mockReturnValue({
+      search: '?pageId=resume&appRefNo=123&product=1313&source=09&lang=en',
+    });
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-model')).toBeInTheDocument(); // Assuming AlertModel has a data-testid
+      expect(screen.getByText(/decline/i)).toBeInTheDocument(); // Adjust based on AlertModel content
+    });
+  });
+
+  test('calls goBack when Decline modal is closed', () => {
+    const mockGoBack = jest.fn();
+    jest.spyOn(window, 'location', 'get').mockReturnValue({
+      ...window.location,
+      href: '',
+    });
+    renderComponent();
+
+    // Simulate decline modal
+    fireEvent.click(screen.getByTestId('alert-model-close')); // Assuming AlertModel has a close button with this test ID
+    expect(window.location.href).toBe(process.env.REACT_APP_HOME_PAGE_URL);
+  });
+
+  test('sets correct kcTitle and TnCBannerNotes based on language', () => {
+    renderComponent();
+    expect(screen.getByText(CONSTANTS.kCTitle)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.TNCBannerNotes)).toBeInTheDocument();
+  });
+
+  test('handles scroll behavior and visibility', () => {
+    renderComponent();
+    const dynamicComponent = screen.getByTestId('main-btn');
+    fireEvent.scroll(window, { target: { scrollY: 100 } });
+    expect(dynamicComponent).toHaveAttribute('aria-hidden', 'false'); // Adjust based on actual visibility logic
+  });
+});
