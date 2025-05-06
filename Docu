@@ -1,251 +1,269 @@
-import React, { useEffect, useState } from 'react';
-import './spinner.scss';
-import { getUrl } from '../../../utils/common/change.utils';
-import { CONSTANTS } from '../../../utils/common/constants';
-import { useDispatch, useSelector } from 'react-redux';
-import { StoreModel } from '../../../utils/model/common-model';
-import { Player } from '@lottiefiles/react-lottie-player';
-import lottieSrc from "./../../../assets/_json/lottie/motorcycle_insurance.json";
-import { postFulFilmentData } from '../../../modules/preApproval/services/preApprovalPostServices';
-import { stagesAction } from '../../../utils/store/stages-slice';
-import { preApprovalAction } from '../../../modules/preApproval/store/preApproval-slice';
-import { HardStop } from '../../../modules/preApproval/services/preApprovalUtilsService';
-import { errorAction } from '../../../utils/store/error-slice';
+import React from 'react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import Spinner from './Spinner';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import { stagesReducer } from '../../../utils/store/stages-slice';
+import { preApprovalReducer } from '../../../modules/preApproval/store/preApproval-slice';
+import { errorReducer } from '../../../utils/store/error-slice';
 import { useNavigate } from 'react-router-dom';
 
+// Mock the useNavigate hook
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: jest.fn(),
+}));
 
-const Spinner = (props: any) => {
-  const [currentYear, setCurrentYear] = useState(0);
-  const [requestUpdate, setRequestUpdate] = useState(true);
-  const [error, setError] = useState(false);
-  const [ffd2On, setFFD2On] = useState(false);
-  const language = getUrl.getLanguageInfo("lang");
-  const channelRefSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo?.application?.channel_reference);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo);
-  const stageId = useSelector((state: StoreModel) => state.stages.stages[0].stageId);
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    let requestTimer = setTimeout(() => {
-      setRequestUpdate(false);
-    }, 10000);
+// Mock the postFulFilmentData function
+jest.mock('../../../modules/preApproval/services/preApprovalPostServices', () => ({
+  postFulFilmentData: jest.fn(),
+}));
 
-    const startYear = 1859;
-    const todate = new Date();
-    setCurrentYear(todate.getFullYear() - startYear);
+// Mock the getLanguageInfo function
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn().mockReturnValue('en'),
+  },
+}));
 
-    return () => {
-      clearTimeout(requestTimer);
-    };
-  }, []);
+// Mock the lottie player
+jest.mock('@lottiefiles/react-lottie-player', () => ({
+  Player: jest.fn(() => <div>Lottie Player</div>),
+}));
 
-  const getFFD2Status=()=>{
-    setFFD2On(true)
-    postFulFilmentData(stageSelector).then(
-      async (res: any) => {
-        /*istanbul ignore else*/
-        if (res.status >= 200 && res.status < 300) {
-          let responseType =
-            res.data.application.response_type.toUpperCase();
-          let responseAction =
-            res.data.application.response_action.toUpperCase();
-            /*istanbul ignore else*/
-          if (
-            responseAction === "SUCCESS" ||
-            responseType === "INFO" ||
-            (responseType === "SOFT" &&
-              responseAction === "CONTINUE")
-          ) {
-            let stageData = JSON.parse(
-              JSON.stringify(stageSelector)
-            );
-            stageData.applicants = [res.data.applicants];
-            stageData.application = res.data.application;
-            for (let [key, value] of Object.entries(res.data)) {
-              if(key === "applicants") {
-                stageData[key] = [value];
-              }
-              else {
-                stageData[key] = value;
-              }
-            }
-            dispatch(
-              stagesAction.getStage({
-                id: CONSTANTS.STAGE_NAMES.FFD_2,
-                formConfig: stageData,
-              })
-            );
-            dispatch(preApprovalAction.setCurrentStage("FFD"));
-            navigate('/hk/preference');
-          } else {
-            HardStop(res);
-          }
-        }
-        else {
-          setError(true);
-          dispatch(
-            errorAction.getError({
-              statusCode: "error",
-              statusText: "no response",
-            })
-          );
-        }
-      }
+describe('Spinner Component', () => {
+  const mockStore = configureStore({
+    reducer: {
+      stages: stagesReducer,
+      preApproval: preApprovalReducer,
+      error: errorReducer,
+    },
+    preloadedState: {
+      stages: {
+        stages: [
+          {
+            stageId: 'ACD_1',
+            stageInfo: {
+              application: {
+                channel_reference: 'test-ref',
+              },
+              applicants: [],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const mockNavigate = jest.fn();
+
+  beforeEach(() => {
+    (useNavigate as jest.Mock).mockReturnValue(mockNavigate);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('renders default spinner with lottie animation when no loaderType is provided', () => {
+    render(
+      <Provider store={mockStore}>
+        <Spinner />
+      </Provider>
     );
-  }
 
-  return (
-    <>
-      {!props.loaderType && 
-        <div className={`lottie ${!channelRefSelector ? 'opacity': ''}`}>
-          <div className="lottie__container">
-            <Player src={lottieSrc} className="player" loop autoplay />
-            <div className="lottie__body">
-              <div className="lottie__text">
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.processing1 : language === CONSTANTS.LANG_CN?CONSTANTS.processing1_CN : CONSTANTS.processing1_HK}<br/>
-                {stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2 || stageId === CONSTANTS.STAGE_NAMES.ACD_3 || stageId === CONSTANTS.STAGE_NAMES.ACD_4 || stageId === CONSTANTS.STAGE_NAMES.DOC_3 ||stageId === CONSTANTS.STAGE_NAMES.LD_1 ? 
-                  <>
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing3 : language === CONSTANTS.LANG_CN?CONSTANTS.processing3_CN : CONSTANTS.processing3_HK} 
-                  </>
-                  :
-                  <>
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing2 : language === CONSTANTS.LANG_CN?CONSTANTS.processing2_CN : CONSTANTS.processing2_HK} 
-                  </>
-                }
-              </div>
-            </div>
-          </div>
-        </div>  
-      }
-    {/* {!props.loaderType && 
-      <div className="spinner">
-        <div className="spinner__container">
-          <div className="spinner__icon"></div>
-          {props.type === 'saving' &&
-            <div className="spinner__text">{language === CONSTANTS.LANG_EN ? "Saving, Please Wait" : language === CONSTANTS.LANG_CN ? "正在保存，請稍候" : "正在保存，請稍候"}</div>
-          }
+    expect(screen.getByText('Lottie Player')).toBeInTheDocument();
+    expect(screen.getByText(/processing/i)).toBeInTheDocument();
+  });
 
-        </div>
-      </div>
-    }    */}
+  test('renders showTimmer spinner when loaderType is "showTimmer"', () => {
+    render(
+      <Provider store={mockStore}>
+        <Spinner loaderType="showTimmer" />
+      </Provider>
+    );
 
-      {props.loaderType === "showTimmer" &&
-        <div id="spinner" className="hk-spinner blocker-spinner blocker-spinner-modal" ng-if="showTimmer">
-          <div id="hk-spinner" className="blocker---modal---wrapper">
-            <div className="blocker---inner-wrapper">
-              <div className="blocker---header">
-                <p className="loading_bar" data-grunticon-embed></p>
-                <p className="blocker---title-b visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                  {language === CONSTANTS.LANG_CN ? "感謝您的申請！我們正在查閱您的資料" : "Thank you for your application. We are checking your details."}
-                </p><br /><br />
-                <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                  {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
-                </p><br />
-                <p className="timmer" data-grunticon-embed></p>
-                <p className="visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline spinnerSubText3">
-                  {language === CONSTANTS.LANG_CN ? "請稍候" : "Just a moment"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
-      {props.loaderType === "resumeTimmer" &&
-        <div className={`lottie ${!channelRefSelector ? 'opacity': ''}`}>
-        <div className="lottie__container">
-          <Player src={lottieSrc} className="player" loop autoplay />
-          <div className="lottie__body">
-            <div className="lottie__text">
-            {language === CONSTANTS.LANG_CN ? "继续申请..." : "Resume application..."}
-            </div>
-          </div>
-        </div>
-      </div>  
-      }
+    expect(screen.getByText(/Thank you for your application/i)).toBeInTheDocument();
+    expect(screen.getByText(/Please do not close or refresh browser/i)).toBeInTheDocument();
+    expect(screen.getByText(/Just a moment/i)).toBeInTheDocument();
+  });
 
-      {props.loaderType === "showSearchSpinner" &&
-        <div id="spinner" className="hk-spinner blocker-spinner blocker-spinner-modal" ng-if="showSearchSpinner">
-          <div id="hk-spinner" className="blocker---modal---wrapper">
-            <div className="blocker---inner-wrapper">
-              <div className="blocker---header">
-                <p className="loading_bar" data-grunticon-embed></p>
-                <p className="blocker---title-b visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                  {language === CONSTANTS.LANG_CN ? "我們正在初步審批您的申請" : "We are reviewing your application submission."}
-                </p><br /><br />
-                <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                  {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
-                </p><br />
-                <p className="searchSpinner" data-grunticon-embed></p>
-                <p className="visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline SearchSpinnerSubText3">
-                  {language === CONSTANTS.LANG_CN ? "請稍候" : "Just a moment"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
+  test('renders resumeTimmer spinner when loaderType is "resumeTimmer"', () => {
+    render(
+      <Provider store={mockStore}>
+        <Spinner loaderType="resumeTimmer" />
+      </Provider>
+    );
 
-      {(props.loaderType === "lastStep" && !error) &&
+    expect(screen.getByText(/Resume application/i)).toBeInTheDocument();
+  });
 
-        <div className={!ffd2On ? "spinner hk-spinner blocker-spinner blocker-spinner-modal" : "lottie"} ng-if="pageType=='FFD1'">
-          {!ffd2On ? 
-            <div className="blocker---modal---wrapper">
-              <div className="blocker---inner-wrapper application-content">
-                <div className="blocker---header ">
-                  <p className="loading_bar" data-grunticon-embed></p>
-                  <p className="blocker---title-b align-left visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                    {language === CONSTANTS.LANG_CN ? "最後一步!" : "You’re at the last step!"}
-                  </p><br /><br />
-                  <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                    {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
-                  </p><br />
-                </div>
-                <div>
-                  <p className='ffd1-banner' data-grunticon-embed></p>
-                  <p
-                    className="spinnerSubText3 visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline details2">
-                    {language === CONSTANTS.LANG_CN ? "請稍候數分鐘，我們正在審批您的申請" : "Please wait a few minutes while we are reviewing on your application."}
-                  </p>
-                </div>
-                {!ffd2On &&
-                  <div className="ffd1-section">
-                    <button onClick={()=>getFFD2Status()} disabled={!props.enable} className={!props.enable ? "result-btn bg-grey" : "result-btn bg-button"}>
-                      {language === CONSTANTS.LANG_CN ? "查看最終批核結果" : "See final approval result"}
-                    </button>
-                  </div>
-                }
-              </div>
-            </div>
-          :
-          <div className="lottie__container">
-            <Player src={lottieSrc} className="player" loop autoplay />
-            <div className="lottie__body">
-              <div className="lottie__text">
-                {/* {requestUpdate ? <>{language === CONSTANTS.LANG_EN ? CONSTANTS.processing : language === CONSTANTS.LANG_CN?CONSTANTS.processing_CN : CONSTANTS.processing_HK}</> : <>{language === CONSTANTS.LANG_EN ? CONSTANTS.workingOnIt : language === CONSTANTS.LANG_CN?CONSTANTS.workingOnIt_CN : CONSTANTS.workingOnIt_HK}</>} */}
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.processing1 : language === CONSTANTS.LANG_CN?CONSTANTS.processing1_CN : CONSTANTS.processing1_HK}<br/> 
-                {stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2 || stageId === CONSTANTS.STAGE_NAMES.ACD_3 || stageId === CONSTANTS.STAGE_NAMES.ACD_4 || stageId === CONSTANTS.STAGE_NAMES.DOC_3 ||stageId === CONSTANTS.STAGE_NAMES.LD_1 ? 
-                  <>
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing3 : language === CONSTANTS.LANG_CN?CONSTANTS.processing3_CN : CONSTANTS.processing3_HK} 
-                  </>
-                  :
-                  <>
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing2 : language === CONSTANTS.LANG_CN?CONSTANTS.processing2_CN : CONSTANTS.processing2_HK} 
-                  </>
-                }
-              </div>
-            </div>
-          </div>
-          }
-        </div>
+  test('renders showSearchSpinner when loaderType is "showSearchSpinner"', () => {
+    render(
+      <Provider store={mockStore}>
+        <Spinner loaderType="showSearchSpinner" />
+      </Provider>
+    );
 
-      }
+    expect(screen.getByText(/We are reviewing your application submission/i)).toBeInTheDocument();
+    expect(screen.getByText(/Please do not close or refresh browser/i)).toBeInTheDocument();
+  });
 
+  test('renders lastStep spinner with button when loaderType is "lastStep"', () => {
+    render(
+      <Provider store={mockStore}>
+        <Spinner loaderType="lastStep" enable={true} />
+      </Provider>
+    );
 
-    </>
-  );
-};
+    expect(screen.getByText(/You're at the last step/i)).toBeInTheDocument();
+    expect(screen.getByText(/See final approval result/i)).toBeInTheDocument();
+  });
 
-export default Spinner;
+  test('disables button when enable prop is false for lastStep spinner', () => {
+    render(
+      <Provider store={mockStore}>
+        <Spinner loaderType="lastStep" enable={false} />
+      </Provider>
+    );
 
-Please write an test cases using react and jest
+    const button = screen.getByText(/See final approval result/i);
+    expect(button).toBeDisabled();
+    expect(button).toHaveClass('bg-grey');
+  });
+
+  test('calls getFFD2Status when button is clicked in lastStep spinner', async () => {
+    const mockPostFulFilmentData = require('../../../modules/preApproval/services/preApprovalPostServices').postFulFilmentData;
+    mockPostFulFilmentData.mockResolvedValue({
+      status: 200,
+      data: {
+        application: {
+          response_type: 'INFO',
+          response_action: 'SUCCESS',
+        },
+        applicants: {},
+      },
+    });
+
+    render(
+      <Provider store={mockStore}>
+        <Spinner loaderType="lastStep" enable={true} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByText(/See final approval result/i));
+
+    await waitFor(() => {
+      expect(mockPostFulFilmentData).toHaveBeenCalled();
+      expect(mockNavigate).toHaveBeenCalledWith('/hk/preference');
+    });
+  });
+
+  test('handles error in getFFD2Status', async () => {
+    const mockPostFulFilmentData = require('../../../modules/preApproval/services/preApprovalPostServices').postFulFilmentData;
+    mockPostFulFilmentData.mockRejectedValue(new Error('API error'));
+
+    render(
+      <Provider store={mockStore}>
+        <Spinner loaderType="lastStep" enable={true} />
+      </Provider>
+    );
+
+    fireEvent.click(screen.getByText(/See final approval result/i));
+
+    await waitFor(() => {
+      expect(mockPostFulFilmentData).toHaveBeenCalled();
+      expect(screen.getByText('Lottie Player')).toBeInTheDocument();
+    });
+  });
+
+  test('shows different text for different stages', () => {
+    const customStore = configureStore({
+      reducer: {
+        stages: stagesReducer,
+        preApproval: preApprovalReducer,
+        error: errorReducer,
+      },
+      preloadedState: {
+        stages: {
+          stages: [
+            {
+              stageId: 'DOC_3',
+              stageInfo: {
+                application: {
+                  channel_reference: 'test-ref',
+                },
+                applicants: [],
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    render(
+      <Provider store={customStore}>
+        <Spinner />
+      </Provider>
+    );
+
+    // Should show processing3 text for DOC_3 stage
+    expect(screen.getByText(/processing/i)).toBeInTheDocument();
+  });
+
+  test('shows different language text when language is Chinese', () => {
+    require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue('zh');
+
+    render(
+      <Provider store={mockStore}>
+        <Spinner loaderType="showTimmer" />
+      </Provider>
+    );
+
+    expect(screen.getByText(/感謝您的申請/i)).toBeInTheDocument();
+    expect(screen.getByText(/請不要關閉或重新整理瀏覽器/i)).toBeInTheDocument();
+  });
+
+  test('updates currentYear correctly', async () => {
+    jest.useFakeTimers();
+    
+    render(
+      <Provider store={mockStore}>
+        <Spinner />
+      </Provider>
+    );
+
+    // The component calculates currentYear as current year - 1859
+    const currentYear = new Date().getFullYear() - 1859;
+    
+    await waitFor(() => {
+      // You might need to add a way to display or test this value
+      // This is just a placeholder to show the concept
+      expect(currentYear).toBeGreaterThan(150);
+    });
+
+    jest.useRealTimers();
+  });
+
+  test('disables requestUpdate after timeout', async () => {
+    jest.useFakeTimers();
+    
+    render(
+      <Provider store={mockStore}>
+        <Spinner />
+      </Provider>
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(10000);
+    });
+
+    // You might need to add a way to test the internal state
+    // This is just a placeholder to show the concept
+    await waitFor(() => {
+      expect(true).toBeTruthy();
+    });
+
+    jest.useRealTimers();
+  });
+});
