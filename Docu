@@ -1,339 +1,251 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import AddressSearch from './AddressSearch';
+import React, { useEffect, useState } from 'react';
+import './spinner.scss';
+import { getUrl } from '../../../utils/common/change.utils';
 import { CONSTANTS } from '../../../utils/common/constants';
-import * as commonService from '../../../services/common-service';
+import { useDispatch, useSelector } from 'react-redux';
+import { StoreModel } from '../../../utils/model/common-model';
+import { Player } from '@lottiefiles/react-lottie-player';
+import lottieSrc from "./../../../assets/_json/lottie/motorcycle_insurance.json";
+import { postFulFilmentData } from '../../../modules/preApproval/services/preApprovalPostServices';
+import { stagesAction } from '../../../utils/store/stages-slice';
+import { preApprovalAction } from '../../../modules/preApproval/store/preApproval-slice';
+import { HardStop } from '../../../modules/preApproval/services/preApprovalUtilsService';
+import { errorAction } from '../../../utils/store/error-slice';
+import { useNavigate } from 'react-router-dom';
 
-// Mock the services and utilities
-jest.mock('../../../services/common-service');
-jest.mock('../../../services/validation-service');
-jest.mock('../../../utils/common/change.utils');
 
-const mockStore = configureStore([]);
+const Spinner = (props: any) => {
+  const [currentYear, setCurrentYear] = useState(0);
+  const [requestUpdate, setRequestUpdate] = useState(true);
+  const [error, setError] = useState(false);
+  const [ffd2On, setFFD2On] = useState(false);
+  const language = getUrl.getLanguageInfo("lang");
+  const channelRefSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo?.application?.channel_reference);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo);
+  const stageId = useSelector((state: StoreModel) => state.stages.stages[0].stageId);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    let requestTimer = setTimeout(() => {
+      setRequestUpdate(false);
+    }, 10000);
 
-describe('AddressSearch Component', () => {
-  const mockProps = {
-    data: {
-      logical_field_name: 'res_building_estate_pt',
-      rwb_label_name: 'Building/Estate Name',
-      mandatory: 'Yes',
-      length: 100,
-      editable: false,
-    },
-    handleCallback: jest.fn(),
-    handleFieldDispatch: jest.fn(),
-  };
+    const startYear = 1859;
+    const todate = new Date();
+    setCurrentYear(todate.getFullYear() - startYear);
 
-  const initialState = {
-    stages: {
-      stages: [{
-        stageId: 'bd-1',
-        stageInfo: {
-          applicants: [{
-            res_building_estate_pt_a_1: 'Test Building',
-          }]
-        }
-      }],
-      userInput: {
-        applicants: [{
-          res_building_estate_pt: 'Test Building',
-        }]
-      }
-    },
-    fielderror: {
-      error: []
-    },
-    preApproval: {
-      resumeAllowed: 'N'
-    }
-  };
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('renders without crashing', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    expect(screen.getByLabelText('Building/Estate Name')).toBeInTheDocument();
-  });
-
-  it('displays the default value from userInputSelector', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name') as HTMLInputElement;
-    expect(input.value).toBe('Test Building');
-  });
-
-  it('displays the default value from stageSelector when resumeAllowed is Y', () => {
-    const resumeState = {
-      ...initialState,
-      preApproval: { resumeAllowed: 'Y' }
+    return () => {
+      clearTimeout(requestTimer);
     };
-    const store = mockStore(resumeState);
-    
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name') as HTMLInputElement;
-    expect(input.value).toBe('Test Building');
-  });
+  }, []);
 
-  it('handles change event and clears error', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.change(input, { target: { value: 'New Building' } });
-    
-    expect(mockProps.handleCallback).toHaveBeenCalled();
-    expect(mockProps.handleFieldDispatch).toHaveBeenCalled();
-  });
-
-  it('sets error when mandatory field is empty', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.change(input, { target: { value: '' } });
-    
-    expect(screen.getByText(/Building\/Estate Name is required/)).toBeInTheDocument();
-  });
-
-  it('sets error for invalid characters', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.change(input, { target: { value: 'Invalid@Building' } });
-    
-    expect(screen.getByText(/Special characters are not allowed/)).toBeInTheDocument();
-  });
-
-  it('triggers address search for valid English input', async () => {
-    const mockResponse = {
-      getElementsByTagName: jest.fn().mockReturnValue([{
-        getElementsByTagName: jest.fn().mockReturnValue([{
-          querySelector: jest.fn().mockReturnValue({ textContent: 'Test Estate' })
-        }])
-      }])
-    };
-    
-    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
-    
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.change(input, { target: { value: 'Test' } });
-    
-    await waitFor(() => {
-      expect(commonService.addressSearchRequest).toHaveBeenCalled();
-    });
-  });
-
-  it('triggers address search for valid Chinese input', async () => {
-    const mockResponse = {
-      getElementsByTagName: jest.fn().mockReturnValue([{
-        getElementsByTagName: jest.fn().mockReturnValue([{
-          querySelector: jest.fn().mockReturnValue({ textContent: '測試屋苑' })
-        }])
-      }])
-    };
-    
-    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
-    
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.change(input, { target: { value: '測試' } });
-    
-    await waitFor(() => {
-      expect(commonService.addressSearchRequest).toHaveBeenCalled();
-    });
-  });
-
-  it('handles blur event with valid input', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.blur(input, { target: { value: 'Valid Building', validity: { valid: true } } });
-    
-    expect(mockProps.handleFieldDispatch).toHaveBeenCalled();
-  });
-
-  it('handles blur event with invalid input', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.blur(input, { target: { value: 'Invalid@Building', validity: { valid: false } } });
-    
-    expect(screen.getByText(/Special characters are not allowed/)).toBeInTheDocument();
-  });
-
-  it('handles focus event', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.focus(input);
-    
-    const actions = store.getActions();
-    expect(actions).toContainEqual(expect.objectContaining({
-      type: 'lastAccessed/getField',
-      payload: 'res_building_estate_pt'
-    }));
-  });
-
-  it('handles key down event with Tab', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.keyDown(input, { key: 'Tab', target: { value: '' } });
-    
-    expect(screen.getByText(/Building\/Estate Name is required/)).toBeInTheDocument();
-  });
-
-  it('displays tick mark when there is a value and no error', () => {
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    expect(document.querySelector('.tick-class')).toBeInTheDocument();
-  });
-
-  it('displays datalist options when lovData is available', async () => {
-    const mockResponse = {
-      getElementsByTagName: jest.fn().mockReturnValue([{
-        getElementsByTagName: jest.fn().mockReturnValue([{
-          querySelector: jest.fn().mockReturnValue({ textContent: 'Test Estate' })
-        }])
-      }])
-    };
-    
-    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
-    
-    const store = mockStore(initialState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.change(input, { target: { value: 'Test' } });
-    
-    await waitFor(() => {
-      expect(document.querySelector('datalist')).toBeInTheDocument();
-      expect(document.querySelectorAll('option').length).toBeGreaterThan(0);
-    });
-  });
-
-  it('handles office address fields when stage is ad-3', async () => {
-    const officeState = {
-      ...initialState,
-      stages: {
-        ...initialState.stages,
-        stages: [{
-          stageId: 'ad-3',
-          stageInfo: {
-            applicants: [{
-              off_building_estate_pt_a_1: 'Office Building',
-            }]
+  const getFFD2Status=()=>{
+    setFFD2On(true)
+    postFulFilmentData(stageSelector).then(
+      async (res: any) => {
+        /*istanbul ignore else*/
+        if (res.status >= 200 && res.status < 300) {
+          let responseType =
+            res.data.application.response_type.toUpperCase();
+          let responseAction =
+            res.data.application.response_action.toUpperCase();
+            /*istanbul ignore else*/
+          if (
+            responseAction === "SUCCESS" ||
+            responseType === "INFO" ||
+            (responseType === "SOFT" &&
+              responseAction === "CONTINUE")
+          ) {
+            let stageData = JSON.parse(
+              JSON.stringify(stageSelector)
+            );
+            stageData.applicants = [res.data.applicants];
+            stageData.application = res.data.application;
+            for (let [key, value] of Object.entries(res.data)) {
+              if(key === "applicants") {
+                stageData[key] = [value];
+              }
+              else {
+                stageData[key] = value;
+              }
+            }
+            dispatch(
+              stagesAction.getStage({
+                id: CONSTANTS.STAGE_NAMES.FFD_2,
+                formConfig: stageData,
+              })
+            );
+            dispatch(preApprovalAction.setCurrentStage("FFD"));
+            navigate('/hk/preference');
+          } else {
+            HardStop(res);
           }
-        }]
+        }
+        else {
+          setError(true);
+          dispatch(
+            errorAction.getError({
+              statusCode: "error",
+              statusText: "no response",
+            })
+          );
+        }
       }
-    };
-    
-    const mockResponse = {
-      getElementsByTagName: jest.fn().mockReturnValue([{
-        getElementsByTagName: jest.fn().mockReturnValue([{
-          querySelector: jest.fn().mockReturnValue({ textContent: 'Office Street' }),
-          querySelectorAll: jest.fn().mockReturnValue([{ textContent: 'Central' }])
-        }])
-      }])
-    };
-    
-    (commonService.addressSearchRequest as jest.Mock).mockResolvedValue(mockResponse);
-    
-    const officeProps = {
-      ...mockProps,
-      data: {
-        ...mockProps.data,
-        logical_field_name: 'off_building_estate_pt'
-      }
-    };
-    
-    const store = mockStore(officeState);
-    render(
-      <Provider store={store}>
-        <AddressSearch {...officeProps} />
-      </Provider>
     );
-    
-    const input = screen.getByLabelText('Building/Estate Name');
-    fireEvent.change(input, { target: { value: 'Office' } });
-    
-    await waitFor(() => {
-      expect(commonService.addressSearchRequest).toHaveBeenCalled();
-    });
-  });
-});
+  }
+
+  return (
+    <>
+      {!props.loaderType && 
+        <div className={`lottie ${!channelRefSelector ? 'opacity': ''}`}>
+          <div className="lottie__container">
+            <Player src={lottieSrc} className="player" loop autoplay />
+            <div className="lottie__body">
+              <div className="lottie__text">
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.processing1 : language === CONSTANTS.LANG_CN?CONSTANTS.processing1_CN : CONSTANTS.processing1_HK}<br/>
+                {stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2 || stageId === CONSTANTS.STAGE_NAMES.ACD_3 || stageId === CONSTANTS.STAGE_NAMES.ACD_4 || stageId === CONSTANTS.STAGE_NAMES.DOC_3 ||stageId === CONSTANTS.STAGE_NAMES.LD_1 ? 
+                  <>
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing3 : language === CONSTANTS.LANG_CN?CONSTANTS.processing3_CN : CONSTANTS.processing3_HK} 
+                  </>
+                  :
+                  <>
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing2 : language === CONSTANTS.LANG_CN?CONSTANTS.processing2_CN : CONSTANTS.processing2_HK} 
+                  </>
+                }
+              </div>
+            </div>
+          </div>
+        </div>  
+      }
+    {/* {!props.loaderType && 
+      <div className="spinner">
+        <div className="spinner__container">
+          <div className="spinner__icon"></div>
+          {props.type === 'saving' &&
+            <div className="spinner__text">{language === CONSTANTS.LANG_EN ? "Saving, Please Wait" : language === CONSTANTS.LANG_CN ? "正在保存，請稍候" : "正在保存，請稍候"}</div>
+          }
+
+        </div>
+      </div>
+    }    */}
+
+      {props.loaderType === "showTimmer" &&
+        <div id="spinner" className="hk-spinner blocker-spinner blocker-spinner-modal" ng-if="showTimmer">
+          <div id="hk-spinner" className="blocker---modal---wrapper">
+            <div className="blocker---inner-wrapper">
+              <div className="blocker---header">
+                <p className="loading_bar" data-grunticon-embed></p>
+                <p className="blocker---title-b visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                  {language === CONSTANTS.LANG_CN ? "感謝您的申請！我們正在查閱您的資料" : "Thank you for your application. We are checking your details."}
+                </p><br /><br />
+                <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                  {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
+                </p><br />
+                <p className="timmer" data-grunticon-embed></p>
+                <p className="visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline spinnerSubText3">
+                  {language === CONSTANTS.LANG_CN ? "請稍候" : "Just a moment"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+      {props.loaderType === "resumeTimmer" &&
+        <div className={`lottie ${!channelRefSelector ? 'opacity': ''}`}>
+        <div className="lottie__container">
+          <Player src={lottieSrc} className="player" loop autoplay />
+          <div className="lottie__body">
+            <div className="lottie__text">
+            {language === CONSTANTS.LANG_CN ? "继续申请..." : "Resume application..."}
+            </div>
+          </div>
+        </div>
+      </div>  
+      }
+
+      {props.loaderType === "showSearchSpinner" &&
+        <div id="spinner" className="hk-spinner blocker-spinner blocker-spinner-modal" ng-if="showSearchSpinner">
+          <div id="hk-spinner" className="blocker---modal---wrapper">
+            <div className="blocker---inner-wrapper">
+              <div className="blocker---header">
+                <p className="loading_bar" data-grunticon-embed></p>
+                <p className="blocker---title-b visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                  {language === CONSTANTS.LANG_CN ? "我們正在初步審批您的申請" : "We are reviewing your application submission."}
+                </p><br /><br />
+                <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                  {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
+                </p><br />
+                <p className="searchSpinner" data-grunticon-embed></p>
+                <p className="visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline SearchSpinnerSubText3">
+                  {language === CONSTANTS.LANG_CN ? "請稍候" : "Just a moment"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
+      {(props.loaderType === "lastStep" && !error) &&
+
+        <div className={!ffd2On ? "spinner hk-spinner blocker-spinner blocker-spinner-modal" : "lottie"} ng-if="pageType=='FFD1'">
+          {!ffd2On ? 
+            <div className="blocker---modal---wrapper">
+              <div className="blocker---inner-wrapper application-content">
+                <div className="blocker---header ">
+                  <p className="loading_bar" data-grunticon-embed></p>
+                  <p className="blocker---title-b align-left visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                    {language === CONSTANTS.LANG_CN ? "最後一步!" : "You’re at the last step!"}
+                  </p><br /><br />
+                  <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                    {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
+                  </p><br />
+                </div>
+                <div>
+                  <p className='ffd1-banner' data-grunticon-embed></p>
+                  <p
+                    className="spinnerSubText3 visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline details2">
+                    {language === CONSTANTS.LANG_CN ? "請稍候數分鐘，我們正在審批您的申請" : "Please wait a few minutes while we are reviewing on your application."}
+                  </p>
+                </div>
+                {!ffd2On &&
+                  <div className="ffd1-section">
+                    <button onClick={()=>getFFD2Status()} disabled={!props.enable} className={!props.enable ? "result-btn bg-grey" : "result-btn bg-button"}>
+                      {language === CONSTANTS.LANG_CN ? "查看最終批核結果" : "See final approval result"}
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          :
+          <div className="lottie__container">
+            <Player src={lottieSrc} className="player" loop autoplay />
+            <div className="lottie__body">
+              <div className="lottie__text">
+                {/* {requestUpdate ? <>{language === CONSTANTS.LANG_EN ? CONSTANTS.processing : language === CONSTANTS.LANG_CN?CONSTANTS.processing_CN : CONSTANTS.processing_HK}</> : <>{language === CONSTANTS.LANG_EN ? CONSTANTS.workingOnIt : language === CONSTANTS.LANG_CN?CONSTANTS.workingOnIt_CN : CONSTANTS.workingOnIt_HK}</>} */}
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.processing1 : language === CONSTANTS.LANG_CN?CONSTANTS.processing1_CN : CONSTANTS.processing1_HK}<br/> 
+                {stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2 || stageId === CONSTANTS.STAGE_NAMES.ACD_3 || stageId === CONSTANTS.STAGE_NAMES.ACD_4 || stageId === CONSTANTS.STAGE_NAMES.DOC_3 ||stageId === CONSTANTS.STAGE_NAMES.LD_1 ? 
+                  <>
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing3 : language === CONSTANTS.LANG_CN?CONSTANTS.processing3_CN : CONSTANTS.processing3_HK} 
+                  </>
+                  :
+                  <>
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing2 : language === CONSTANTS.LANG_CN?CONSTANTS.processing2_CN : CONSTANTS.processing2_HK} 
+                  </>
+                }
+              </div>
+            </div>
+          </div>
+          }
+        </div>
+
+      }
+
+
+    </>
+  );
+};
+
+export default Spinner;
+
+Please write an test cases using react and jest
