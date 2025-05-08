@@ -1,135 +1,94 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import InfoTooltips from './InfoTooltips';
-import * as changeUtils from '../../../utils/common/change.utils';
+import "./header-ref.scss"
+import { getUrl } from "../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { useSelector } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
+import { useState } from "react";
+import PopupModel from "../popup-model/popup-model";
+import HeaderModel from "./header-modal";
 
-// Mock the getLanguageInfo function
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(),
-  },
-}));
+const HeaderRef: React.FC<any> = ({
+  applicationNo,
 
-// Mock the Model component since it's a child component
-jest.mock('../model/model', () => {
-  return function MockModel(props: any) {
-    return (
-      <div data-testid="mock-model">
-        <button onClick={props.closePopup}>Close</button>
-        {props.body_content}
+}) => {
+  const [openpopup, setOpenpop] = useState(false);
+  const language = getUrl.getLanguageInfo("lang");
+  const ref_number = "HK24101700230315"
+
+  const downloadPdfData = useSelector((state: StoreModel) => state.preApproval?.kfsDocumentPdf);
+  const stageIdSelector = useSelector((state: StoreModel) => state.stages.stages[0]?.stageId);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+
+  const kfcStatement = () => {
+    if(language === CONSTANTS.LANG_CN) {
+      return "資料概要"
+    } else {
+      return "Key Facts Statement"
+    }
+  }
+  const downloadPDF = () => {
+    const fileName: any = downloadPdfData.split('/').pop();
+    
+    
+    const replaceFilename = stageSelector[0].stageInfo?.products[0].campaign === 'HKBDC23PESTP10' ? fileName.replace(fileName, 'DC_KFS_Desktop_0421_E.pdf') // DC PDF
+    : (stageSelector[0].stageInfo?.products[0].campaign === 'HKPIL23PLSTP10'? fileName.replace(fileName, 'PIL_KFS_Desktop_0421_E.pdf'): // PIL PDF
+     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOG20VAWV000'? fileName.replace(fileName, 'SCB_SMART_KFS_Desktop_0421_E.pdf') : // Smart card PDF
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSPB17VAWV000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSPG17VAWV000') ? fileName.replace(fileName, 'SCB_SC_KFS_Desktop_0421_E.pdf'): // simply cash pdf
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16VAWP000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16MCWP000') ? fileName.replace(fileName, 'SCB_PLAT_KFS_Desktop_0421_E.pdf'): // core platinum pdf
+     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ00MCWB000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ01MCWB000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ02MCWB000') ? fileName.replace(fileName, 'SCB_CX_KFS_E.pdf'): // Asiamiles PDF
+     "")
+    )
+    )
+    )
+    const lin = document.createElement('a');
+    lin.href = downloadPdfData;
+    lin.download = replaceFilename;
+    lin.click();
+  };
+
+  const viewPDF = () => {
+    setOpenpop(true);
+
+  };
+  const closepdf = () => {
+    setOpenpop(false);
+  }
+
+  return (
+    <>
+      <div className="header-ref">
+        <span className="banner-icon"></span>
+        <div className="header-ref-set">
+          <p className="ref-no">
+            {language === CONSTANTS.LANG_CN ? "參考編號:" : "Ref No:"} {applicationNo ? applicationNo : ref_number}
+          </p>
+          {(stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_2 &&stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_4 && stageIdSelector !== CONSTANTS.STAGE_NAMES.DOC_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_2) &&
+            <p className="kfs-headerbg" >
+              <label className="kfs-header">{language === CONSTANTS.LANG_CN ? "產品資料概要(包括收費及費用)" : "KFS (including Fees and Charges)"}</label>
+              <div className="btn-div">
+                <span className="kfsHeadtn" onClick={viewPDF}>{language === CONSTANTS.LANG_CN ? "參閱" : "Read"}</span>
+                <span className="kfsHeadtn" onClick={downloadPDF}>{language === CONSTANTS.LANG_CN ? "下載" : "Download"}</span>
+              </div>
+            </p>
+          }
+        </div>
       </div>
-    );
-  };
-});
 
-describe('InfoTooltips Component', () => {
-  const mockProps = {
-    infoTooltips: 'This is a test tooltip content',
-  };
+      {(openpopup) && (
+        <PopupModel displayPopup={openpopup}>
+          {openpopup &&
+          <div className="reviewReadTop">
+            <HeaderModel fileName={downloadPdfData} closepdf={closepdf} title={kfcStatement()}/>
+          </div>
+          }
+        </PopupModel>
+      )}
+    </>
+  );
+};
 
-  beforeEach(() => {
-    // Default mock implementation
-    (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-  });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
 
-  it('renders without crashing', () => {
-    render(<InfoTooltips {...mockProps} />);
-    expect(screen.getByRole('button')).toBeInTheDocument();
-  });
+export default HeaderRef
 
-  it('displays the tooltip icon', () => {
-    render(<InfoTooltips {...mockProps} />);
-    expect(screen.getByRole('button')).toHaveClass('tool-tip__icon');
-  });
-
-  it('shows the Model component when icon is clicked', () => {
-    render(<InfoTooltips {...mockProps} />);
-    
-    // Initially not shown
-    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
-    
-    // Click the icon
-    fireEvent.click(screen.getByRole('button'));
-    
-    // Now should be visible
-    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
-  });
-
-  it('hides the Model component when closePopup is called', () => {
-    render(<InfoTooltips {...mockProps} />);
-    
-    // Open the popup
-    fireEvent.click(screen.getByRole('button'));
-    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
-    
-    // Close the popup
-    fireEvent.click(screen.getByText('Close'));
-    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
-  });
-
-  it('displays the correct tooltip content', () => {
-    render(<InfoTooltips {...mockProps} />);
-    fireEvent.click(screen.getByRole('button'));
-    expect(screen.getByText('This is a test tooltip content')).toBeInTheDocument();
-  });
-
-  it('handles dangerous HTML content properly', () => {
-    const htmlProps = {
-      infoTooltips: '<strong>Bold</strong> content',
-    };
-    render(<InfoTooltips {...htmlProps} />);
-    fireEvent.click(screen.getByRole('button'));
-    expect(screen.getByText('Bold')).toBeInTheDocument();
-    expect(screen.getByText('content')).toBeInTheDocument();
-  });
-
-  describe('Language handling', () => {
-    it('shows English OK button text for English language', () => {
-      (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-      render(<InfoTooltips {...mockProps} />);
-      fireEvent.click(screen.getByRole('button'));
-      expect(screen.getByText('OK')).toBeInTheDocument();
-    });
-
-    it('shows Chinese OK button text for Chinese language', () => {
-      (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('cn');
-      render(<InfoTooltips {...mockProps} />);
-      fireEvent.click(screen.getByRole('button'));
-      expect(screen.getByText('确定')).toBeInTheDocument();
-    });
-
-    it('shows Hong Kong OK button text for Hong Kong language', () => {
-      (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('hk');
-      render(<InfoTooltips {...mockProps} />);
-      fireEvent.click(screen.getByRole('button'));
-      expect(screen.getByText('確定')).toBeInTheDocument();
-    });
-
-    it('defaults to English OK button text for unknown language', () => {
-      (changeUtils.getUrl.getLanguageInfo as jest.Mock).mockReturnValue('fr');
-      render(<InfoTooltips {...mockProps} />);
-      fireEvent.click(screen.getByRole('button'));
-      expect(screen.getByText('OK')).toBeInTheDocument();
-    });
-  });
-
-  it('toggles popup visibility when clicking the icon multiple times', () => {
-    render(<InfoTooltips {...mockProps} />);
-    
-    // First click - show
-    fireEvent.click(screen.getByRole('button'));
-    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
-    
-    // Second click - hide
-    fireEvent.click(screen.getByRole('button'));
-    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
-    
-    // Third click - show again
-    fireEvent.click(screen.getByRole('button'));
-    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
-  });
-});
+Please write an test cases using react and jest
