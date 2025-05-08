@@ -1,269 +1,36 @@
-import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import Spinner from './Spinner';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
-import { stagesReducer } from '../../../utils/store/stages-slice';
-import { preApprovalReducer } from '../../../modules/preApproval/store/preApproval-slice';
-import { errorReducer } from '../../../utils/store/error-slice';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import Model from "../model/model";
+import "./info-tooltips.scss";
+import { CONSTANTS } from '../../../utils/common/constants';
+import { getUrl } from '../../../utils/common/change.utils';
+export const InfoTooltips = (props: any) => {
 
-// Mock the useNavigate hook
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useNavigate: jest.fn(),
-}));
+    const getMarkup = () => {
+        return {
+            __html: `
+          <div>${props && props.infoTooltips}</div>
+        `,
+        };
+    };
 
-// Mock the postFulFilmentData function
-jest.mock('../../../modules/preApproval/services/preApprovalPostServices', () => ({
-  postFulFilmentData: jest.fn(),
-}));
+    const [showPopup, setShowPopup] = useState(false)
+    const language = getUrl.getLanguageInfo("lang");
+    const closePopup = () => {
+        setShowPopup(false)
+    }
+    return (
+        <>
+            <div className="tool-tip__icon" onClick={() => setShowPopup(!showPopup)}></div>
+            {(showPopup) && (
+                showPopup &&
+                <Model name='info_tooltips' btnTxt={language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK} closePopup={closePopup} body_content={<span dangerouslySetInnerHTML={getMarkup()}></span>}> </Model>
 
-// Mock the getLanguageInfo function
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn().mockReturnValue('en'),
-  },
-}));
+            )}
+        </>
+    )
+}
 
-// Mock the lottie player
-jest.mock('@lottiefiles/react-lottie-player', () => ({
-  Player: jest.fn(() => <div>Lottie Player</div>),
-}));
+export default InfoTooltips;
 
-describe('Spinner Component', () => {
-  const mockStore = configureStore({
-    reducer: {
-      stages: stagesReducer,
-      preApproval: preApprovalReducer,
-      error: errorReducer,
-    },
-    preloadedState: {
-      stages: {
-        stages: [
-          {
-            stageId: 'ACD_1',
-            stageInfo: {
-              application: {
-                channel_reference: 'test-ref',
-              },
-              applicants: [],
-            },
-          },
-        ],
-      },
-    },
-  });
 
-  const mockNavigate = jest.fn();
-
-  beforeEach(() => {
-    (useNavigate as jest.Mock).mockReturnValue(mockNavigate);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('renders default spinner with lottie animation when no loaderType is provided', () => {
-    render(
-      <Provider store={mockStore}>
-        <Spinner />
-      </Provider>
-    );
-
-    expect(screen.getByText('Lottie Player')).toBeInTheDocument();
-    expect(screen.getByText(/processing/i)).toBeInTheDocument();
-  });
-
-  test('renders showTimmer spinner when loaderType is "showTimmer"', () => {
-    render(
-      <Provider store={mockStore}>
-        <Spinner loaderType="showTimmer" />
-      </Provider>
-    );
-
-    expect(screen.getByText(/Thank you for your application/i)).toBeInTheDocument();
-    expect(screen.getByText(/Please do not close or refresh browser/i)).toBeInTheDocument();
-    expect(screen.getByText(/Just a moment/i)).toBeInTheDocument();
-  });
-
-  test('renders resumeTimmer spinner when loaderType is "resumeTimmer"', () => {
-    render(
-      <Provider store={mockStore}>
-        <Spinner loaderType="resumeTimmer" />
-      </Provider>
-    );
-
-    expect(screen.getByText(/Resume application/i)).toBeInTheDocument();
-  });
-
-  test('renders showSearchSpinner when loaderType is "showSearchSpinner"', () => {
-    render(
-      <Provider store={mockStore}>
-        <Spinner loaderType="showSearchSpinner" />
-      </Provider>
-    );
-
-    expect(screen.getByText(/We are reviewing your application submission/i)).toBeInTheDocument();
-    expect(screen.getByText(/Please do not close or refresh browser/i)).toBeInTheDocument();
-  });
-
-  test('renders lastStep spinner with button when loaderType is "lastStep"', () => {
-    render(
-      <Provider store={mockStore}>
-        <Spinner loaderType="lastStep" enable={true} />
-      </Provider>
-    );
-
-    expect(screen.getByText(/You're at the last step/i)).toBeInTheDocument();
-    expect(screen.getByText(/See final approval result/i)).toBeInTheDocument();
-  });
-
-  test('disables button when enable prop is false for lastStep spinner', () => {
-    render(
-      <Provider store={mockStore}>
-        <Spinner loaderType="lastStep" enable={false} />
-      </Provider>
-    );
-
-    const button = screen.getByText(/See final approval result/i);
-    expect(button).toBeDisabled();
-    expect(button).toHaveClass('bg-grey');
-  });
-
-  test('calls getFFD2Status when button is clicked in lastStep spinner', async () => {
-    const mockPostFulFilmentData = require('../../../modules/preApproval/services/preApprovalPostServices').postFulFilmentData;
-    mockPostFulFilmentData.mockResolvedValue({
-      status: 200,
-      data: {
-        application: {
-          response_type: 'INFO',
-          response_action: 'SUCCESS',
-        },
-        applicants: {},
-      },
-    });
-
-    render(
-      <Provider store={mockStore}>
-        <Spinner loaderType="lastStep" enable={true} />
-      </Provider>
-    );
-
-    fireEvent.click(screen.getByText(/See final approval result/i));
-
-    await waitFor(() => {
-      expect(mockPostFulFilmentData).toHaveBeenCalled();
-      expect(mockNavigate).toHaveBeenCalledWith('/hk/preference');
-    });
-  });
-
-  test('handles error in getFFD2Status', async () => {
-    const mockPostFulFilmentData = require('../../../modules/preApproval/services/preApprovalPostServices').postFulFilmentData;
-    mockPostFulFilmentData.mockRejectedValue(new Error('API error'));
-
-    render(
-      <Provider store={mockStore}>
-        <Spinner loaderType="lastStep" enable={true} />
-      </Provider>
-    );
-
-    fireEvent.click(screen.getByText(/See final approval result/i));
-
-    await waitFor(() => {
-      expect(mockPostFulFilmentData).toHaveBeenCalled();
-      expect(screen.getByText('Lottie Player')).toBeInTheDocument();
-    });
-  });
-
-  test('shows different text for different stages', () => {
-    const customStore = configureStore({
-      reducer: {
-        stages: stagesReducer,
-        preApproval: preApprovalReducer,
-        error: errorReducer,
-      },
-      preloadedState: {
-        stages: {
-          stages: [
-            {
-              stageId: 'DOC_3',
-              stageInfo: {
-                application: {
-                  channel_reference: 'test-ref',
-                },
-                applicants: [],
-              },
-            },
-          ],
-        },
-      },
-    });
-
-    render(
-      <Provider store={customStore}>
-        <Spinner />
-      </Provider>
-    );
-
-    // Should show processing3 text for DOC_3 stage
-    expect(screen.getByText(/processing/i)).toBeInTheDocument();
-  });
-
-  test('shows different language text when language is Chinese', () => {
-    require('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue('zh');
-
-    render(
-      <Provider store={mockStore}>
-        <Spinner loaderType="showTimmer" />
-      </Provider>
-    );
-
-    expect(screen.getByText(/感謝您的申請/i)).toBeInTheDocument();
-    expect(screen.getByText(/請不要關閉或重新整理瀏覽器/i)).toBeInTheDocument();
-  });
-
-  test('updates currentYear correctly', async () => {
-    jest.useFakeTimers();
-    
-    render(
-      <Provider store={mockStore}>
-        <Spinner />
-      </Provider>
-    );
-
-    // The component calculates currentYear as current year - 1859
-    const currentYear = new Date().getFullYear() - 1859;
-    
-    await waitFor(() => {
-      // You might need to add a way to display or test this value
-      // This is just a placeholder to show the concept
-      expect(currentYear).toBeGreaterThan(150);
-    });
-
-    jest.useRealTimers();
-  });
-
-  test('disables requestUpdate after timeout', async () => {
-    jest.useFakeTimers();
-    
-    render(
-      <Provider store={mockStore}>
-        <Spinner />
-      </Provider>
-    );
-
-    act(() => {
-      jest.advanceTimersByTime(10000);
-    });
-
-    // You might need to add a way to test the internal state
-    // This is just a placeholder to show the concept
-    await waitFor(() => {
-      expect(true).toBeTruthy();
-    });
-
-    jest.useRealTimers();
-  });
-});
+Please write an test cases using react and jest
