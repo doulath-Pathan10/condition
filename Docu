@@ -1,206 +1,120 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import HeaderRef from './HeaderRef';
-import { useSelector } from 'react-redux';
+import "./header-modal.scss"
+import Pdf from "../pdf/pdf";
+import { useState, useEffect } from "react";
+import { KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../../modules/preApproval/services/constants";
+import { getUrl } from "../../../utils/common/change.utils";
+import { getData, getPDFData } from "../../../modules/preApproval/services/preApprovalServices";
+import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
+import { dispatchLoader } from "../../../services/common-service";
+import { useSelector, useDispatch } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
 
-// Mock the useSelector hook
-jest.mock('react-redux', () => ({
-  useSelector: jest.fn(),
-}));
 
-// Mock the getLanguageInfo function
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(),
-  },
-}));
+const HeaderModel: React.FC<any> = ({
+  fileName,
+  closepdf,
+  title,
+  footer
+}) => {
+  const language = getUrl.getLanguageInfo("lang");
+  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+  const [pdfName, setPdfName] = useState('');
+  const [kfsDocPDF, setkfsDocPDF] = useState("");
+  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+  const [showSpinner, setShowSpinner] = useState(true);
+  const dispatch = useDispatch();
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
 
-// Mock the CONSTANTS
-jest.mock('../../../utils/common/constants', () => ({
-  CONSTANTS: {
-    LANG_CN: 'zh',
-    STAGE_NAMES: {
-      ACD_1: 'ACD_1',
-      ACD_2: 'ACD_2',
-      ACD_3: 'ACD_3',
-      ACD_4: 'ACD_4',
-      DOC_3: 'DOC_3',
-      FFD_1: 'FFD_1',
-      FFD_2: 'FFD_2',
-    },
-  },
-}));
+  useEffect(() => {
+    let KFS;
+    if (language === 'zh') {
+      KFS = process.env.REACT_APP_KFS_DOC_URL_Chinees
+    } else {
+      KFS = process.env.REACT_APP_KFS_DOC_URL
+    }
 
-// Mock the PopupModel and HeaderModel components
-jest.mock('../popup-model/popup-model', () => ({ 
-  __esModule: true,
-  default: ({ children, displayPopup }: any) => displayPopup ? <div>{children}</div> : null,
-}));
-jest.mock('./header-modal', () => () => <div>HeaderModel Mock</div>);
-
-describe('HeaderRef Component', () => {
-  const mockDownloadPdfData = 'http://example.com/kfs.pdf';
-  const mockApplicationNo = 'TEST12345';
-  
-  beforeEach(() => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('preApproval?.kfsDocumentPdf')) {
-        return mockDownloadPdfData;
+    getData(KFS)?.then((response: any) => {
+      const campaignID = formConfigmetaData?.products[0].campaign;
+      let pdfURLNew = "";
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.innerWidth < 768;
+      const isMobile = isMobileUA && isSmallScreen;
+      const pdfURL = isMobile ? response.data.productsMob[campaignID] : response.data.products[campaignID];
+      const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+      const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+      if (window.location.host === "localhost:3000") {
+        pdfURLNew = pdfURL[0].pdfURL.replace(
+          "https://pt.sc.com/",
+          "http://localhost:3000/"
+        );
+        setPdfName(getPDFName);
+      } else {
+        pdfURLNew = pdfURL[0].pdfURL;
       }
-      if (selector.toString().includes('stages.stages[0]?.stageId')) {
-        return null; // Default to no stage
-      }
-      if (selector.toString().includes('stages.stages')) {
-        return [{
-          stageInfo: {
-            products: [{
-              campaign: 'HKBDC23PESTP10'
-            }]
-          }
-        }];
-      }
-      return null;
-    });
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('renders with default reference number when no applicationNo provided', () => {
-    (useSelector as jest.Mock).mockImplementation(() => null);
-    render(<HeaderRef applicationNo={null} />);
-    
-    expect(screen.getByText(/Ref No: HK24101700230315/)).toBeInTheDocument();
-  });
-
-  test('renders with provided application number', () => {
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    
-    expect(screen.getByText(`Ref No: ${mockApplicationNo}`)).toBeInTheDocument();
-  });
-
-  test('displays Chinese text when language is CN', () => {
-    const { getLanguageInfo } = require('../../../utils/common/change.utils').getUrl;
-    getLanguageInfo.mockReturnValue('zh');
-    
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    
-    expect(screen.getByText('參考編號:')).toBeInTheDocument();
-    expect(screen.getByText('產品資料概要(包括收費及費用)')).toBeInTheDocument();
-    expect(screen.getByText('參閱')).toBeInTheDocument();
-    expect(screen.getByText('下載')).toBeInTheDocument();
-  });
-
-  test('displays English text when language is not CN', () => {
-    const { getLanguageInfo } = require('../../../utils/common/change.utils').getUrl;
-    getLanguageInfo.mockReturnValue('en');
-    
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    
-    expect(screen.getByText('Ref No:')).toBeInTheDocument();
-    expect(screen.getByText('KFS (including Fees and Charges)')).toBeInTheDocument();
-    expect(screen.getByText('Read')).toBeInTheDocument();
-    expect(screen.getByText('Download')).toBeInTheDocument();
-  });
-
-  test('does not display KFS section when stage is ACD_1', () => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('stages.stages[0]?.stageId')) {
-        return 'ACD_1';
-      }
-      return null;
-    });
-    
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    
-    expect(screen.queryByText('KFS (including Fees and Charges)')).not.toBeInTheDocument();
-  });
-
-  test('opens popup when Read button is clicked', () => {
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    
-    fireEvent.click(screen.getByText('Read'));
-    expect(screen.getByText('HeaderModel Mock')).toBeInTheDocument();
-  });
-
-  test('closes popup when closepdf is called', () => {
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    
-    // Open popup first
-    fireEvent.click(screen.getByText('Read'));
-    expect(screen.getByText('HeaderModel Mock')).toBeInTheDocument();
-    
-    // Close popup - this would need the actual implementation to test properly
-    // In a real test, you might need to mock the HeaderModel to call the closepdf prop
-  });
-
-  test('triggers download when Download button is clicked', () => {
-    const createElementSpy = jest.spyOn(document, 'createElement');
-    const clickSpy = jest.fn();
-    
-    createElementSpy.mockImplementation((tagName) => {
-      if (tagName === 'a') {
-        return {
-          href: '',
-          download: '',
-          click: clickSpy,
-        } as unknown as HTMLAnchorElement;
-      }
-      return document.createElement(tagName);
-    });
-    
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    fireEvent.click(screen.getByText('Download'));
-    
-    expect(createElementSpy).toHaveBeenCalledWith('a');
-    expect(clickSpy).toHaveBeenCalled();
-    
-    createElementSpy.mockRestore();
-  });
-
-  test('uses correct PDF filename for different campaigns', () => {
-    const campaigns = [
-      { campaign: 'HKBDC23PESTP10', expected: 'DC_KFS_Desktop_0421_E.pdf' },
-      { campaign: 'HKPIL23PLSTP10', expected: 'PIL_KFS_Desktop_0421_E.pdf' },
-      { campaign: 'HKSOG20VAWV000', expected: 'SCB_SMART_KFS_Desktop_0421_E.pdf' },
-      { campaign: 'HKSPB17VAWV000', expected: 'SCB_SC_KFS_Desktop_0421_E.pdf' },
-      { campaign: 'HKSOA16VAWP000', expected: 'SCB_PLAT_KFS_Desktop_0421_E.pdf' },
-      { campaign: 'HKSOZ00MCWB000', expected: 'SCB_CX_KFS_E.pdf' },
-    ];
-    
-    campaigns.forEach(({ campaign, expected }) => {
-      (useSelector as jest.Mock).mockImplementation((selector) => {
-        if (selector.toString().includes('stages.stages')) {
-          return [{
-            stageInfo: {
-              products: [{ campaign }]
-            }
-          }];
-        }
-        return null;
+      setkfsDocPDF(pdfURLNew);
+      getPDFData(pdfURLNew).then((response: any) => {
+        const pdfurl: any = {};
+        pdfurl.pdf = response;
+        pdfurl.pdfurl = pdfURLNew;
+        setkfsDocPDFDownload(response);
+        dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+        setShowSpinner(false);
+        dispatch(dispatchLoader(false));
       });
-      
-      const createElementSpy = jest.spyOn(document, 'createElement');
-      const clickSpy = jest.fn();
-      
-      createElementSpy.mockImplementation((tagName) => {
-        if (tagName === 'a') {
-          return {
-            href: '',
-            download: '',
-            click: clickSpy,
-          } as unknown as HTMLAnchorElement;
-        }
-        return document.createElement(tagName);
-      });
-      
-      render(<HeaderRef applicationNo={mockApplicationNo} />);
-      fireEvent.click(screen.getByText('Download'));
-      
-      expect(createElementSpy.mock.results[0].value.download).toBe(expected);
-      
-      createElementSpy.mockRestore();
-    });
-  });
-});
+      const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+      //should add conditionally bet 2 pdfs 
+      // const PDFLinksIntegratedDeposit = response.data.tncLinkCampaignCode.isCasa[0].pdfLinks;
+      // setPdfLinkTerms(PDFLinksIntegratedDeposit)
+      setPdfLinkTerms(allPDFLinks);
+    })
+  }, [])
+  return (
+    <>
+
+      <div className="popup-declare">
+        <button type="button" className="close pdfClose" onClick={closepdf}></button>
+        <div className="popup-container1-declare">
+          <div className="popup-info-declare">
+            <div className="popup-info__desc">
+              <div className="popup-title">{title}</div>
+              <div className="popup_width"><Pdf fileName={fileName} /></div>
+              {footer &&
+                <div className="popUp_footer">
+                  <div className="hintIcon">
+                    <p>{footer}</p>
+                    <div className="images">
+                      <div></div>
+                    </div>
+                  </div>
+                  <div className="popup_title_link">
+                    {pdfLinkTerms?.map((item: any, index: any) => {
+                      return (
+                        <a
+                          href={item.url}
+                          download
+                          target="_blank">
+                          {item.Title}
+                        </a>
+                      );
+                    })}
+                  </div>
+
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </>
+
+  )
+
+}
+
+export default HeaderModel
+
+Please write an test cases using react and jest
