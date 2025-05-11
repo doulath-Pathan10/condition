@@ -1,269 +1,94 @@
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import HeaderModel from './HeaderModel';
-import { useSelector, useDispatch } from 'react-redux';
-import { getData, getPDFData } from '../../../modules/preApproval/services/preApprovalServices';
+import "./header-ref.scss"
+import { getUrl } from "../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { useSelector } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
+import { useState } from "react";
+import PopupModel from "../popup-model/popup-model";
+import HeaderModel from "./header-modal";
 
-// Mock the useSelector and useDispatch hooks
-jest.mock('react-redux', () => ({
-  useSelector: jest.fn(),
-  useDispatch: jest.fn(),
-}));
+const HeaderRef: React.FC<any> = ({
+  applicationNo,
 
-// Mock the services
-jest.mock('../../../modules/preApproval/services/preApprovalServices');
-jest.mock('../../../utils/common/change.utils');
+}) => {
+  const [openpopup, setOpenpop] = useState(false);
+  const language = getUrl.getLanguageInfo("lang");
+  const ref_number = "HK24101700230315"
 
-// Mock the Pdf component
-jest.mock('../pdf/pdf', () => () => <div>PDF Component</div>);
+  const downloadPdfData = useSelector((state: StoreModel) => state.preApproval?.kfsDocumentPdf);
+  const stageIdSelector = useSelector((state: StoreModel) => state.stages.stages[0]?.stageId);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
 
-describe('HeaderModel Component', () => {
-  const mockDispatch = jest.fn();
-  const mockFormConfigmetaData = {
-    products: [{
-      campaign: 'test-campaign'
-    }]
+  const kfcStatement = () => {
+    if(language === CONSTANTS.LANG_CN) {
+      return "資料概要"
+    } else {
+      return "Key Facts Statement"
+    }
+  }
+  const downloadPDF = () => {
+    const fileName: any = downloadPdfData.split('/').pop();
+    
+    
+    const replaceFilename = stageSelector[0].stageInfo?.products[0].campaign === 'HKBDC23PESTP10' ? fileName.replace(fileName, 'DC_KFS_Desktop_0421_E.pdf') // DC PDF
+    : (stageSelector[0].stageInfo?.products[0].campaign === 'HKPIL23PLSTP10'? fileName.replace(fileName, 'PIL_KFS_Desktop_0421_E.pdf'): // PIL PDF
+     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOG20VAWV000'? fileName.replace(fileName, 'SCB_SMART_KFS_Desktop_0421_E.pdf') : // Smart card PDF
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSPB17VAWV000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSPG17VAWV000') ? fileName.replace(fileName, 'SCB_SC_KFS_Desktop_0421_E.pdf'): // simply cash pdf
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16VAWP000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16MCWP000') ? fileName.replace(fileName, 'SCB_PLAT_KFS_Desktop_0421_E.pdf'): // core platinum pdf
+     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ00MCWB000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ01MCWB000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ02MCWB000') ? fileName.replace(fileName, 'SCB_CX_KFS_E.pdf'): // Asiamiles PDF
+     "")
+    )
+    )
+    )
+    const lin = document.createElement('a');
+    lin.href = downloadPdfData;
+    lin.download = replaceFilename;
+    lin.click();
   };
 
-  beforeEach(() => {
-    (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
-    (useSelector as jest.Mock).mockImplementation((selector) => 
-      selector({
-        preApproval: {
-          formConfigmetaData: mockFormConfigmetaData
-        }
-      })
-    );
-    
-    // Mock getUrl.getLanguageInfo
-    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-    
-    // Mock process.env
-    process.env.REACT_APP_KFS_DOC_URL = 'http://test-url.com';
-    process.env.REACT_APP_KFS_DOC_URL_Chinees = 'http://test-url-chinese.com';
-    
-    // Mock window properties
-    Object.defineProperty(window, 'location', {
-      value: {
-        host: 'localhost:3000'
-      },
-      writable: true
-    });
-    Object.defineProperty(window, 'innerWidth', {
-      value: 1024,
-      writable: true
-    });
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0',
-      writable: true
-    });
-    Object.defineProperty(navigator, 'maxTouchPoints', {
-      value: 0,
-      writable: true
-    });
-  });
+  const viewPDF = () => {
+    setOpenpop(true);
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  const defaultProps = {
-    fileName: 'test.pdf',
-    closepdf: jest.fn(),
-    title: 'Test Title',
-    footer: 'Test Footer'
   };
+  const closepdf = () => {
+    setOpenpop(false);
+  }
 
-  it('renders without crashing', () => {
-    render(<HeaderModel {...defaultProps} />);
-    expect(screen.getByText('Test Title')).toBeInTheDocument();
-  });
+  return (
+    <>
+      <div className="header-ref">
+        <span className="banner-icon"></span>
+        <div className="header-ref-set">
+          <p className="ref-no">
+            {language === CONSTANTS.LANG_CN ? "參考編號:" : "Ref No:"} {applicationNo ? applicationNo : ref_number}
+          </p>
+          {(stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_2 &&stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_4 && stageIdSelector !== CONSTANTS.STAGE_NAMES.DOC_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_2) &&
+            <p className="kfs-headerbg" >
+              <label className="kfs-header">{language === CONSTANTS.LANG_CN ? "產品資料概要(包括收費及費用)" : "KFS (including Fees and Charges)"}</label>
+              <div className="btn-div">
+                <span className="kfsHeadtn" onClick={viewPDF}>{language === CONSTANTS.LANG_CN ? "參閱" : "Read"}</span>
+                <span className="kfsHeadtn" onClick={downloadPDF}>{language === CONSTANTS.LANG_CN ? "下載" : "Download"}</span>
+              </div>
+            </p>
+          }
+        </div>
+      </div>
 
-  it('displays the close button', () => {
-    render(<HeaderModel {...defaultProps} />);
-    expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
-  });
+      {(openpopup) && (
+        <PopupModel displayPopup={openpopup}>
+          {openpopup &&
+          <div className="reviewReadTop">
+            <HeaderModel fileName={downloadPdfData} closepdf={closepdf} title={kfcStatement()}/>
+          </div>
+          }
+        </PopupModel>
+      )}
+    </>
+  );
+};
 
-  it('calls closepdf when close button is clicked', () => {
-    render(<HeaderModel {...defaultProps} />);
-    screen.getByRole('button', { name: /close/i }).click();
-    expect(defaultProps.closepdf).toHaveBeenCalled();
-  });
 
-  it('renders the Pdf component with correct fileName', () => {
-    render(<HeaderModel {...defaultProps} />);
-    expect(screen.getByText('PDF Component')).toBeInTheDocument();
-  });
 
-  it('displays footer content when provided', () => {
-    render(<HeaderModel {...defaultProps} />);
-    expect(screen.getByText('Test Footer')).toBeInTheDocument();
-  });
+export default HeaderRef
 
-  it('does not display footer section when footer prop is not provided', () => {
-    const { footer, ...propsWithoutFooter } = defaultProps;
-    render(<HeaderModel {...propsWithoutFooter} />);
-    expect(screen.queryByTestId('popUp_footer')).not.toBeInTheDocument();
-  });
-
-  it('fetches KFS document URL based on English language', async () => {
-    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-    (getData as jest.Mock).mockResolvedValue({
-      data: {
-        products: {
-          'test-campaign': [{ pdfURL: 'http://test-pdf-url.com' }]
-        },
-        productsMob: {
-          'test-campaign': [{ pdfURL: 'http://test-mobile-pdf-url.com' }]
-        },
-        tncLinkCampaignCode: {
-          'test-campaign': [{
-            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
-          }]
-        }
-      }
-    });
-    
-    render(<HeaderModel {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalledWith('http://test-url.com');
-    });
-  });
-
-  it('fetches KFS document URL based on Chinese language', async () => {
-    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
-    (getData as jest.Mock).mockResolvedValue({
-      data: {
-        products: {
-          'test-campaign': [{ pdfURL: 'http://test-pdf-url.com' }]
-        },
-        productsMob: {
-          'test-campaign': [{ pdfURL: 'http://test-mobile-pdf-url.com' }]
-        },
-        tncLinkCampaignCode: {
-          'test-campaign': [{
-            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
-          }]
-        }
-      }
-    });
-    
-    render(<HeaderModel {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalledWith('http://test-url-chinese.com');
-    });
-  });
-
-  it('handles mobile device detection correctly', async () => {
-    Object.defineProperty(window, 'innerWidth', { value: 400 });
-    Object.defineProperty(navigator, 'userAgent', { value: 'iphone' });
-    
-    (getData as jest.Mock).mockResolvedValue({
-      data: {
-        products: {
-          'test-campaign': [{ pdfURL: 'http://desktop-pdf-url.com' }]
-        },
-        productsMob: {
-          'test-campaign': [{ pdfURL: 'http://mobile-pdf-url.com' }]
-        },
-        tncLinkCampaignCode: {
-          'test-campaign': [{
-            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
-          }]
-        }
-      }
-    });
-    
-    render(<HeaderModel {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(getData).toHaveBeenCalled();
-      // Verify mobile URL is used
-    });
-  });
-
-  it('displays terms and conditions links when title matches', async () => {
-    const propsWithTermsTitle = {
-      ...defaultProps,
-      title: 'Terms & Conditions , Credit Card Application Declaration'
-    };
-    
-    (getData as jest.Mock).mockResolvedValue({
-      data: {
-        products: {
-          'test-campaign': [{ pdfURL: 'http://test-pdf-url.com' }]
-        },
-        productsMob: {
-          'test-campaign': [{ pdfURL: 'http://test-mobile-pdf-url.com' }]
-        },
-        tncLinkCampaignCode: {
-          'test-campaign': [{
-            pdfLinks: [
-              { url: 'http://test-tnc1.com', Title: 'Terms PDF 1' },
-              { url: 'http://test-tnc2.com', Title: 'Terms PDF 2' }
-            ]
-          }]
-        }
-      }
-    });
-    
-    render(<HeaderModel {...propsWithTermsTitle} />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('Terms PDF 1')).toBeInTheDocument();
-      expect(screen.getByText('Terms PDF 2')).toBeInTheDocument();
-    });
-  });
-
-  it('handles PDF URL modification for localhost', async () => {
-    (getData as jest.Mock).mockResolvedValue({
-      data: {
-        products: {
-          'test-campaign': [{ pdfURL: 'https://pt.sc.com/test.pdf' }]
-        },
-        productsMob: {
-          'test-campaign': [{ pdfURL: 'https://pt.sc.com/test-mobile.pdf' }]
-        },
-        tncLinkCampaignCode: {
-          'test-campaign': [{
-            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
-          }]
-        }
-      }
-    });
-    
-    render(<HeaderModel {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(getPDFData).toHaveBeenCalledWith('http://localhost:3000/test.pdf');
-    });
-  });
-
-  it('dispatches loader actions correctly', async () => {
-    (getData as jest.Mock).mockResolvedValue({
-      data: {
-        products: {
-          'test-campaign': [{ pdfURL: 'http://test-pdf-url.com' }]
-        },
-        productsMob: {
-          'test-campaign': [{ pdfURL: 'http://test-mobile-pdf-url.com' }]
-        },
-        tncLinkCampaignCode: {
-          'test-campaign': [{
-            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
-          }]
-        }
-      }
-    });
-    
-    render(<HeaderModel {...defaultProps} />);
-    
-    await waitFor(() => {
-      expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'preApproval/setKfsDocumentPdf'
-      }));
-    });
-  });
-});
+Please write an test cases using react and jest
