@@ -1,322 +1,260 @@
-import "./submission.scss"
-import submissionConstant from "../../../assets/_json/submission.json";
-import { getUrl } from "../../../utils/common/change.utils";
-import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
-import phoneIcon from '../../../assets/_images/icon-sc-small-icon-sc-s-phone-call.png'
-import { useSelector } from "react-redux";
-import { useEffect, useState } from "react";
-import simplyCash_hori from "../../../assets/_images/simply-cash-card-horizontal@2x.jpg";
-import simplyCash_vertical from "../../../assets/_images/Simply Cash-Vertical@2x.jpg";
-import smartCard from "../../preApproval/images/cards/SCB_SMART_CARD_1536x969_Wallet_0114.png";
-import { useNavigate } from "react-router-dom";
-import { FFDSubmission } from "./FFDSubmission";
-import Tier_0 from "../../../assets/_images/Tier-0-front.png";
-import Tier_1 from "../../../assets/_images/Tier-1-front.png";
-import Tier_2 from "../../../assets/_images/Tier-2-front.png";
-import PreApprovalUtil from "../services/preApprovalUtils";
-import { store } from "../../../utils/store/store";
-import axios from "axios";
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { Provider } from 'react-redux';
+import { createStore } from 'redux';
+import { BrowserRouter as Router } from 'react-router-dom';
+import axios from 'axios';
+import Submission from './Submission';
 
-
-const Submission = () => {
-  const [plSuccessScreen, setPlSuccessScreen] = useState(false);
-  const submissionContent: KeyWithAnyModel = submissionConstant;
-  const language = getUrl.getLanguageInfo("lang");
-  const ref_number = "HK24101700230315"
-  const formConfigmetaData = useSelector((state: StoreModel) => state.preApproval.formConfigmetaData);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const productType: string = stageSelector[0].stageInfo?.products[0].product_type;
-  const cardType = getUrl.getParameterByName("cardType");
-  const navigate = useNavigate();
-  const campaignId = stageSelector[0]?.stageInfo?.products[0]?.campaign;
-  const applicationRefNo = stageSelector[0].stageInfo?.application.channel_reference;
-  const casaSegment = stageSelector[0].stageInfo?.applicants[0].casaSegment;
-  const asiamiles = stageSelector[0].stageInfo?.applicants[0].asiaMilesCard;
-
-  let lang = '';
-  if (language === "zh" || language === "zh-hk") {
-    lang = "CN";
-  } else {
-    lang = 'EN'
-  }
-
-  useEffect(() => {
-    if (stageSelector[0].stageInfo?.products[0].product_category === "PL") {
-      setPlSuccessScreen(true);
-      return;
-    } else if (stageSelector[0].stageInfo?.products[0].offer_details[0].offer_status === "1002" || stageSelector[0].stageInfo?.products[0].offer_details[0].offer_status === "1004") {
-      setPlSuccessScreen(true)
-      return;
-    } else {
-      setPlSuccessScreen(false);
-    }
-  }, [])
-
-  const productLink = `https://surveys.sc.com/jfe/form/SV_9LbvckjbELelJbM?&p=${stageSelector[0].stageInfo?.products[0].product_category}${"&m=hk&c="}${stageSelector[0].stageInfo?.application.application_reference}`;
-
-  const backBtn = () => {
-    window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
-  }
-  const nextBtn = () => {
-    navigate('/hk/ffd-casa')
-  }
-  const FFDPathName = window.location.pathname;
-  let aof_doc_id: any;
-  aof_doc_id = stageSelector[0]?.stageInfo?.applicants[0]?.aof_doc_id ? aof_doc_id = stageSelector[0]?.stageInfo?.applicants[0]?.aof_doc_id : '';
-  let repayDocId: any;
-  repayDocId = stageSelector[0]?.stageInfo?.applicants[0]?.repayDocId ? repayDocId = stageSelector[0]?.stageInfo?.applicants[0]?.repayDocId : '';
-
-  const downloadAOF = () => {
-    var pdfredirectionURL;
-    window.onbeforeunload = () => { };
-    if (process.env.NODE_ENV === 'production') {
-      pdfredirectionURL = "https://origination.sc.com/onboarding/hk/www/rtoForms/index.html#/onboarding?country=HK&products={'product_category':'CC','product_type':'1281','campaign':'HKSJG20VAWC000'}&source=app_iph_app&pageId=donwnloadAOF&id=" + aof_doc_id + "&token=" + applicationRefNo;
-    } else if (process.env.NODE_ENV === 'test') {
-      pdfredirectionURL = "https://origination-test.sc.com/onboarding/hk/www/rtoForms/index.html#/onboarding?country=HK&products={'product_category':'CC','product_type':'1281','campaign':'HKSJG20VAWC000'}&source=app_iph_app&pageId=donwnloadAOF&id=" + aof_doc_id + "&token=" + applicationRefNo;
-    } else {
-      pdfredirectionURL = "https://rcwbsit.sc.com/origination/hk-sit/www/rtoForms/index.html#/onboarding?country=HK&products={'product_category':'CC','product_type':'1281','campaign':'HKSJG20VAWC000'}&source=app_iph_app&pageId=donwnloadAOF&id=" + aof_doc_id + "&token=" + applicationRefNo;
-    }
-    if (productType === '1313') {
-      previewSingleDoc();
-    }
-  }
-
-  //Download Link
-  const previewSingleDoc = (param?: any) => {
-    var a: any = document.createElement("a");
-    var pdf: any = document.getElementById("FFDSection");
-    pdf.appendChild(a);
-    let appId: string;
-    a.style = "display: none";
-    if (param == 'repayment-schedule') {
-      var previewImage = process.env.REACT_APP_RTOB_BASE_URL + '/applications/' + applicationRefNo + '/documents/' + repayDocId + '.pdf';
-    } else {
-      if (aof_doc_id) {
-        var previewImage = process.env.REACT_APP_RTOB_BASE_URL + '/applications/' + applicationRefNo + '/documents/' + aof_doc_id + '.pdf';
+// Mock redux store
+const mockStore = createStore(() => ({
+  preApproval: {
+    formConfigmetaData: {}
+  },
+  stages: {
+    stages: [{
+      stageInfo: {
+        products: [{
+          product_category: 'CC',
+          product_type: '1241',
+          campaign: 'HKSJG20VAWC000',
+          offer_details: [{ offer_status: '1001' }]
+        }],
+        application: {
+          application_reference: 'TEST123',
+          channel_reference: 'REF123'
+        },
+        applicants: [{
+          casaSegment: 'N',
+          asiaMilesCard: 'N',
+          aof_doc_id: 'DOC123'
+        }]
       }
-      else {
-        var previewImage = process.env.REACT_APP_RTOB_BASE_URL + '/applications/' + applicationRefNo + '/documents/AOF.pdf';
-      }
-    }
-    axios.get(previewImage, { responseType: "arraybuffer" })
-      .then((response: any) => {
-        if (response.status === 200) {
-          var blob = new Blob([response.data], { type: "application/pdf" });
-          if (
-            navigator.userAgent.indexOf("Chrome") !== -1 ||
-            navigator.userAgent.match("CriOS")
-          ) {
-            blob = new Blob([response.data], { type: "application/pdf" });
-          } else {
-            var pdfBase64Data = new Uint8Array(response.data);
-            blob = new Blob([pdfBase64Data], {
-              type: "application/octet-stream",
-            });
-          }
-          const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
-          /*istanbul ignore else*/
-          if (isSafari) {
-            blob = new Blob([response.data], { type: "application/pdf" });
-          }
-          const dataURL = window.URL.createObjectURL(blob);
-          const lin = document.createElement('a');
-          lin.href = dataURL;
-          lin.target = "_blank";
-          lin.download = applicationRefNo + ".pdf";
-          lin.click();
-          //  return Promise.resolve(dataURL);
-        }
-      })
-      .catch((error: any) => {
-        console.log(error);
-        return Promise.resolve(error);
-      });
+    }]
   }
+}));
 
-  return (
-    <>
-      <div className="main-wrapper">
-        {/* PL success submission screen*/}
-        {
-          plSuccessScreen ?
-            <div className="ffdDisplayPLNSTP">
-              <div className="banner---sucessPL ffd-2-banner">
-                <span className="Main-Text">{submissionContent[lang].mainText}</span>
-              </div>
-              <div className="application-content">
-                <p className="application-f1">{submissionContent[lang].nextText}</p>
-                <p className="application-f2">{submissionContent[lang].processingPLText}</p>
-              </div>
-              <div className="success-parent-sec1">
-                <div className="frog-success-survey">
-                  <div>We'd like your feedback!</div>
-                  <div className="thank-you-page-link-survey"><a target="_blank" href={productLink}>Click here</a></div>
-                  <div>to share your experience with us.</div>
-                </div>
-              </div>
-              <div className="application-content bg-grey">
-                <p className="application-f1 font-medium">{submissionContent[lang].refNoText} {applicationRefNo ? applicationRefNo : ""}</p>
-                <p className="application-f2 font-sm">{submissionContent[lang].refText} </p>
-                <p className="application-f1 font-medium">{submissionContent[lang].refPLText}</p>
-                <div className="application-phone">
-                  <div className="application-f3Img">
-                    <p><img className="phone-img" src={phoneIcon} /></p>
-                  </div>
-                  <div className="applicationf3Text">
-                    <p className="application-f3"><b>{submissionContent.phone}</b></p>
-                  </div>
-                </div>
-              </div>
-              <p className="done-btn bg-green" onClick={backBtn}>{submissionContent[lang].btnPLText}</p>
-            </div>
-            : productType === '1241' || productType === '1282' || productType === '1313' ?
-              FFDPathName === '/hk/ffd-casa' && casaSegment === 'Y' ? <FFDSubmission /> :
-                <div className="ffdDisplayNSTP" style={{ width: '75vw' }}>
-                  {/* ------------------------MOBILE---------------- */}
-                  <div className="nstpMobile">
-                    <div className="banner---sucess ffd-2-banner">
-                      {FFDPathName === '/hk/ffd-casa' ? <span className="Main-Text">{submissionContent?.CCProducts?.ffdMainText}</span> : <span className="Main-Text">{submissionContent?.CCProducts?.mainText}</span>}
-                    </div>
-                    <div>{productType === '1241' || productType === '1282' ?
-                      <div className="card_img">
-                        <img className="phone-img" width='412' src={productType === '1241' && cardType === '3264' ? simplyCash_hori : productType === '1241' && cardType === '3265' ? simplyCash_vertical : smartCard} />
-                      </div> :
-                      productType === '1313' ?
-                        <div className="card_img">
-                          <img className="phone-img" width='218' height='346' src={productType === '1313' && campaignId === 'HKSOZ00MCWB000' ? Tier_0 : productType === '1313' && campaignId === 'HKSOZ01MCWB000' ? Tier_1 : Tier_2} />
-                        </div>
-                        : ''}</div>
-                    <div>
-                      <p className="done-btn bg-button" id="FFDSection" onClick={downloadAOF}>{submissionContent?.CCProducts?.saveApplication}</p>
-                    </div>
-                    <div className="application-content">
-                      <p className="application-f1">{submissionContent?.CCProducts?.nextText}</p>
-                      <p className="application-f2">{submissionContent?.CCProducts?.processingText}</p>
-                      <b className="application-f1">{submissionContent?.CCProducts.enquiryContent}</b>
-                      <p className="contact-info">{submissionContent.phone}</p>
-                    </div>
-                    <div className="application-content bg-grey" style={{ margin: '8% auto' }}>
-                      <p className="application-f1 font-medium">{submissionContent[lang]?.refNoText} {applicationRefNo ? applicationRefNo : ref_number}</p>
-                      <p className="application-f2 font-sm">{submissionContent[lang]?.refText} </p>
-                    </div>
-                    {productType === '1313' && <div className="row1 success-parent-sec1">
-                      <div className="frog-success-survey">
-                        <div>We'd like your feedback!</div>
-                        <div className="thank-you-page-link-survey"><a target="_blank" href={productLink}>Click here</a></div>
-                        <div>to share your experience with us.</div>
-                      </div>
-                    </div>}
-                    <div className="hk-copy-rights">
-                      <p>{submissionContent[lang]?.scbHkCopyRights}</p>
-                    </div>
-                    <div>{productType === '1313' && casaSegment === 'Y' ? <p className="done-btn bg-button" onClick={nextBtn}>{submissionContent?.CCProducts?.nextTextBtn}</p>
-                      : productType === '1313' && asiamiles === 'Y' ? <p className="done-btn bg-button " onClick={backBtn}>{submissionContent[lang]?.btnMobileText}</p>
-                        : <p className="done-btn bg-button " onClick={backBtn}>{submissionContent[lang]?.btnDeskTopText}</p>
-                    }</div>
-                  </div>
-                  {/* ----------------------DESKTOP--------------- */}
-                  <div className="nstpDesktop">
-                    <div ng-if="ffdDisplay=='NSTP'">
-                      <div className="banner---sucess ffd-2-banner">
-                        <span className="Main-Text">{submissionContent?.CCProducts?.mainText}</span>
-                      </div>
-                      <div>{productType === '1241' || productType === '1282' ?
-                        <div className="card_img">
-                          <img className="phone-img" width='412' src={productType === '1241' && cardType === '3264' ? simplyCash_hori : productType === '1241' && cardType === '3265' ? simplyCash_vertical : smartCard} />
-                        </div> :
-                        productType === '1313' ?
-                          <div className="card_img">
-                            <img className="phone-img" width='218' height='346' src={productType === '1313' && campaignId === 'HKSOZ00MCWB000' ? Tier_0 : productType === '1313' && campaignId === 'HKSOZ01MCWB000' ? Tier_1 : Tier_2} />
-                          </div>
-                          : ''}</div>
-                      <div>
-                        <p className="done-btn bg-button" id="FFDSection" onClick={downloadAOF}>{submissionContent?.CCProducts?.saveApplication}</p>
-                      </div>
-                      <div className="ffd-partision">
-                        <div className={productType === '1313' ? 'next' : 'application-content application-next'}>
-                          <p className="application-f1">{submissionContent?.CCProducts?.nextText}</p>
-                          <p className="application-f2">{submissionContent?.CCProducts?.processingText}</p>
-                          <div> {productType === '1313' && <div className="row1 success-parent-sec1">
-                            <div className="frog-success-survey">
-                              <div>We'd like your feedback!</div>
-                              <div className="thank-you-page-link-survey"><a target="_blank" href={productLink}>Click here</a></div>
-                              <div>to share your experience with us.</div>
-                            </div>
-                          </div>}
-                          </div>
-                          <div className="hk-copy-rights">
-                            <p>{submissionContent[lang]?.scbHkCopyRights}</p>
-                          </div>
-                          <div>{productType === '1313' && casaSegment === 'Y' ? <p className="done-btn bg-button" onClick={nextBtn}>{submissionContent?.CCProducts?.nextTextBtn}</p>
-                            : productType === '1313' && asiamiles === 'Y' ? <p className="done-btn bg-button " onClick={backBtn}>{submissionContent[lang]?.btnMobileText}</p>
-                              : <p className="done-btn bg-button " onClick={backBtn}>{submissionContent[lang]?.btnDeskTopText}</p>
-                          }</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              : <div className="ffdDisplayNSTP">
-                <div className="nstpMobile">
-                  <div className="banner---sucess ffd-2-banner">
-                    <span className="Main-Text">{submissionContent[lang]?.mainText}</span>
-                  </div>
-                  <div className="application-content">
-                    <p className="application-f1">{submissionContent[lang]?.nextText}</p>
-                    <p className="application-f2">{submissionContent[lang]?.processingText}</p>
-                    <b className="application-f1">{submissionContent[lang]?.enquiryContent}</b>
-                    <p className="contact-info">{submissionContent.phone}</p>
-                  </div>
-                  <div className="row success-parent-sec1">
-                    <div className="frog-success-survey">
-                      <div>We'd like your feedback!</div>
-                      <div className="thank-you-page-link-survey"><a target="_blank" href={productLink}>Click here</a></div>
-                      <div>to share your experience with us.</div>
-                    </div>
-                  </div>
-                  <div className="application-content bg-grey" style={{ margin: '8% auto' }}>
-                    <p className="application-f1 font-medium">{submissionContent[lang]?.refNoText} {applicationRefNo ? applicationRefNo : ref_number}</p>
-                    <p className="application-f2 font-sm">{submissionContent[lang]?.refText} </p>
-                  </div>
-                  <div className="hk-copy-rights">
-                    <p>{submissionContent[lang]?.scbHkCopyRights}</p>
-                  </div>
-                  <p className="done-btn bg-button" onClick={backBtn}>{submissionContent[lang]?.btnMobileText}</p>
-                </div>
+// Mock axios
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-                <div className="nstpDesktop">
-                  <div ng-if="ffdDisplay=='NSTP'">
-                    <div className="banner---sucess ffd-2-banner">
-                      <span className="Main-Text">{submissionContent[lang]?.mainText}</span>
-                    </div>
-                    <div className="ffd-partision" style={{ height: '100vh' }}>
-                      <div className="application-content application-next">
-                        <p className="application-f1">{submissionContent[lang]?.nextText}</p>
-                        <p className="application-f2">{submissionContent[lang]?.processingText}</p>
-                        <div className="hk-copy-rights">
-                          <p>{submissionContent[lang]?.scbHkCopyRights}</p>
-                        </div>
-                        <p className="done-btn bg-button static-button" onClick={backBtn}>{submissionContent[lang]?.btnDeskTopText}</p>
-                      </div>
-                      <div className="application-ref-section ">
-                        <div className="application-content bg-grey">
-                          <p className="application-contact-image"></p>
-                          <p className="application-f1 font-medium">{submissionContent[lang]?.refNoText} {applicationRefNo ? applicationRefNo : ref_number}</p>
-                          <p className="application-f2 font-sm">{submissionContent[lang]?.contactText} </p>
-                          <b>{submissionContent[lang]?.enquiryContent}</b>
-                          <p className="contact-info">{submissionContent.phone}</p>
-                        </div>
-                      </div>
+// Mock react-router-dom hooks
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({
+    pathname: '/hk/cc'
+  })
+}));
 
-                    </div>
-                  </div>
-                </div>
-              </div>}
-      </div >
-    </>
-  )
-}
+// Mock getUrl utility
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn().mockReturnValue('en'),
+    getParameterByName: jest.fn().mockReturnValue('3264')
+  }
+}));
 
-export default Submission
+describe('Submission Component', () => {
+  beforeEach(() => {
+    // Mock successful PDF download
+    mockedAxios.get.mockResolvedValueOnce({
+      status: 200,
+      data: new ArrayBuffer(8)
+    });
+  });
 
-Please write an test cases using react and jest
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders without crashing', () => {
+    render(
+      <Provider store={mockStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(/Thank you for your application/i)).toBeInTheDocument();
+  });
+
+  it('displays the correct reference number', () => {
+    render(
+      <Provider store={mockStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(/Reference number: REF123/i)).toBeInTheDocument();
+  });
+
+  it('shows the correct card image for SimplyCash horizontal', () => {
+    render(
+      <Provider store={mockStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    const cardImage = screen.getByRole('img');
+    expect(cardImage).toHaveAttribute('width', '412');
+  });
+
+  it('handles download AOF button click', async () => {
+    render(
+      <Provider store={mockStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    const downloadButton = screen.getByText(/Save your application/i);
+    fireEvent.click(downloadButton);
+    
+    await waitFor(() => {
+      expect(mockedAxios.get).toHaveBeenCalled();
+    });
+  });
+
+  it('handles back button click', () => {
+    render(
+      <Provider store={mockStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    const backButton = screen.getByText(/Back to homepage/i);
+    fireEvent.click(backButton);
+    
+    expect(window.location.href).toBe('http://localhost/');
+  });
+
+  it('displays PL success screen when product is PL', () => {
+    const plStore = createStore(() => ({
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{
+              product_category: 'PL',
+              product_type: '1241',
+              offer_details: [{ offer_status: '1001' }]
+            }],
+            application: {
+              application_reference: 'TEST123',
+              channel_reference: 'REF123'
+            },
+            applicants: [{}]
+          }
+        }]
+      }
+    }));
+    
+    render(
+      <Provider store={plStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(/We will notify you once your application is approved/i)).toBeInTheDocument();
+  });
+
+  it('displays FFD submission when path is /hk/ffd-casa and casaSegment is Y', () => {
+    const ffdStore = createStore(() => ({
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{
+              product_category: 'CC',
+              product_type: '1241'
+            }],
+            application: {
+              application_reference: 'TEST123'
+            },
+            applicants: [{
+              casaSegment: 'Y'
+            }]
+          }
+        }]
+      }
+    }));
+    
+    jest.spyOn(window, 'location', 'get').mockReturnValue({
+      ...window.location,
+      pathname: '/hk/ffd-casa'
+    } as any);
+    
+    render(
+      <Provider store={ffdStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(/Thank you for your application/i)).toBeInTheDocument();
+  });
+
+  it('displays survey link for Asia Miles card', () => {
+    const asiaMilesStore = createStore(() => ({
+      stages: {
+        stages: [{
+          stageInfo: {
+            products: [{
+              product_category: 'CC',
+              product_type: '1313',
+              campaign: 'HKSOZ01MCWB000'
+            }],
+            application: {
+              application_reference: 'TEST123'
+            },
+            applicants: [{
+              casaSegment: 'N',
+              asiaMilesCard: 'Y'
+            }]
+          }
+        }]
+      }
+    }));
+    
+    render(
+      <Provider store={asiaMilesStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    expect(screen.getByText(/We'd like your feedback!/i)).toBeInTheDocument();
+  });
+
+  it('handles PDF download error', async () => {
+    mockedAxios.get.mockRejectedValueOnce(new Error('Download failed'));
+    
+    render(
+      <Provider store={mockStore}>
+        <Router>
+          <Submission />
+        </Router>
+      </Provider>
+    );
+    
+    const downloadButton = screen.getByText(/Save your application/i);
+    fireEvent.click(downloadButton);
+    
+    await waitFor(() => {
+      expect(mockedAxios.get).toHaveBeenCalled();
+    });
+  });
+});
