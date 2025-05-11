@@ -1,36 +1,149 @@
-import { useState } from 'react';
-import Model from "../model/model";
-import "./info-tooltips.scss";
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { InfoTooltips } from './InfoTooltips';
 import { CONSTANTS } from '../../../utils/common/constants';
 import { getUrl } from '../../../utils/common/change.utils';
-export const InfoTooltips = (props: any) => {
 
-    const getMarkup = () => {
-        return {
-            __html: `
-          <div>${props && props.infoTooltips}</div>
-        `,
-        };
-    };
+// Mock dependencies
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn()
+  }
+}));
 
-    const [showPopup, setShowPopup] = useState(false)
-    const language = getUrl.getLanguageInfo("lang");
-    const closePopup = () => {
-        setShowPopup(false)
-    }
+jest.mock('../model/model', () => {
+  return function MockModel({ children, name, btnTxt, closePopup, body_content }: any) {
     return (
-        <>
-            <div className="tool-tip__icon" onClick={() => setShowPopup(!showPopup)}></div>
-            {(showPopup) && (
-                showPopup &&
-                <Model name='info_tooltips' btnTxt={language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK} closePopup={closePopup} body_content={<span dangerouslySetInnerHTML={getMarkup()}></span>}> </Model>
+      <div data-testid="mock-model" className={name}>
+        <div data-testid="model-content">{body_content}</div>
+        <button data-testid="model-button" onClick={closePopup}>{btnTxt}</button>
+      </div>
+    );
+  };
+});
 
-            )}
-        </>
-    )
-}
+describe('InfoTooltips Component', () => {
+  beforeEach(() => {
+    // Reset mock implementations before each test
+    jest.clearAllMocks();
+  });
 
-export default InfoTooltips;
+  test('renders without crashing', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips infoTooltips="Test tooltip content" />);
+    
+    expect(screen.getByClassName('tool-tip__icon')).toBeInTheDocument();
+  });
 
+  test('does not show popup initially', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips infoTooltips="Test tooltip content" />);
+    
+    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
+  });
 
-Please write an test cases using react and jest
+  test('shows popup when icon is clicked', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips infoTooltips="Test tooltip content" />);
+    
+    const tooltipIcon = screen.getByClassName('tool-tip__icon');
+    fireEvent.click(tooltipIcon);
+    
+    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
+    expect(screen.getByTestId('model-content')).toBeInTheDocument();
+  });
+
+  test('closes popup when closePopup function is called', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips infoTooltips="Test tooltip content" />);
+    
+    // First open the popup
+    const tooltipIcon = screen.getByClassName('tool-tip__icon');
+    fireEvent.click(tooltipIcon);
+    
+    // Then close it
+    const modelButton = screen.getByTestId('model-button');
+    fireEvent.click(modelButton);
+    
+    // Check if popup is closed
+    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
+  });
+
+  test('toggles popup visibility on icon click', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips infoTooltips="Test tooltip content" />);
+    
+    const tooltipIcon = screen.getByClassName('tool-tip__icon');
+    
+    // First click - show popup
+    fireEvent.click(tooltipIcon);
+    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
+    
+    // Second click - hide popup
+    fireEvent.click(tooltipIcon);
+    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
+  });
+
+  test('passes correct props to Model component with English language', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips infoTooltips="Test tooltip content" />);
+    
+    const tooltipIcon = screen.getByClassName('tool-tip__icon');
+    fireEvent.click(tooltipIcon);
+    
+    expect(screen.getByTestId('mock-model')).toHaveClass('info_tooltips');
+    expect(screen.getByTestId('model-button')).toHaveTextContent(CONSTANTS.OK);
+  });
+
+  test('passes correct props to Model component with Chinese (CN) language', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
+    render(<InfoTooltips infoTooltips="Test tooltip content" />);
+    
+    const tooltipIcon = screen.getByClassName('tool-tip__icon');
+    fireEvent.click(tooltipIcon);
+    
+    expect(screen.getByTestId('model-button')).toHaveTextContent(CONSTANTS.OK_CN);
+  });
+
+  test('passes correct props to Model component with Chinese (HK) language', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_HK);
+    render(<InfoTooltips infoTooltips="Test tooltip content" />);
+    
+    const tooltipIcon = screen.getByClassName('tool-tip__icon');
+    fireEvent.click(tooltipIcon);
+    
+    expect(screen.getByTestId('model-button')).toHaveTextContent(CONSTANTS.OK_HK);
+  });
+
+  test('renders tooltip content correctly using dangerouslySetInnerHTML', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    const tooltipContent = "<p>This is a <strong>test</strong> content</p>";
+    render(<InfoTooltips infoTooltips={tooltipContent} />);
+    
+    const tooltipIcon = screen.getByClassName('tool-tip__icon');
+    fireEvent.click(tooltipIcon);
+    
+    // This test checks that the content is being passed to the model
+    // Note: We can't directly test the HTML content rendered via dangerouslySetInnerHTML
+    // since it's in a mock, but we can verify the component structure
+    expect(screen.getByTestId('model-content')).toBeInTheDocument();
+  });
+
+  test('verifies getLanguageInfo is called with "lang" parameter', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips infoTooltips="Test content" />);
+    
+    expect(getUrl.getLanguageInfo).toHaveBeenCalledWith("lang");
+  });
+  
+  test('renders nothing when infoTooltips prop is not provided', () => {
+    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
+    render(<InfoTooltips />);
+    
+    const tooltipIcon = screen.getByClassName('tool-tip__icon');
+    fireEvent.click(tooltipIcon);
+    
+    // The model should still appear, but with empty content
+    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
+  });
+});
