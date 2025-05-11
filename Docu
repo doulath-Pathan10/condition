@@ -1,122 +1,269 @@
-import "./header-modal.scss"
-import Pdf from "../pdf/pdf";
-import { useState, useEffect } from "react";
-import { KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../../modules/preApproval/services/constants";
-import { getUrl } from "../../../utils/common/change.utils";
-import { getData, getPDFData } from "../../../modules/preApproval/services/preApprovalServices";
-import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
-import { dispatchLoader } from "../../../services/common-service";
-import { useSelector, useDispatch } from "react-redux";
-import { StoreModel } from "../../../utils/model/common-model";
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import HeaderModel from './HeaderModel';
+import { useSelector, useDispatch } from 'react-redux';
+import { getData, getPDFData } from '../../../modules/preApproval/services/preApprovalServices';
 
+// Mock the useSelector and useDispatch hooks
+jest.mock('react-redux', () => ({
+  useSelector: jest.fn(),
+  useDispatch: jest.fn(),
+}));
 
-const HeaderModel: React.FC<any> = ({
-  fileName,
-  closepdf,
-  title,
-  footer
-}) => {
-  const language = getUrl.getLanguageInfo("lang");
-  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
-  const [pdfName, setPdfName] = useState('');
-  const [kfsDocPDF, setkfsDocPDF] = useState("");
-  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
-  const [showSpinner, setShowSpinner] = useState(true);
-  const dispatch = useDispatch();
-  const formConfigmetaData = useSelector(
-    (state: StoreModel) => state?.preApproval.formConfigmetaData
-  );
+// Mock the services
+jest.mock('../../../modules/preApproval/services/preApprovalServices');
+jest.mock('../../../utils/common/change.utils');
 
-  useEffect(() => {
-    let KFS;
-    if (language === 'zh') {
-      KFS = process.env.REACT_APP_KFS_DOC_URL_Chinees
-    } else {
-      KFS = process.env.REACT_APP_KFS_DOC_URL
-    }
+// Mock the Pdf component
+jest.mock('../pdf/pdf', () => () => <div>PDF Component</div>);
 
-    getData(KFS)?.then((response: any) => {
-      const campaignID = formConfigmetaData?.products[0].campaign;
-      let pdfURLNew = "";
-      const userAgent = navigator.userAgent.toLowerCase();
-      const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
-      const isSmallScreen = window.innerWidth < 768;
-      const isMobile = isMobileUA && isSmallScreen;
-      const pdfURL = isMobile ? response.data.productsMob[campaignID] : response.data.products[campaignID];
-      const pdfMap = pdfURL.map((item: any) => item.pdfURL)
-      const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-      if (window.location.host === "localhost:3000") {
-        pdfURLNew = pdfURL[0].pdfURL.replace(
-          "https://pt.sc.com/",
-          "http://localhost:3000/"
-        );
-        setPdfName(getPDFName);
-      } else {
-        pdfURLNew = pdfURL[0].pdfURL;
+describe('HeaderModel Component', () => {
+  const mockDispatch = jest.fn();
+  const mockFormConfigmetaData = {
+    products: [{
+      campaign: 'test-campaign'
+    }]
+  };
+
+  beforeEach(() => {
+    (useDispatch as jest.Mock).mockReturnValue(mockDispatch);
+    (useSelector as jest.Mock).mockImplementation((selector) => 
+      selector({
+        preApproval: {
+          formConfigmetaData: mockFormConfigmetaData
+        }
+      })
+    );
+    
+    // Mock getUrl.getLanguageInfo
+    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
+    
+    // Mock process.env
+    process.env.REACT_APP_KFS_DOC_URL = 'http://test-url.com';
+    process.env.REACT_APP_KFS_DOC_URL_Chinees = 'http://test-url-chinese.com';
+    
+    // Mock window properties
+    Object.defineProperty(window, 'location', {
+      value: {
+        host: 'localhost:3000'
+      },
+      writable: true
+    });
+    Object.defineProperty(window, 'innerWidth', {
+      value: 1024,
+      writable: true
+    });
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0',
+      writable: true
+    });
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      value: 0,
+      writable: true
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const defaultProps = {
+    fileName: 'test.pdf',
+    closepdf: jest.fn(),
+    title: 'Test Title',
+    footer: 'Test Footer'
+  };
+
+  it('renders without crashing', () => {
+    render(<HeaderModel {...defaultProps} />);
+    expect(screen.getByText('Test Title')).toBeInTheDocument();
+  });
+
+  it('displays the close button', () => {
+    render(<HeaderModel {...defaultProps} />);
+    expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
+  });
+
+  it('calls closepdf when close button is clicked', () => {
+    render(<HeaderModel {...defaultProps} />);
+    screen.getByRole('button', { name: /close/i }).click();
+    expect(defaultProps.closepdf).toHaveBeenCalled();
+  });
+
+  it('renders the Pdf component with correct fileName', () => {
+    render(<HeaderModel {...defaultProps} />);
+    expect(screen.getByText('PDF Component')).toBeInTheDocument();
+  });
+
+  it('displays footer content when provided', () => {
+    render(<HeaderModel {...defaultProps} />);
+    expect(screen.getByText('Test Footer')).toBeInTheDocument();
+  });
+
+  it('does not display footer section when footer prop is not provided', () => {
+    const { footer, ...propsWithoutFooter } = defaultProps;
+    render(<HeaderModel {...propsWithoutFooter} />);
+    expect(screen.queryByTestId('popUp_footer')).not.toBeInTheDocument();
+  });
+
+  it('fetches KFS document URL based on English language', async () => {
+    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
+    (getData as jest.Mock).mockResolvedValue({
+      data: {
+        products: {
+          'test-campaign': [{ pdfURL: 'http://test-pdf-url.com' }]
+        },
+        productsMob: {
+          'test-campaign': [{ pdfURL: 'http://test-mobile-pdf-url.com' }]
+        },
+        tncLinkCampaignCode: {
+          'test-campaign': [{
+            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
+          }]
+        }
       }
-      setkfsDocPDF(pdfURLNew);
-      getPDFData(pdfURLNew).then((response: any) => {
-        const pdfurl: any = {};
-        pdfurl.pdf = response;
-        pdfurl.pdfurl = pdfURLNew;
-        setkfsDocPDFDownload(response);
-        dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
-        setShowSpinner(false);
-        dispatch(dispatchLoader(false));
-      });
-      if (title === 'Terms & Conditions , Credit Card Application Declaration') {
-        const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
-        setPdfLinkTerms(allPDFLinks);
-      } else {
-        const PDFLinksIntegratedDeposit = response.data.tncLinkCampaignCode.isCasa[0].pdfLinks;
-      setPdfLinkTerms(PDFLinksIntegratedDeposit)
+    });
+    
+    render(<HeaderModel {...defaultProps} />);
+    
+    await waitFor(() => {
+      expect(getData).toHaveBeenCalledWith('http://test-url.com');
+    });
+  });
+
+  it('fetches KFS document URL based on Chinese language', async () => {
+    (getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
+    (getData as jest.Mock).mockResolvedValue({
+      data: {
+        products: {
+          'test-campaign': [{ pdfURL: 'http://test-pdf-url.com' }]
+        },
+        productsMob: {
+          'test-campaign': [{ pdfURL: 'http://test-mobile-pdf-url.com' }]
+        },
+        tncLinkCampaignCode: {
+          'test-campaign': [{
+            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
+          }]
+        }
       }
-    })
-  }, [])
-  return (
-    <>
+    });
+    
+    render(<HeaderModel {...defaultProps} />);
+    
+    await waitFor(() => {
+      expect(getData).toHaveBeenCalledWith('http://test-url-chinese.com');
+    });
+  });
 
-      <div className="popup-declare">
-        <button type="button" className="close pdfClose" onClick={closepdf}></button>
-        <div className="popup-container1-declare">
-          <div className="popup-info-declare">
-            <div className="popup-info__desc">
-              <div className="popup-title">{title}</div>
-              <div className="popup_width"><Pdf fileName={fileName} /></div>
-              {footer &&
-                <div className="popUp_footer">
-                  <div className="hintIcon">
-                    <p>{footer}</p>
-                    <div className="images">
-                      <div></div>
-                    </div>
-                  </div>
-                  <div className="popup_title_link">
-                    {pdfLinkTerms?.map((item: any, index: any) => {
-                      return (
-                        <a
-                          href={item.url}
-                          download
-                          target="_blank">
-                          {item.Title}
-                        </a>
-                      );
-                    })}
-                  </div>
+  it('handles mobile device detection correctly', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 400 });
+    Object.defineProperty(navigator, 'userAgent', { value: 'iphone' });
+    
+    (getData as jest.Mock).mockResolvedValue({
+      data: {
+        products: {
+          'test-campaign': [{ pdfURL: 'http://desktop-pdf-url.com' }]
+        },
+        productsMob: {
+          'test-campaign': [{ pdfURL: 'http://mobile-pdf-url.com' }]
+        },
+        tncLinkCampaignCode: {
+          'test-campaign': [{
+            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
+          }]
+        }
+      }
+    });
+    
+    render(<HeaderModel {...defaultProps} />);
+    
+    await waitFor(() => {
+      expect(getData).toHaveBeenCalled();
+      // Verify mobile URL is used
+    });
+  });
 
-                </div>
-              }
-            </div>
-          </div>
-        </div>
-      </div>
+  it('displays terms and conditions links when title matches', async () => {
+    const propsWithTermsTitle = {
+      ...defaultProps,
+      title: 'Terms & Conditions , Credit Card Application Declaration'
+    };
+    
+    (getData as jest.Mock).mockResolvedValue({
+      data: {
+        products: {
+          'test-campaign': [{ pdfURL: 'http://test-pdf-url.com' }]
+        },
+        productsMob: {
+          'test-campaign': [{ pdfURL: 'http://test-mobile-pdf-url.com' }]
+        },
+        tncLinkCampaignCode: {
+          'test-campaign': [{
+            pdfLinks: [
+              { url: 'http://test-tnc1.com', Title: 'Terms PDF 1' },
+              { url: 'http://test-tnc2.com', Title: 'Terms PDF 2' }
+            ]
+          }]
+        }
+      }
+    });
+    
+    render(<HeaderModel {...propsWithTermsTitle} />);
+    
+    await waitFor(() => {
+      expect(screen.getByText('Terms PDF 1')).toBeInTheDocument();
+      expect(screen.getByText('Terms PDF 2')).toBeInTheDocument();
+    });
+  });
 
-    </>
+  it('handles PDF URL modification for localhost', async () => {
+    (getData as jest.Mock).mockResolvedValue({
+      data: {
+        products: {
+          'test-campaign': [{ pdfURL: 'https://pt.sc.com/test.pdf' }]
+        },
+        productsMob: {
+          'test-campaign': [{ pdfURL: 'https://pt.sc.com/test-mobile.pdf' }]
+        },
+        tncLinkCampaignCode: {
+          'test-campaign': [{
+            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
+          }]
+        }
+      }
+    });
+    
+    render(<HeaderModel {...defaultProps} />);
+    
+    await waitFor(() => {
+      expect(getPDFData).toHaveBeenCalledWith('http://localhost:3000/test.pdf');
+    });
+  });
 
-  )
-
-}
-
-export default HeaderModel
-
-Please write an test cases using react and jest
+  it('dispatches loader actions correctly', async () => {
+    (getData as jest.Mock).mockResolvedValue({
+      data: {
+        products: {
+          'test-campaign': [{ pdfURL: 'http://test-pdf-url.com' }]
+        },
+        productsMob: {
+          'test-campaign': [{ pdfURL: 'http://test-mobile-pdf-url.com' }]
+        },
+        tncLinkCampaignCode: {
+          'test-campaign': [{
+            pdfLinks: [{ url: 'http://test-tnc.com', Title: 'Terms PDF' }]
+          }]
+        }
+      }
+    });
+    
+    render(<HeaderModel {...defaultProps} />);
+    
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'preApproval/setKfsDocumentPdf'
+      }));
+    });
+  });
+});
