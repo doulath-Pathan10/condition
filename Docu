@@ -1,304 +1,94 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import HeaderRef from './HeaderRef';
-import { getUrl } from '../../../utils/common/change.utils';
-import { CONSTANTS } from '../../../utils/common/constants';
-import { useSelector } from 'react-redux';
+import "./header-ref.scss"
+import { getUrl } from "../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { useSelector } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
+import { useState } from "react";
+import PopupModel from "../popup-model/popup-model";
+import HeaderModel from "./header-modal";
 
-// Mock dependencies
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn()
+const HeaderRef: React.FC<any> = ({
+  applicationNo,
+
+}) => {
+  const [openpopup, setOpenpop] = useState(false);
+  const language = getUrl.getLanguageInfo("lang");
+  const ref_number = "HK24101700230315"
+
+  const downloadPdfData = useSelector((state: StoreModel) => state.preApproval?.kfsDocumentPdf);
+  const stageIdSelector = useSelector((state: StoreModel) => state.stages.stages[0]?.stageId);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+
+  const kfcStatement = () => {
+    if(language === CONSTANTS.LANG_CN) {
+      return "資料概要"
+    } else {
+      return "Key Facts Statement"
+    }
   }
-}));
-
-jest.mock('react-redux', () => ({
-  useSelector: jest.fn()
-}));
-
-jest.mock('../popup-model/popup-model', () => {
-  return function MockPopupModel({ children, displayPopup }: any) {
-    return displayPopup ? <div data-testid="mock-popup-model">{children}</div> : null;
+  const downloadPDF = () => {
+    const fileName: any = downloadPdfData.split('/').pop();
+    
+    
+    const replaceFilename = stageSelector[0].stageInfo?.products[0].campaign === 'HKBDC23PESTP10' ? fileName.replace(fileName, 'DC_KFS_Desktop_0421_E.pdf') // DC PDF
+    : (stageSelector[0].stageInfo?.products[0].campaign === 'HKPIL23PLSTP10'? fileName.replace(fileName, 'PIL_KFS_Desktop_0421_E.pdf'): // PIL PDF
+     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOG20VAWV000'? fileName.replace(fileName, 'SCB_SMART_KFS_Desktop_0421_E.pdf') : // Smart card PDF
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSPB17VAWV000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSPG17VAWV000') ? fileName.replace(fileName, 'SCB_SC_KFS_Desktop_0421_E.pdf'): // simply cash pdf
+     ((stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16VAWP000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOA16MCWP000') ? fileName.replace(fileName, 'SCB_PLAT_KFS_Desktop_0421_E.pdf'): // core platinum pdf
+     (stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ00MCWB000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ01MCWB000' || stageSelector[0].stageInfo?.products[0].campaign === 'HKSOZ02MCWB000') ? fileName.replace(fileName, 'SCB_CX_KFS_E.pdf'): // Asiamiles PDF
+     "")
+    )
+    )
+    )
+    const lin = document.createElement('a');
+    lin.href = downloadPdfData;
+    lin.download = replaceFilename;
+    lin.click();
   };
-});
 
-jest.mock('./header-modal', () => {
-  return function MockHeaderModel({ fileName, closepdf, title }: any) {
-    return (
-      <div data-testid="mock-header-model">
-        <div data-testid="header-model-title">{title}</div>
-        <div data-testid="header-model-filename">{fileName}</div>
-        <button data-testid="header-model-close" onClick={closepdf}>Close</button>
+  const viewPDF = () => {
+    setOpenpop(true);
+
+  };
+  const closepdf = () => {
+    setOpenpop(false);
+  }
+
+  return (
+    <>
+      <div className="header-ref">
+        <span className="banner-icon"></span>
+        <div className="header-ref-set">
+          <p className="ref-no">
+            {language === CONSTANTS.LANG_CN ? "參考編號:" : "Ref No:"} {applicationNo ? applicationNo : ref_number}
+          </p>
+          {(stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_2 &&stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.ACD_4 && stageIdSelector !== CONSTANTS.STAGE_NAMES.DOC_3 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_1 && stageIdSelector !== CONSTANTS.STAGE_NAMES.FFD_2) &&
+            <p className="kfs-headerbg" >
+              <label className="kfs-header">{language === CONSTANTS.LANG_CN ? "產品資料概要(包括收費及費用)" : "KFS (including Fees and Charges)"}</label>
+              <div className="btn-div">
+                <span className="kfsHeadtn" onClick={viewPDF}>{language === CONSTANTS.LANG_CN ? "參閱" : "Read"}</span>
+                <span className="kfsHeadtn" onClick={downloadPDF}>{language === CONSTANTS.LANG_CN ? "下載" : "Download"}</span>
+              </div>
+            </p>
+          }
+        </div>
       </div>
-    );
-  };
-});
 
-// Mock document.createElement
-const mockAnchorElement = {
-  href: '',
-  download: '',
-  click: jest.fn()
+      {(openpopup) && (
+        <PopupModel displayPopup={openpopup}>
+          {openpopup &&
+          <div className="reviewReadTop">
+            <HeaderModel fileName={downloadPdfData} closepdf={closepdf} title={kfcStatement()}/>
+          </div>
+          }
+        </PopupModel>
+      )}
+    </>
+  );
 };
 
-document.createElement = jest.fn().mockImplementation((tag) => {
-  if (tag === 'a') {
-    return mockAnchorElement;
-  }
-  return document.createElement(tag);
-});
 
-describe('HeaderRef Component', () => {
-  // Setup default mock values
-  const mockApplicationNo = 'TEST123456';
-  const mockDownloadPdfData = 'https://example.com/test-file.pdf';
-  
-  const setupMocks = (options = {}) => {
-    const {
-      language = CONSTANTS.LANG_EN,
-      stageId = 'STAGE_OTHER',
-      campaign = 'HKBDC23PESTP10',
-      pdfData = mockDownloadPdfData
-    } = options;
-    
-    getUrl.getLanguageInfo.mockReturnValue(language);
-    
-    const mockUseSelector = useSelector as jest.Mock;
-    mockUseSelector.mockImplementation((selector) => {
-      // Mock different selectors
-      if (selector.toString().includes('kfsDocumentPdf')) {
-        return pdfData;
-      } else if (selector.toString().includes('stages[0]?.stageId')) {
-        return stageId;
-      } else if (selector.toString().includes('stages.stages')) {
-        return [{
-          stageId: stageId,
-          stageInfo: {
-            products: [{
-              campaign: campaign
-            }]
-          }
-        }];
-      }
-      return null;
-    });
-  };
-  
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-  
-  test('renders with default ref number when applicationNo is not provided', () => {
-    setupMocks();
-    
-    render(<HeaderRef />);
-    
-    expect(screen.getByText(/Ref No:/)).toBeInTheDocument();
-    expect(screen.getByText(/HK24101700230315/)).toBeInTheDocument();
-  });
-  
-  test('renders with provided applicationNo', () => {
-    setupMocks();
-    
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    
-    expect(screen.getByText(/Ref No:/)).toBeInTheDocument();
-    expect(screen.getByText(/TEST123456/)).toBeInTheDocument();
-  });
-  
-  test('displays KFS section when not in excluded stages', () => {
-    setupMocks({ stageId: 'SOME_OTHER_STAGE' });
-    
-    render(<HeaderRef />);
-    
-    expect(screen.getByText(/KFS \(including Fees and Charges\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Read/)).toBeInTheDocument();
-    expect(screen.getByText(/Download/)).toBeInTheDocument();
-  });
-  
-  test('does not display KFS section when in ACD_1 stage', () => {
-    setupMocks({ stageId: CONSTANTS.STAGE_NAMES.ACD_1 });
-    
-    render(<HeaderRef />);
-    
-    expect(screen.queryByText(/KFS \(including Fees and Charges\)/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Read/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Download/)).not.toBeInTheDocument();
-  });
-  
-  test('displays Chinese text when language is Chinese', () => {
-    setupMocks({ language: CONSTANTS.LANG_CN });
-    
-    render(<HeaderRef />);
-    
-    expect(screen.getByText(/參考編號:/)).toBeInTheDocument();
-    expect(screen.getByText(/產品資料概要\(包括收費及費用\)/)).toBeInTheDocument();
-    expect(screen.getByText(/參閱/)).toBeInTheDocument();
-    expect(screen.getByText(/下載/)).toBeInTheDocument();
-  });
-  
-  test('opens popup when Read button is clicked', () => {
-    setupMocks();
-    
-    render(<HeaderRef />);
-    
-    const readButton = screen.getByText(/Read/);
-    fireEvent.click(readButton);
-    
-    expect(screen.getByTestId('mock-popup-model')).toBeInTheDocument();
-    expect(screen.getByTestId('mock-header-model')).toBeInTheDocument();
-    expect(screen.getByTestId('header-model-title')).toHaveTextContent('Key Facts Statement');
-  });
-  
-  test('closes popup when close button is clicked', () => {
-    setupMocks();
-    
-    render(<HeaderRef />);
-    
-    // First open the popup
-    const readButton = screen.getByText(/Read/);
-    fireEvent.click(readButton);
-    
-    // Then close it
-    const closeButton = screen.getByTestId('header-model-close');
-    fireEvent.click(closeButton);
-    
-    expect(screen.queryByTestId('mock-popup-model')).not.toBeInTheDocument();
-  });
-  
-  test('downloads PDF with correct filename for HKBDC23PESTP10 campaign', () => {
-    setupMocks({ campaign: 'HKBDC23PESTP10' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.href).toBe(mockDownloadPdfData);
-    expect(mockAnchorElement.download).toBe('DC_KFS_Desktop_0421_E.pdf');
-    expect(mockAnchorElement.click).toHaveBeenCalled();
-  });
-  
-  test('downloads PDF with correct filename for HKPIL23PLSTP10 campaign', () => {
-    setupMocks({ campaign: 'HKPIL23PLSTP10' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.href).toBe(mockDownloadPdfData);
-    expect(mockAnchorElement.download).toBe('PIL_KFS_Desktop_0421_E.pdf');
-    expect(mockAnchorElement.click).toHaveBeenCalled();
-  });
-  
-  test('downloads PDF with correct filename for HKSOG20VAWV000 campaign', () => {
-    setupMocks({ campaign: 'HKSOG20VAWV000' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.download).toBe('SCB_SMART_KFS_Desktop_0421_E.pdf');
-  });
-  
-  test('downloads PDF with correct filename for HKSPB17VAWV000 campaign', () => {
-    setupMocks({ campaign: 'HKSPB17VAWV000' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.download).toBe('SCB_SC_KFS_Desktop_0421_E.pdf');
-  });
-  
-  test('downloads PDF with correct filename for HKSPG17VAWV000 campaign', () => {
-    setupMocks({ campaign: 'HKSPG17VAWV000' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.download).toBe('SCB_SC_KFS_Desktop_0421_E.pdf');
-  });
-  
-  test('downloads PDF with correct filename for HKSOA16VAWP000 campaign', () => {
-    setupMocks({ campaign: 'HKSOA16VAWP000' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.download).toBe('SCB_PLAT_KFS_Desktop_0421_E.pdf');
-  });
-  
-  test('downloads PDF with correct filename for HKSOA16MCWP000 campaign', () => {
-    setupMocks({ campaign: 'HKSOA16MCWP000' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.download).toBe('SCB_PLAT_KFS_Desktop_0421_E.pdf');
-  });
-  
-  test('downloads PDF with correct filename for HKSOZ00MCWB000 campaign', () => {
-    setupMocks({ campaign: 'HKSOZ00MCWB000' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.download).toBe('SCB_CX_KFS_E.pdf');
-  });
-  
-  test('downloads PDF with correct filename for HKSOZ01MCWB000 campaign', () => {
-    setupMocks({ campaign: 'HKSOZ01MCWB000' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.download).toBe('SCB_CX_KFS_E.pdf');
-  });
-  
-  test('downloads PDF with correct filename for HKSOZ02MCWB000 campaign', () => {
-    setupMocks({ campaign: 'HKSOZ02MCWB000' });
-    
-    render(<HeaderRef />);
-    
-    const downloadButton = screen.getByText(/Download/);
-    fireEvent.click(downloadButton);
-    
-    expect(mockAnchorElement.download).toBe('SCB_CX_KFS_E.pdf');
-  });
-  
-  test('KFS title in Chinese when language is Chinese', () => {
-    setupMocks({ language: CONSTANTS.LANG_CN });
-    
-    render(<HeaderRef />);
-    
-    const readButton = screen.getByText(/參閱/);
-    fireEvent.click(readButton);
-    
-    expect(screen.getByTestId('header-model-title')).toHaveTextContent('資料概要');
-  });
-  
-  test('KFS title in English when language is English', () => {
-    setupMocks({ language: CONSTANTS.LANG_EN });
-    
-    render(<HeaderRef />);
-    
-    const readButton = screen.getByText(/Read/);
-    fireEvent.click(readButton);
-    
-    expect(screen.getByTestId('header-model-title')).toHaveTextContent('Key Facts Statement');
-  });
-});
+
+export default HeaderRef
+
+Please write an test cases using react and jest
