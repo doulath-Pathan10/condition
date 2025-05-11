@@ -1,149 +1,122 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { InfoTooltips } from './InfoTooltips';
-import { CONSTANTS } from '../../../utils/common/constants';
-import { getUrl } from '../../../utils/common/change.utils';
+import "./header-modal.scss"
+import Pdf from "../pdf/pdf";
+import { useState, useEffect } from "react";
+import { KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../../modules/preApproval/services/constants";
+import { getUrl } from "../../../utils/common/change.utils";
+import { getData, getPDFData } from "../../../modules/preApproval/services/preApprovalServices";
+import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
+import { dispatchLoader } from "../../../services/common-service";
+import { useSelector, useDispatch } from "react-redux";
+import { StoreModel } from "../../../utils/model/common-model";
 
-// Mock dependencies
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn()
-  }
-}));
 
-jest.mock('../model/model', () => {
-  return function MockModel({ children, name, btnTxt, closePopup, body_content }: any) {
-    return (
-      <div data-testid="mock-model" className={name}>
-        <div data-testid="model-content">{body_content}</div>
-        <button data-testid="model-button" onClick={closePopup}>{btnTxt}</button>
+const HeaderModel: React.FC<any> = ({
+  fileName,
+  closepdf,
+  title,
+  footer
+}) => {
+  const language = getUrl.getLanguageInfo("lang");
+  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+  const [pdfName, setPdfName] = useState('');
+  const [kfsDocPDF, setkfsDocPDF] = useState("");
+  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+  const [showSpinner, setShowSpinner] = useState(true);
+  const dispatch = useDispatch();
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
+
+  useEffect(() => {
+    let KFS;
+    if (language === 'zh') {
+      KFS = process.env.REACT_APP_KFS_DOC_URL_Chinees
+    } else {
+      KFS = process.env.REACT_APP_KFS_DOC_URL
+    }
+
+    getData(KFS)?.then((response: any) => {
+      const campaignID = formConfigmetaData?.products[0].campaign;
+      let pdfURLNew = "";
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileUA = /andriod|iphone|ipad|mobile/i.test(userAgent) || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.innerWidth < 768;
+      const isMobile = isMobileUA && isSmallScreen;
+      const pdfURL = isMobile ? response.data.productsMob[campaignID] : response.data.products[campaignID];
+      const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+      const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+      if (window.location.host === "localhost:3000") {
+        pdfURLNew = pdfURL[0].pdfURL.replace(
+          "https://pt.sc.com/",
+          "http://localhost:3000/"
+        );
+        setPdfName(getPDFName);
+      } else {
+        pdfURLNew = pdfURL[0].pdfURL;
+      }
+      setkfsDocPDF(pdfURLNew);
+      getPDFData(pdfURLNew).then((response: any) => {
+        const pdfurl: any = {};
+        pdfurl.pdf = response;
+        pdfurl.pdfurl = pdfURLNew;
+        setkfsDocPDFDownload(response);
+        dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+        setShowSpinner(false);
+        dispatch(dispatchLoader(false));
+      });
+      if (title === 'Terms & Conditions , Credit Card Application Declaration') {
+        const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+        setPdfLinkTerms(allPDFLinks);
+      } else {
+        const PDFLinksIntegratedDeposit = response.data.tncLinkCampaignCode.isCasa[0].pdfLinks;
+      setPdfLinkTerms(PDFLinksIntegratedDeposit)
+      }
+    })
+  }, [])
+  return (
+    <>
+
+      <div className="popup-declare">
+        <button type="button" className="close pdfClose" onClick={closepdf}></button>
+        <div className="popup-container1-declare">
+          <div className="popup-info-declare">
+            <div className="popup-info__desc">
+              <div className="popup-title">{title}</div>
+              <div className="popup_width"><Pdf fileName={fileName} /></div>
+              {footer &&
+                <div className="popUp_footer">
+                  <div className="hintIcon">
+                    <p>{footer}</p>
+                    <div className="images">
+                      <div></div>
+                    </div>
+                  </div>
+                  <div className="popup_title_link">
+                    {pdfLinkTerms?.map((item: any, index: any) => {
+                      return (
+                        <a
+                          href={item.url}
+                          download
+                          target="_blank">
+                          {item.Title}
+                        </a>
+                      );
+                    })}
+                  </div>
+
+                </div>
+              }
+            </div>
+          </div>
+        </div>
       </div>
-    );
-  };
-});
 
-describe('InfoTooltips Component', () => {
-  beforeEach(() => {
-    // Reset mock implementations before each test
-    jest.clearAllMocks();
-  });
+    </>
 
-  test('renders without crashing', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<InfoTooltips infoTooltips="Test tooltip content" />);
-    
-    expect(screen.getByClassName('tool-tip__icon')).toBeInTheDocument();
-  });
+  )
 
-  test('does not show popup initially', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<InfoTooltips infoTooltips="Test tooltip content" />);
-    
-    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
-  });
+}
 
-  test('shows popup when icon is clicked', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<InfoTooltips infoTooltips="Test tooltip content" />);
-    
-    const tooltipIcon = screen.getByClassName('tool-tip__icon');
-    fireEvent.click(tooltipIcon);
-    
-    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
-    expect(screen.getByTestId('model-content')).toBeInTheDocument();
-  });
+export default HeaderModel
 
-  test('closes popup when closePopup function is called', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<InfoTooltips infoTooltips="Test tooltip content" />);
-    
-    // First open the popup
-    const tooltipIcon = screen.getByClassName('tool-tip__icon');
-    fireEvent.click(tooltipIcon);
-    
-    // Then close it
-    const modelButton = screen.getByTestId('model-button');
-    fireEvent.click(modelButton);
-    
-    // Check if popup is closed
-    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
-  });
-
-  test('toggles popup visibility on icon click', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<InfoTooltips infoTooltips="Test tooltip content" />);
-    
-    const tooltipIcon = screen.getByClassName('tool-tip__icon');
-    
-    // First click - show popup
-    fireEvent.click(tooltipIcon);
-    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
-    
-    // Second click - hide popup
-    fireEvent.click(tooltipIcon);
-    expect(screen.queryByTestId('mock-model')).not.toBeInTheDocument();
-  });
-
-  test('passes correct props to Model component with English language', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<InfoTooltips infoTooltips="Test tooltip content" />);
-    
-    const tooltipIcon = screen.getByClassName('tool-tip__icon');
-    fireEvent.click(tooltipIcon);
-    
-    expect(screen.getByTestId('mock-model')).toHaveClass('info_tooltips');
-    expect(screen.getByTestId('model-button')).toHaveTextContent(CONSTANTS.OK);
-  });
-
-  test('passes correct props to Model component with Chinese (CN) language', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
-    render(<InfoTooltips infoTooltips="Test tooltip content" />);
-    
-    const tooltipIcon = screen.getByClassName('tool-tip__icon');
-    fireEvent.click(tooltipIcon);
-    
-    expect(screen.getByTestId('model-button')).toHaveTextContent(CONSTANTS.OK_CN);
-  });
-
-  test('passes correct props to Model component with Chinese (HK) language', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_HK);
-    render(<InfoTooltips infoTooltips="Test tooltip content" />);
-    
-    const tooltipIcon = screen.getByClassName('tool-tip__icon');
-    fireEvent.click(tooltipIcon);
-    
-    expect(screen.getByTestId('model-button')).toHaveTextContent(CONSTANTS.OK_HK);
-  });
-
-  test('renders tooltip content correctly using dangerouslySetInnerHTML', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    const tooltipContent = "<p>This is a <strong>test</strong> content</p>";
-    render(<InfoTooltips infoTooltips={tooltipContent} />);
-    
-    const tooltipIcon = screen.getByClassName('tool-tip__icon');
-    fireEvent.click(tooltipIcon);
-    
-    // This test checks that the content is being passed to the model
-    // Note: We can't directly test the HTML content rendered via dangerouslySetInnerHTML
-    // since it's in a mock, but we can verify the component structure
-    expect(screen.getByTestId('model-content')).toBeInTheDocument();
-  });
-
-  test('verifies getLanguageInfo is called with "lang" parameter', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<InfoTooltips infoTooltips="Test content" />);
-    
-    expect(getUrl.getLanguageInfo).toHaveBeenCalledWith("lang");
-  });
-  
-  test('renders nothing when infoTooltips prop is not provided', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<InfoTooltips />);
-    
-    const tooltipIcon = screen.getByClassName('tool-tip__icon');
-    fireEvent.click(tooltipIcon);
-    
-    // The model should still appear, but with empty content
-    expect(screen.getByTestId('mock-model')).toBeInTheDocument();
-  });
-});
+Please write an test cases using react and jest
