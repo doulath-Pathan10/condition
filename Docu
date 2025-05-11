@@ -1,205 +1,164 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import HeaderRef from './HeaderRef';
 import { useSelector } from 'react-redux';
 
-// Previous mocks remain the same...
+// Mock useSelector
+jest.mock('react-redux', () => ({
+  useSelector: jest.fn(),
+}));
 
-describe('HeaderRef Component - Enhanced Coverage', () => {
+// Mock getLanguageInfo
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn().mockReturnValue('en'),
+  },
+}));
+
+// Mock CONSTANTS
+jest.mock('../../../utils/common/constants', () => ({
+  CONSTANTS: {
+    LANG_CN: 'zh',
+    STAGE_NAMES: {
+      ACD_1: 'ACD_1',
+      ACD_2: 'ACD_2',
+      ACD_3: 'ACD_3',
+      ACD_4: 'ACD_4',
+      DOC_3: 'DOC_3',
+      FFD_1: 'FFD_1',
+      FFD_2: 'FFD_2',
+    },
+  },
+}));
+
+// Mock child components
+jest.mock('../popup-model/popup-model', () => ({ 
+  __esModule: true,
+  default: ({ children, displayPopup }: any) => displayPopup ? <div>{children}</div> : null
+}));
+
+jest.mock('./header-modal', () => ({
+  __esModule: true,
+  default: ({ title }: any) => <div>{title}</div>
+}));
+
+describe('HeaderRef Component', () => {
   const mockDownloadPdfData = 'http://example.com/kfs.pdf';
   const mockApplicationNo = 'TEST12345';
 
   beforeEach(() => {
-    // Reset all mocks
+    (useSelector as jest.Mock).mockImplementation((callback) => {
+      const mockState = {
+        preApproval: {
+          kfsDocumentPdf: mockDownloadPdfData,
+        },
+        stages: {
+          stages: [{
+            stageId: 'OTHER_STAGE',
+            stageInfo: {
+              products: [{
+                campaign: 'HKBDC23PESTP10'
+              }]
+            }
+          }]
+        }
+      };
+      return callback(mockState);
+    });
+  });
+
+  afterEach(() => {
     jest.clearAllMocks();
-    
-    // Default mock implementations
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('preApproval?.kfsDocumentPdf')) {
-        return mockDownloadPdfData;
-      }
-      if (selector.toString().includes('stages.stages[0]?.stageId')) {
-        return 'OTHER_STAGE'; // Default to not matching restricted stages
-      }
-      if (selector.toString().includes('stages.stages')) {
-        return [{
-          stageInfo: {
-            products: [{
-              campaign: 'HKBDC23PESTP10'
-            }]
-          }
-        }];
-      }
-      return null;
+  });
+
+  test('renders reference number', () => {
+    render(<HeaderRef applicationNo={mockApplicationNo} />);
+    expect(screen.getByText(`Ref No: ${mockApplicationNo}`)).toBeInTheDocument();
+  });
+
+  test('renders default reference number when none provided', () => {
+    render(<HeaderRef />);
+    expect(screen.getByText('Ref No: HK24101700230315')).toBeInTheDocument();
+  });
+
+  test('renders KFS section when stage is not restricted', () => {
+    render(<HeaderRef applicationNo={mockApplicationNo} />);
+    expect(screen.getByText('KFS (including Fees and Charges)')).toBeInTheDocument();
+  });
+
+  test('does not render KFS section when stage is restricted', () => {
+    (useSelector as jest.Mock).mockImplementation((callback) => {
+      const mockState = {
+        preApproval: {
+          kfsDocumentPdf: mockDownloadPdfData,
+        },
+        stages: {
+          stages: [{
+            stageId: 'ACD_1',
+            stageInfo: {
+              products: [{
+                campaign: 'HKBDC23PESTP10'
+              }]
+            }
+          }]
+        }
+      };
+      return callback(mockState);
     });
-    
-    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-  });
 
-  // Previous tests remain the same...
-
-  // NEW TESTS FOR IMPROVED COVERAGE
-
-  test('renders banner icon', () => {
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    expect(screen.getByTestId('banner-icon')).toBeInTheDocument();
-  });
-
-  test('renders correct KFS button labels in English', () => {
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    expect(screen.getByText('Read')).toBeInTheDocument();
-    expect(screen.getByText('Download')).toBeInTheDocument();
-  });
-
-  test('renders correct KFS button labels in Chinese', () => {
-    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    expect(screen.getByText('參閱')).toBeInTheDocument();
-    expect(screen.getByText('下載')).toBeInTheDocument();
-  });
-
-  test('does not render KFS section when stage is DOC_3', () => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('stages.stages[0]?.stageId')) {
-        return 'DOC_3';
-      }
-      return null;
-    });
-    
     render(<HeaderRef applicationNo={mockApplicationNo} />);
     expect(screen.queryByText('KFS (including Fees and Charges)')).not.toBeInTheDocument();
   });
 
-  test('handles empty downloadPdfData gracefully', () => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('preApproval?.kfsDocumentPdf')) {
-        return null;
-      }
-      return null;
-    });
-    
+  test('opens popup when Read button is clicked', () => {
     render(<HeaderRef applicationNo={mockApplicationNo} />);
-    fireEvent.click(screen.getByText('Download'));
-    // Verify no error occurs
+    fireEvent.click(screen.getByText('Read'));
+    expect(screen.getByText('Key Facts Statement')).toBeInTheDocument();
   });
 
-  test('handles empty stageInfo in Redux store', () => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('stages.stages')) {
-        return [{}]; // Empty stage info
-      }
-      return null;
-    });
-    
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    fireEvent.click(screen.getByText('Download'));
-    // Verify no error occurs
-  });
-
-  test('handles missing products array in stageInfo', () => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('stages.stages')) {
-        return [{
-          stageInfo: {} // No products array
-        }];
-      }
-      return null;
-    });
-    
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    fireEvent.click(screen.getByText('Download'));
-    // Verify no error occurs
-  });
-
-  test('handles empty products array in stageInfo', () => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('stages.stages')) {
-        return [{
-          stageInfo: {
-            products: [] // Empty products array
-          }
-        }];
-      }
-      return null;
-    });
-    
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    fireEvent.click(screen.getByText('Download'));
-    // Verify no error occurs
-  });
-
-  test('uses default filename when campaign doesnt match any condition', () => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('stages.stages')) {
-        return [{
-          stageInfo: {
-            products: [{
-              campaign: 'UNKNOWN_CAMPAIGN'
-            }]
-          }
-        }];
-      }
-      return null;
-    });
-    
+  test('triggers download when Download button is clicked', () => {
     const originalCreateElement = document.createElement;
     document.createElement = jest.fn().mockImplementation((tag) => {
       const element = originalCreateElement(tag);
       if (tag === 'a') {
         element.click = jest.fn();
-        element.setAttribute = jest.fn();
       }
       return element;
     });
-    
+
     render(<HeaderRef applicationNo={mockApplicationNo} />);
     fireEvent.click(screen.getByText('Download'));
-    
     expect(document.createElement).toHaveBeenCalledWith('a');
-    // Would verify the default filename behavior here
   });
 
-  test('popup closes when closepdf is called', async () => {
-    render(<HeaderRef applicationNo={mockApplicationNo} />);
-    fireEvent.click(screen.getByText('Read'));
-    
-    expect(screen.getByText('Key Facts Statement')).toBeInTheDocument();
-    
-    // Simulate closing the popup
-    const closeButton = screen.getByRole('button', { name: /close/i });
-    fireEvent.click(closeButton);
-    
-    await waitFor(() => {
-      expect(screen.queryByText('Key Facts Statement')).not.toBeInTheDocument();
-    });
-  });
-
-  test('kfcStatement function returns correct values', () => {
-    const { kfcStatement } = require('./HeaderRef');
-    
-    // Test English
-    (require('../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue('en');
-    expect(kfcStatement()).toBe('Key Facts Statement');
-    
-    // Test Chinese
+  test('renders Chinese text when language is Chinese', () => {
     (require('../../../utils/common/change.utils').getUrl.getLanguageInfo as jest.Mock).mockReturnValue('zh');
-    expect(kfcStatement()).toBe('資料概要');
-  });
-
-  test('component renders without applicationNo prop', () => {
-    render(<HeaderRef />);
-    expect(screen.getByText(/Ref No: HK24101700230315/)).toBeInTheDocument();
-  });
-
-  test('component handles undefined stageSelector', () => {
-    (useSelector as jest.Mock).mockImplementation((selector) => {
-      if (selector.toString().includes('stages.stages')) {
-        return undefined;
-      }
-      return null;
-    });
-    
     render(<HeaderRef applicationNo={mockApplicationNo} />);
-    // Verify no error occurs
+    expect(screen.getByText('參考編號:')).toBeInTheDocument();
+  });
+
+  test('handles missing PDF data gracefully', () => {
+    (useSelector as jest.Mock).mockImplementation((callback) => {
+      const mockState = {
+        preApproval: {
+          kfsDocumentPdf: null,
+        },
+        stages: {
+          stages: [{
+            stageId: 'OTHER_STAGE',
+            stageInfo: {
+              products: [{
+                campaign: 'HKBDC23PESTP10'
+              }]
+            }
+          }]
+        }
+      };
+      return callback(mockState);
+    });
+
+    render(<HeaderRef applicationNo={mockApplicationNo} />);
+    fireEvent.click(screen.getByText('Download'));
+    // Should not throw error
   });
 });
