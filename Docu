@@ -1,114 +1,36 @@
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { Ibanking2 } from './Ibanking2';
-import { CONSTANTS } from '../../../../utils/common/constants';
-import { getUrl } from '../../../../utils/common/change.utils';
+import { useState } from 'react';
+import Model from "../model/model";
+import "./info-tooltips.scss";
+import { CONSTANTS } from '../../../utils/common/constants';
+import { getUrl } from '../../../utils/common/change.utils';
+export const InfoTooltips = (props: any) => {
 
-// Mock the modules/functions that are used in the component
-jest.mock('../../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn()
-  }
-}));
+    const getMarkup = () => {
+        return {
+            __html: `
+          <div>${props && props.infoTooltips}</div>
+        `,
+        };
+    };
 
-jest.mock('../../images/group-71.png', () => 'mock-image-path');
+    const [showPopup, setShowPopup] = useState(false)
+    const language = getUrl.getLanguageInfo("lang");
+    const closePopup = () => {
+        setShowPopup(false)
+    }
+    return (
+        <>
+            <div className="tool-tip__icon" onClick={() => setShowPopup(!showPopup)}></div>
+            {(showPopup) && (
+                showPopup &&
+                <Model name='info_tooltips' btnTxt={language === CONSTANTS.LANG_EN ? CONSTANTS.OK : language === CONSTANTS.LANG_CN ? CONSTANTS.OK_CN : CONSTANTS.OK_HK} closePopup={closePopup} body_content={<span dangerouslySetInnerHTML={getMarkup()}></span>}> </Model>
 
-// Mock the Close component
-jest.mock('../../../../shared/components/close/close', () => {
-  return function MockClose() {
-    return <div data-testid="mock-close-component">Close</div>;
-  };
-});
+            )}
+        </>
+    )
+}
 
-describe('Ibanking2 Component', () => {
-  beforeEach(() => {
-    // Reset mock implementation before each test
-    jest.clearAllMocks();
-  });
+export default InfoTooltips;
 
-  test('renders without crashing', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<Ibanking2 />);
-    
-    expect(screen.getByText('Hurray,you're almost there!')).toBeInTheDocument();
-  });
 
-  test('displays the banner icon', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    const { container } = render(<Ibanking2 />);
-    
-    const bannerIcon = container.querySelector('.banner-icon');
-    expect(bannerIcon).toBeInTheDocument();
-  });
-
-  test('displays the close component', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<Ibanking2 />);
-    
-    expect(screen.getByTestId('mock-close-component')).toBeInTheDocument();
-  });
-
-  test('displays image with correct attributes', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<Ibanking2 />);
-    
-    const image = screen.getByRole('img');
-    expect(image).toBeInTheDocument();
-    expect(image).toHaveAttribute('src', 'mock-image-path');
-  });
-
-  test('displays informational text about account upgrade', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<Ibanking2 />);
-    
-    const infoText = screen.getByText(/Please note that your existing online banking account will be upgraded/i);
-    expect(infoText).toBeInTheDocument();
-  });
-
-  test('displays English copyright when language is English', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<Ibanking2 />);
-    
-    expect(screen.getByText(CONSTANTS.scbHkCopyRights_EN)).toBeInTheDocument();
-  });
-
-  test('displays Simplified Chinese copyright when language is Chinese', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_CN);
-    render(<Ibanking2 />);
-    
-    expect(screen.getByText(CONSTANTS.scbHkCopyRights_CN)).toBeInTheDocument();
-  });
-
-  test('displays Traditional Chinese (HK) copyright when language is neither English nor Simplified Chinese', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_HK);
-    render(<Ibanking2 />);
-    
-    expect(screen.getByText(CONSTANTS.scbHkCopyRights_HK)).toBeInTheDocument();
-  });
-
-  test('displays Traditional Chinese (HK) copyright by default when language is not specified', () => {
-    getUrl.getLanguageInfo.mockReturnValue(undefined);
-    render(<Ibanking2 />);
-    
-    expect(screen.getByText(CONSTANTS.scbHkCopyRights_HK)).toBeInTheDocument();
-  });
-
-  test('checks if the component has expected CSS class names', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    const { container } = render(<Ibanking2 />);
-    
-    expect(container.querySelector('.ibUpgrade')).toBeInTheDocument();
-    expect(container.querySelector('.imageIcon')).toBeInTheDocument();
-    expect(container.querySelector('.iBtext')).toBeInTheDocument();
-    expect(container.querySelector('.hk_copyrights')).toBeInTheDocument();
-    expect(container.querySelector('.card-title')).toBeInTheDocument();
-    expect(container.querySelector('.card-titleHead')).toBeInTheDocument();
-  });
-
-  test('verifies getLanguageInfo is called with "lang" parameter', () => {
-    getUrl.getLanguageInfo.mockReturnValue(CONSTANTS.LANG_EN);
-    render(<Ibanking2 />);
-    
-    expect(getUrl.getLanguageInfo).toHaveBeenCalledWith("lang");
-  });
-});
+Please write an test cases using react and jest
