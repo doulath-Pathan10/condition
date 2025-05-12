@@ -1,182 +1,212 @@
-import React, { useState } from "react";
-import './close.scss';
-import PopupModel from "../popup-model/popup-model";
-import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
-import { useDispatch, useSelector } from "react-redux";
-import { submitRequest, userInputPayload } from "../../../modules/dashboard/fields/fields.utils";
-import Model from "../model/model";
-import { useNavigate } from "react-router-dom";
-import { CONSTANTS } from "../../../utils/common/constants";
-import { getUrl, homePage } from "../../../utils/common/change.utils";
-import trackEvents from "../../../services/track-events";
-import { postPeserveData } from "../../../modules/preApproval/services/preApprovalPostServices";
-import { errorAction } from "../../../utils/store/error-slice";
-import { dispatchLoader } from "../../../services/common-service";
-import { stagesAction } from "../../../utils/store/stages-slice";
-import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import configureStore from 'redux-mock-store';
+import Close from './Close';
+import '@testing-library/jest-dom';
 
-const Close = (props: KeyWithAnyModel) => {
+// Mock the modules that are causing issues
+jest.mock('../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn().mockReturnValue('EN')
+  },
+  homePage: jest.fn()
+}));
 
-  const [displayPopup, setdisplayPopup] = useState(false);
-  const [applicationSuccess, setApplicationSuccess] = useState(false);
-  const stageSelector = useSelector((state: StoreModel) => state.stages && state.stages.stages);
+jest.mock('../../../modules/preApproval/services/preApprovalPostServices', () => ({
+  postPeserveData: jest.fn().mockResolvedValue({
+    status: 200,
+    data: {
+      application: {
+        response_type: "INFO",
+        response_action: "CONTINUE"
+      },
+      applicants: {}
+    }
+  })
+}));
 
-  const dispatch = useDispatch();
-  const applicantsSelector = useSelector(
-    (state: StoreModel) => state?.stages && state?.stages?.userInput?.applicants?.[0]
-  );
-  const resumeFlag = useSelector(
-    (state: StoreModel) => state.stages
-  );
-  const lovSelector = useSelector((state: StoreModel) => state.lov);
-  const valueSelector = useSelector((state: StoreModel) => state.valueUpdate);
-  const applicationJourney = useSelector(
-    (state: StoreModel) => state.stages && state.stages.journeyType
-  );
-  const userInputSelector = useSelector(
-    (state: StoreModel) => state.stages && state.stages.userInput
-  );
-  const errorSelector = useSelector((state: StoreModel) => state.error);
-  // const navigate = useNavigate();
-  const language = getUrl && getUrl.getLanguageInfo("lang")
+jest.mock('../../../services/track-events', () => ({
+  triggerAdobeEvent: jest.fn()
+}));
 
-  const closeParameters = {
-    backToHome: 'Back to Home',
-    backToHome_HK: '返回主頁',
-    backToHome_CN: '返回主页',
-    exitAppText: 'Do you want to exit the application ?',
-    exitAppText_CN: '确认停止申请？',
-    exitAppText_HK: '確認停止申請？',
-    exitOtpText: 'Do you want to exit the application? Your current progress will be lost.',
-    exitOtpText_HK: '確認停止申請？您將失去當前的申請記錄。',
-    exitOtpText_CN: '确认停止申请？您将失去当前的申请记录。'
-  }
-  const logout = () => {
-    setdisplayPopup(true);
-  }
+const mockStore = configureStore([]);
 
-  // const withoutSaveAndExit = () => {
-  //   window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
-  // }
+describe('Close Component', () => {
+  let store: any;
 
-  const withoutSaveAndExitOOPS = () => {
-    window.location.href = "/hk/oops";
-    trackEvents.triggerAdobeEvent('formError', 'Oops');
-  }
-
-  const closePopup = (e: React.MouseEvent<HTMLElement>) => {
-    setdisplayPopup(false);
-    e.stopPropagation();
-    trackEvents.triggerAdobeEvent("ctaClick", "Cancel: Back to Home"); /* Adobe Analytics - for clicks on a CTA */
-  }
-
-  const withSaveAndExit = () => {
-    dispatch(
-      userInputPayload(userInputSelector.applicants[0], stageSelector)
-    );
-    dispatch(preApprovalAction.setResumeSave(true));
-    return postPeserveData().then((res:any) => {
-      if(res.status === 200){
-        let responseType = res.data.application.response_type.toUpperCase();
-        let responseAction = res.data.application.response_action.toUpperCase();
-        if (responseType === "INFO" && responseAction === "CONTINUE") {
-          let stageData = Object.assign(
-            {},
-            stageSelector[0].stageInfo
-          );
-          for (let [key, value] of Object.entries(res.data)) {
-            if(key === "applicants") {
-              stageData[key] = [value];
-            }
-            else {
-              stageData[key] = value;
-            }
-          }
-          stageData.stage.page_id = stageSelector[0].stageId;
-          stageData.stage.stage_id= stageSelector[0].stageId.split('-')[0].toUpperCase();
-          dispatch(
-            stagesAction.getStage({
-              id: stageSelector[0].stageId,
-              formConfig: stageData,
-            })
-          );
-          window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
-        }
-      }
-    }).catch((error: any) => {
-      dispatch(dispatchLoader(false));
-        dispatch(
-          errorAction.getError({
-            statusCode: "error",
-            statusText: "no response",
-          })
-        );
+  beforeEach(() => {
+    store = mockStore({
+      stages: {
+        stages: [{ stageId: 'ad-1', stageInfo: { applicants: [{}] } }],
+        userInput: { applicants: [{}] },
+        journeyType: 'application'
+      },
+      lov: { lov: [] },
+      error: {},
+      preApproval: {}
     });
-  };
 
-  return (
-    <>
-      {stageSelector[0].stageId !== "ad-9" &&
-      <div className="close" data-testid="logout-button" onClick={logout}>
-        {displayPopup &&
-          <PopupModel displayPopup={displayPopup}>
-            <div className="closeModal__container">
-              <div className="closeModal__img"></div>
-              <div className="closeModal__content">
-                <div className="closeModal__header">{language === CONSTANTS.LANG_EN ? closeParameters.backToHome : language === CONSTANTS.LANG_CN ? closeParameters.backToHome_CN : closeParameters.backToHome_HK}</div>
-                {props ?
-                  <> <div className="otpExit__content">{language === CONSTANTS.LANG_EN ? closeParameters.exitOtpText : language === CONSTANTS.LANG_CN ? closeParameters.exitOtpText_CN : closeParameters.exitOtpText_HK}</div></>
-                  : <>
-                    <div>{language === CONSTANTS.LANG_EN ? closeParameters.exitAppText : language === CONSTANTS.LANG_CN ? closeParameters.exitAppText_CN : closeParameters.exitAppText_HK}</div>
-                  </>}
-              </div>
-              {props ?
-                <>
-                  {stageSelector.length > 0 ?
-                    <>
-                      <div className="closeModal__footer">
-                        {(stageSelector[0].stageId === "pd-1") && (
-                          <button className="otpExit__btn" onClick={homePage}>  {language === CONSTANTS.LANG_EN ? 'Yes, Exit' : language === CONSTANTS.LANG_CN ? '是，离开' : '是，離開'}
-                          </button>
-                        )}
-                        {(stageSelector[0].stageId !== "pd-1") && (
-                          <button
-                            className="otpExit__btn"
-                            onClick={withSaveAndExit}
-                          >
-                            {language === CONSTANTS.LANG_EN ? 'Save & Exit' : language === CONSTANTS.LANG_CN ? '是，离开' : '是，離開'}
-                          </button>
-                        )}
-                      </div>
-                    </>
-                    : <div className="closeModal__footer">
-                      <button className="otpExit__btn" onClick={homePage/*withoutSaveAndExit*/}>{language === CONSTANTS.LANG_EN ? 'Yes, Exit' : language === CONSTANTS.LANG_CN ? '是，离开' : '是，離開'}
-                      </button>
-                    </div>
-                  }
-                  <div className="closeModal__footer">
-                    <button className="otpExit__btn" data-testid="otpExit-close-popup" onClick={(e) => closePopup(e)}>{language === CONSTANTS.LANG_EN ? 'Cancel' : language === CONSTANTS.LANG_CN ? '取消' : '取消'}</button>
-                  </div>
-                </>
-                :
-                <div className="closeModal__footer">
-                  <button className="withoutSavenExit__btn" onClick={homePage/*withoutSaveAndExit*/}>
-                    {language === CONSTANTS.LANG_EN ? 'Exit' : language === CONSTANTS.LANG_CN ? '离开' : '離開'}
-                  </button>
-                  <button className="withSavenExit__btn" onClick={(e) => closePopup(e)}>{language === CONSTANTS.LANG_EN ? 'Cancel' : language === CONSTANTS.LANG_CN ? '取消' : '取消'}</button>
-                </div>
-              }
-            </div>
-          </PopupModel>
-        }
-      </div>
+    // Reset all mocks
+    jest.clearAllMocks();
+  });
+
+  test('renders close button', () => {
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    expect(screen.getByTestId('logout-button')).toBeInTheDocument();
+  });
+
+  test('opens popup when close button is clicked', () => {
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByTestId('logout-button'));
+    expect(screen.getByText('Back to Home')).toBeInTheDocument();
+  });
+
+  test('displays correct buttons for non-pd1 stage', () => {
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByTestId('logout-button'));
+    expect(screen.getByText('Save & Exit')).toBeInTheDocument();
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
+  });
+
+  test('displays correct buttons for pd1 stage', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        ...store.getState().stages,
+        stages: [{ stageId: 'pd-1', stageInfo: { applicants: [{}] } }]
       }
+    });
 
-      {applicationSuccess && <Model name="saveSuccess" />}
-    </>
-  )
-}
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByTestId('logout-button'));
+    expect(screen.getByText('Yes, Exit')).toBeInTheDocument();
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
+  });
 
-export default Close;
+  test('closes popup when cancel is clicked', () => {
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByTestId('logout-button'));
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByText('Back to Home')).not.toBeInTheDocument();
+  });
 
-Please write an test cases using react and jest
+  test('calls homePage when Yes, Exit is clicked', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        ...store.getState().stages,
+        stages: [{ stageId: 'pd-1', stageInfo: { applicants: [{}] } }]
+      }
+    });
+
+    const { homePage } = require('../../../utils/common/change.utils');
+    
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByTestId('logout-button'));
+    fireEvent.click(screen.getByText('Yes, Exit'));
+    expect(homePage).toHaveBeenCalled();
+  });
+
+  test('does not render in ad-9 stage', () => {
+    store = mockStore({
+      ...store.getState(),
+      stages: {
+        ...store.getState().stages,
+        stages: [{ stageId: 'ad-9', stageInfo: { applicants: [{}] } }]
+      }
+    });
+
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    
+    expect(screen.queryByTestId('logout-button')).not.toBeInTheDocument();
+  });
+});
+
+describe('withSaveAndExit functionality', () => {
+  let store: any;
+
+  beforeEach(() => {
+    store = mockStore({
+      stages: {
+        stages: [{ stageId: 'ad-1', stageInfo: { applicants: [{}] } }],
+        userInput: { applicants: [{}] },
+        journeyType: 'application'
+      },
+      lov: { lov: [] },
+      error: {},
+      preApproval: {}
+    });
+
+    jest.clearAllMocks();
+  });
+
+  test('successfully calls postPeserveData', async () => {
+    const { postPeserveData } = require('../../../modules/preApproval/services/preApprovalPostServices');
+    
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByTestId('logout-button'));
+    fireEvent.click(screen.getByText('Save & Exit'));
+    
+    await Promise.resolve(); // Allow promises to resolve
+    
+    expect(postPeserveData).toHaveBeenCalled();
+  });
+
+  test('handles API error', async () => {
+    const { postPeserveData } = require('../../../modules/preApproval/services/preApprovalPostServices');
+    postPeserveData.mockRejectedValue(new Error('API error'));
+    
+    render(
+      <Provider store={store}>
+        <Close />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByTestId('logout-button'));
+    fireEvent.click(screen.getByText('Save & Exit'));
+    
+    await Promise.resolve(); // Allow promises to resolve
+    
+    const actions = store.getActions();
+    expect(actions.some((action: any) => action.type === 'error/getError')).toBe(true);
+  });
+});
