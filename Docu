@@ -1,200 +1,167 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import thunk from 'redux-thunk';
-import Close from './Close'; // Adjust the import path as needed
-import * as preApprovalPostServices from '../../../modules/preApproval/services/preApprovalPostServices';
-import trackEvents from '../../../services/track-events';
+import React, { useEffect, useState } from "react";
+import "./colour-Identity-Proof.scss";
+import Carousel from "../carousel/carousel";
+import { useDispatch, useSelector } from "react-redux";
+import { getUrl } from "../../../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../../../utils/common/constants";
+import { dispatchLoader } from "../../../../../services/common-service";
+import { stagesAction } from "../../../../../utils/store/stages-slice";
+import Zoloz from "../zoloz/zoloz";
+import { lovDescAction } from "../../../../../utils/store/lov-desc-slice";
 
-// Mock dependencies
-jest.mock('../../../services/track-events', () => ({
-  triggerAdobeEvent: jest.fn(),
-}));
+const ColorIdentityProof: React.FC<any> = ({
+  callQRCodeAPI,
+  HKIDVersion,
+  setHKIDVersion
+}) => {
+  const language = getUrl.getLanguageInfo("lang")
+  const showQRCodePage = useSelector((state: any) => state.stages.dynamicDocumentsUpload.showQRCodePage);
+  const [lovData, setLovData] = useState([]);
+  const dispatch = useDispatch();
 
-jest.mock('../../../modules/preApproval/services/preApprovalPostServices', () => ({
-  postPeserveData: jest.fn(),
-}));
-
-describe('Close Component', () => {
-  const mockStore = configureStore([thunk]);
-  let initialState: any;
-  let store: any;
-
-  beforeEach(() => {
-    // Setup initial state that mimics the Redux store
-    initialState = {
-      stages: {
-        stages: [
-          {
-            stageId: 'test-stage',
-            stageInfo: {
-              stage: {
-                page_id: 'test-page',
-                stage_id: 'TEST',
-              },
-            },
-            userInput: {
-              applicants: [{ id: 'test-applicant' }],
-            },
-          },
-        ],
-        journeyType: 'test-journey',
-        userInput: {
-          applicants: [{ id: 'test-applicant' }],
-        },
+  useEffect(() => {
+    let lov: any = language === CONSTANTS.LANG_EN ? [
+      {
+        "CODE_VALUE": "08520000001",
+        "CODE_DESC": "Smart HKID"
       },
-      lov: {},
-      valueUpdate: {},
-      error: {},
-    };
-
-    store = mockStore(initialState);
-
-    // Mock window.location
-    delete (window as any).location;
-    (window as any).location = { href: '' };
-
-    // Mock environment variables
-    process.env.REACT_APP_HOME_PAGE_URL = 'http://test-home-page';
-  });
-
-  // Test rendering of close button
-  test('renders close button when stage is not ad-9', () => {
-    render(
-      <Provider store={store}>
-        <Close />
-      </Provider>
-    );
-
-    const closeButton = screen.getByTestId('logout-button');
-    expect(closeButton).toBeInTheDocument();
-  });
-
-  // Test opening popup
-  test('opens popup when close button is clicked', () => {
-    render(
-      <Provider store={store}>
-        <Close />
-      </Provider>
-    );
-
-    const closeButton = screen.getByTestId('logout-button');
-    fireEvent.click(closeButton);
-
-    // Check if popup modal appears
-    const modalHeader = screen.getByText(/Back to Home/i);
-    expect(modalHeader).toBeInTheDocument();
-  });
-
-  // Test cancel button in popup
-  test('closes popup when cancel button is clicked', () => {
-    render(
-      <Provider store={store}>
-        <Close />
-      </Provider>
-    );
-
-    // Open popup first
-    const closeButton = screen.getByTestId('logout-button');
-    fireEvent.click(closeButton);
-
-    // Find and click cancel button
-    const cancelButton = screen.getByTestId('otpExit-close-popup');
-    fireEvent.click(cancelButton);
-
-    // Verify Adobe event was triggered
-    expect(trackEvents.triggerAdobeEvent).toHaveBeenCalledWith(
-      "ctaClick", 
-      "Cancel: Back to Home"
-    );
-  });
-
-  // Test save and exit functionality
-  test('saves and exits application successfully', async () => {
-    // Mock successful save response
-    (preApprovalPostServices.postPeserveData as jest.Mock).mockResolvedValue({
-      status: 200,
-      data: {
-        application: {
-          response_type: 'INFO',
-          response_action: 'CONTINUE',
-        },
-        applicants: [{ id: 'test-applicant' }],
+      {
+        "CODE_VALUE": "08520000002",
+        "CODE_DESC": "New Smart HKID"
+      }
+    ] : [
+      {
+        "CODE_VALUE": "08520000001",
+        "CODE_DESC": "智能身份證"
       },
-    });
+      {
+        "CODE_VALUE": "08520000002",
+        "CODE_DESC": "新智能身份證"
+      }
+    ];
+    setLovData(lov);
+  }, [])
 
-    render(
-      <Provider store={store}>
-        <Close />
-      </Provider>
+  const handleRadioBtnHKID = (item: any) => {
+    const label = item.CODE_DESC;
+    const value = item.CODE_VALUE;
+    setHKIDVersion(value);
+    dispatch(stagesAction.updateHKIDVersionValue(value));
+    dispatch(stagesAction.updatechangeIconColorIdentityProof(false));
+    dispatch(
+      lovDescAction.addLovData({
+        fieldData: {
+          fieldName: "hkid_type",
+          code_desc: label,
+          code_value: value
+        }
+      })
     );
+    let newLovData: any = JSON.parse(JSON.stringify(lovData));
+    for (let i in newLovData) {
+      if (newLovData[i].CODE_VALUE === value) {
+        newLovData[i].checked = true;
+      }
+      else {
+        newLovData[i].checked = false;
+      }
+    }
+  };
 
-    // Open popup
-    const closeButton = screen.getByTestId('logout-button');
-    fireEvent.click(closeButton);
+  const onBackClick = () => {
+    setHKIDVersion("");
+    dispatch(stagesAction.updatefileSectionData(null));
+    dispatch(stagesAction.updateShowQRCodePage(false));
+  };
 
-    // Find and click save & exit button (for non-pd-1 stage)
-    const saveExitButton = screen.getByText(/Save & Exit/i);
-    fireEvent.click(saveExitButton);
+  const onContinue = async () => {
+    dispatch(dispatchLoader(true));
+    dispatch(stagesAction.updateShowQRCodePage(true));
+    callQRCodeAPI();
+    setHKIDVersion("");
+  };
 
-    // Wait for asynchronous operations
-    await screen.findByTestId('logout-button');
+  return (
+    <>
+      {!showQRCodePage &&
+        <>
+          <div className="document-view">
+            <div className="main-container">
+              <section className="hkid-docPage">
+                <p className="hkid-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.headerTextDoc : language === CONSTANTS.LANG_CN?CONSTANTS.headerTextDoc_CN : CONSTANTS.headerTextDoc_HK}</p>
+                <span className="header-note">{language === CONSTANTS.LANG_EN ? CONSTANTS.headerNote : language === CONSTANTS.LANG_CN?CONSTANTS.headerNote_CN : CONSTANTS.headerNote_HK}</span>
+                <div className="radio-btn-section">
+                  <label className="floatlabel">
+                    <span className="textbox-label">
+                      <b>{language === CONSTANTS.LANG_EN ? CONSTANTS.radioBtnText : language === CONSTANTS.LANG_CN?CONSTANTS.radioBtnText_CN : CONSTANTS.radioBtnText_HK}</b>
+                    </span>
+                  </label>
+                  <div className="rto-form-component-hk">
+                    <div className="radioOptions radioWithLabel" id="hkid_type_a_1">
+                      {lovData.map((item: any, index: any) => {
+                        return (
+                          <div key={index} className="radioAligner" style={{ marginRight: 10 }}>
+                            <label htmlFor={item.CODE_VALUE}>
+                              <input
+                                type="radio"
+                                id={"hkid_type" + index}
+                                name="hkid_type"
+                                className="radio-btn"
+                                onChange={() => handleRadioBtnHKID(item)}
+                                checked={item.checked}
+                              />
+                              <span className="radio-button-lbl">{item.CODE_DESC}</span>
+                            </label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div className="hkid-prepare-points">
+                  <div className="desktop-img">
+                    <Carousel />
+                  </div>
+                </div>
+                <div className="hkid-notes">{language === CONSTANTS.LANG_EN ? CONSTANTS.hknotes : language === CONSTANTS.LANG_CN?CONSTANTS.hknotes_CN : CONSTANTS.hknotes_HK}</div>
+                <div className="hk-copy-rights">
+                  <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
+                </div>
+              </section>
+            </div>
+          </div>
+          <div className="footer footer-set">
+            <div
+              role="button"
+              className="back"
+              onClick={onBackClick}>
+              <span className="arrow"></span>
+              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.back : language === CONSTANTS.LANG_CN? CONSTANTS.back_CN : CONSTANTS.back_HK}`}
+            </div>
+            <button
+              role="button"
+              title="Colour Identity Proof"
+              type="submit"
+              className={
+                !HKIDVersion ? `continue form-invalid` : `continue form-valid`
+              }
+              onClick={onContinue}
+              disabled={HKIDVersion === ""}
+            >
+              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
+            </button>
+          </div>
+        </>
+      }
+      {showQRCodePage &&
+        <Zoloz
+          setHKIDVersion={setHKIDVersion}
+        />
+      }
+    </>
+  );
+};
 
-    // Verify location change and save operation
-    expect(window.location.href).toBe(process.env.REACT_APP_HOME_PAGE_URL);
-    expect(preApprovalPostServices.postPeserveData).toHaveBeenCalled();
-  });
+export default ColorIdentityProof;
 
-  // Test exit without save for pd-1 stage
-  test('exits without save for pd-1 stage', () => {
-    // Modify initial state to simulate pd-1 stage
-    initialState.stages.stages[0].stageId = 'pd-1';
-    store = mockStore(initialState);
-
-    render(
-      <Provider store={store}>
-        <Close />
-      </Provider>
-    );
-
-    // Open popup
-    const closeButton = screen.getByTestId('logout-button');
-    fireEvent.click(closeButton);
-
-    // Find and click Yes, Exit button
-    const exitButton = screen.getByText(/Yes, Exit/i);
-    fireEvent.click(exitButton);
-
-    // Verify location change
-    expect(window.location.href).toBe(process.env.REACT_APP_HOME_PAGE_URL);
-  });
-
-  // Test error handling for save and exit
-  test('handles error during save and exit', async () => {
-    // Mock failed save response
-    (preApprovalPostServices.postPeserveData as jest.Mock).mockRejectedValue(
-      new Error('Save failed')
-    );
-
-    render(
-      <Provider store={store}>
-        <Close />
-      </Provider>
-    );
-
-    // Open popup
-    const closeButton = screen.getByTestId('logout-button');
-    fireEvent.click(closeButton);
-
-    // Find and click save & exit button
-    const saveExitButton = screen.getByText(/Save & Exit/i);
-    fireEvent.click(saveExitButton);
-
-    // Wait for error handling
-    await screen.findByTestId('logout-button');
-
-    // You might want to add specific assertions about error handling
-    // This could include checking dispatch actions or error messages
-  });
-});
+Please write an test cases using react and jest
