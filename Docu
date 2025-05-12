@@ -1,258 +1,182 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import Amount from './Amount';
+import React, { useState } from "react";
+import './close.scss';
+import PopupModel from "../popup-model/popup-model";
+import { KeyWithAnyModel, StoreModel } from "../../../utils/model/common-model";
+import { useDispatch, useSelector } from "react-redux";
+import { submitRequest, userInputPayload } from "../../../modules/dashboard/fields/fields.utils";
+import Model from "../model/model";
+import { useNavigate } from "react-router-dom";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { getUrl, homePage } from "../../../utils/common/change.utils";
+import trackEvents from "../../../services/track-events";
+import { postPeserveData } from "../../../modules/preApproval/services/preApprovalPostServices";
+import { errorAction } from "../../../utils/store/error-slice";
+import { dispatchLoader } from "../../../services/common-service";
+import { stagesAction } from "../../../utils/store/stages-slice";
+import { preApprovalAction } from "../../../modules/preApproval/store/preApproval-slice";
 
-const mockStore = configureStore([]);
+const Close = (props: KeyWithAnyModel) => {
 
-describe('Amount Component', () => {
-  let store: any;
-  const mockProps = {
-    data: {
-      logical_field_name: 'requested_loan_amount',
-      rwb_label_name: 'Loan Amount',
-      mandatory: 'Yes',
-      min_length: 4,
-      length: 7,
-      regex: '^[0-9]*$',
-      editable: false
-    },
-    handleCallback: jest.fn()
+  const [displayPopup, setdisplayPopup] = useState(false);
+  const [applicationSuccess, setApplicationSuccess] = useState(false);
+  const stageSelector = useSelector((state: StoreModel) => state.stages && state.stages.stages);
+
+  const dispatch = useDispatch();
+  const applicantsSelector = useSelector(
+    (state: StoreModel) => state?.stages && state?.stages?.userInput?.applicants?.[0]
+  );
+  const resumeFlag = useSelector(
+    (state: StoreModel) => state.stages
+  );
+  const lovSelector = useSelector((state: StoreModel) => state.lov);
+  const valueSelector = useSelector((state: StoreModel) => state.valueUpdate);
+  const applicationJourney = useSelector(
+    (state: StoreModel) => state.stages && state.stages.journeyType
+  );
+  const userInputSelector = useSelector(
+    (state: StoreModel) => state.stages && state.stages.userInput
+  );
+  const errorSelector = useSelector((state: StoreModel) => state.error);
+  // const navigate = useNavigate();
+  const language = getUrl && getUrl.getLanguageInfo("lang")
+
+  const closeParameters = {
+    backToHome: 'Back to Home',
+    backToHome_HK: '返回主頁',
+    backToHome_CN: '返回主页',
+    exitAppText: 'Do you want to exit the application ?',
+    exitAppText_CN: '确认停止申请？',
+    exitAppText_HK: '確認停止申請？',
+    exitOtpText: 'Do you want to exit the application? Your current progress will be lost.',
+    exitOtpText_HK: '確認停止申請？您將失去當前的申請記錄。',
+    exitOtpText_CN: '确认停止申请？您将失去当前的申请记录。'
+  }
+  const logout = () => {
+    setdisplayPopup(true);
+  }
+
+  // const withoutSaveAndExit = () => {
+  //   window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
+  // }
+
+  const withoutSaveAndExitOOPS = () => {
+    window.location.href = "/hk/oops";
+    trackEvents.triggerAdobeEvent('formError', 'Oops');
+  }
+
+  const closePopup = (e: React.MouseEvent<HTMLElement>) => {
+    setdisplayPopup(false);
+    e.stopPropagation();
+    trackEvents.triggerAdobeEvent("ctaClick", "Cancel: Back to Home"); /* Adobe Analytics - for clicks on a CTA */
+  }
+
+  const withSaveAndExit = () => {
+    dispatch(
+      userInputPayload(userInputSelector.applicants[0], stageSelector)
+    );
+    dispatch(preApprovalAction.setResumeSave(true));
+    return postPeserveData().then((res:any) => {
+      if(res.status === 200){
+        let responseType = res.data.application.response_type.toUpperCase();
+        let responseAction = res.data.application.response_action.toUpperCase();
+        if (responseType === "INFO" && responseAction === "CONTINUE") {
+          let stageData = Object.assign(
+            {},
+            stageSelector[0].stageInfo
+          );
+          for (let [key, value] of Object.entries(res.data)) {
+            if(key === "applicants") {
+              stageData[key] = [value];
+            }
+            else {
+              stageData[key] = value;
+            }
+          }
+          stageData.stage.page_id = stageSelector[0].stageId;
+          stageData.stage.stage_id= stageSelector[0].stageId.split('-')[0].toUpperCase();
+          dispatch(
+            stagesAction.getStage({
+              id: stageSelector[0].stageId,
+              formConfig: stageData,
+            })
+          );
+          window.location.href = `${process.env.REACT_APP_HOME_PAGE_URL}`;
+        }
+      }
+    }).catch((error: any) => {
+      dispatch(dispatchLoader(false));
+        dispatch(
+          errorAction.getError({
+            statusCode: "error",
+            statusText: "no response",
+          })
+        );
+    });
   };
 
-  beforeEach(() => {
-    store = mockStore({
-      lov: { lov: [] },
-      stages: {
-        stages: [{ stageId: 'ad-1', stageInfo: { applicants: [{}] } }],
-        userInput: { applicants: [{}] }
-      },
-      fielderror: { error: [], mandatoryFields: [] },
-      preApproval: { resumeAllowed: 'N' },
-      lastAccessed: { field: '' }
-    });
-  });
-
-  test('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    expect(screen.getByLabelText('Loan Amount')).toBeInTheDocument();
-  });
-
-  test('displays label correctly', () => {
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    expect(screen.getByText('Loan Amount')).toBeInTheDocument();
-  });
-
-  test('shows error when value is below minimum length', () => {
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByPlaceholderText('Loan Amount');
-    fireEvent.change(input, { target: { value: '123' } });
-    
-    expect(screen.getByText(/minLength/)).toBeInTheDocument();
-  });
-
-  test('shows error when loan amount is below 5000', () => {
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByPlaceholderText('Loan Amount');
-    fireEvent.change(input, { target: { value: '4999' } });
-    
-    expect(screen.getByText(/loan amount must be between/)).toBeInTheDocument();
-  });
-
-  test('shows error when loan amount is above 2000000', () => {
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByPlaceholderText('Loan Amount');
-    fireEvent.change(input, { target: { value: '2000001' } });
-    
-    expect(screen.getByText(/loan amount must be between/)).toBeInTheDocument();
-  });
-
-  test('shows error when loan amount is not multiple of 1000', () => {
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByPlaceholderText('Loan Amount');
-    fireEvent.change(input, { target: { value: '5500' } });
-    
-    expect(screen.getByText(/must be a multiple of 1000/)).toBeInTheDocument();
-  });
-
-  test('accepts valid loan amount', () => {
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByPlaceholderText('Loan Amount');
-    fireEvent.change(input, { target: { value: '10000' } });
-    
-    expect(screen.queryByText(/error/)).not.toBeInTheDocument();
-  });
-
-  test('displays tick mark when value is valid', () => {
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByPlaceholderText('Loan Amount');
-    fireEvent.change(input, { target: { value: '10000' } });
-    
-    expect(document.querySelector('.tick-class')).toBeInTheDocument();
-  });
-
-  test('handles annual income validation', () => {
-    const annualIncomeProps = {
-      ...mockProps,
-      data: {
-        ...mockProps.data,
-        logical_field_name: 'annual_income',
-        rwb_label_name: 'Annual Income'
+  return (
+    <>
+      {stageSelector[0].stageId !== "ad-9" &&
+      <div className="close" data-testid="logout-button" onClick={logout}>
+        {displayPopup &&
+          <PopupModel displayPopup={displayPopup}>
+            <div className="closeModal__container">
+              <div className="closeModal__img"></div>
+              <div className="closeModal__content">
+                <div className="closeModal__header">{language === CONSTANTS.LANG_EN ? closeParameters.backToHome : language === CONSTANTS.LANG_CN ? closeParameters.backToHome_CN : closeParameters.backToHome_HK}</div>
+                {props ?
+                  <> <div className="otpExit__content">{language === CONSTANTS.LANG_EN ? closeParameters.exitOtpText : language === CONSTANTS.LANG_CN ? closeParameters.exitOtpText_CN : closeParameters.exitOtpText_HK}</div></>
+                  : <>
+                    <div>{language === CONSTANTS.LANG_EN ? closeParameters.exitAppText : language === CONSTANTS.LANG_CN ? closeParameters.exitAppText_CN : closeParameters.exitAppText_HK}</div>
+                  </>}
+              </div>
+              {props ?
+                <>
+                  {stageSelector.length > 0 ?
+                    <>
+                      <div className="closeModal__footer">
+                        {(stageSelector[0].stageId === "pd-1") && (
+                          <button className="otpExit__btn" onClick={homePage}>  {language === CONSTANTS.LANG_EN ? 'Yes, Exit' : language === CONSTANTS.LANG_CN ? '是，离开' : '是，離開'}
+                          </button>
+                        )}
+                        {(stageSelector[0].stageId !== "pd-1") && (
+                          <button
+                            className="otpExit__btn"
+                            onClick={withSaveAndExit}
+                          >
+                            {language === CONSTANTS.LANG_EN ? 'Save & Exit' : language === CONSTANTS.LANG_CN ? '是，离开' : '是，離開'}
+                          </button>
+                        )}
+                      </div>
+                    </>
+                    : <div className="closeModal__footer">
+                      <button className="otpExit__btn" onClick={homePage/*withoutSaveAndExit*/}>{language === CONSTANTS.LANG_EN ? 'Yes, Exit' : language === CONSTANTS.LANG_CN ? '是，离开' : '是，離開'}
+                      </button>
+                    </div>
+                  }
+                  <div className="closeModal__footer">
+                    <button className="otpExit__btn" data-testid="otpExit-close-popup" onClick={(e) => closePopup(e)}>{language === CONSTANTS.LANG_EN ? 'Cancel' : language === CONSTANTS.LANG_CN ? '取消' : '取消'}</button>
+                  </div>
+                </>
+                :
+                <div className="closeModal__footer">
+                  <button className="withoutSavenExit__btn" onClick={homePage/*withoutSaveAndExit*/}>
+                    {language === CONSTANTS.LANG_EN ? 'Exit' : language === CONSTANTS.LANG_CN ? '离开' : '離開'}
+                  </button>
+                  <button className="withSavenExit__btn" onClick={(e) => closePopup(e)}>{language === CONSTANTS.LANG_EN ? 'Cancel' : language === CONSTANTS.LANG_CN ? '取消' : '取消'}</button>
+                </div>
+              }
+            </div>
+          </PopupModel>
+        }
+      </div>
       }
-    };
-    
-    render(
-      <Provider store={store}>
-        <Amount {...annualIncomeProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByPlaceholderText('Annual Income');
-    fireEvent.change(input, { target: { value: '95999' } });
-    
-    expect(screen.getByText(/minimum annual income requirement/)).toBeInTheDocument();
-  });
 
-  test('shows HKD label for annual income fields', () => {
-    const annualIncomeProps = {
-      ...mockProps,
-      data: {
-        ...mockProps.data,
-        logical_field_name: 'annual_income',
-        rwb_label_name: 'Annual Income'
-      }
-    };
-    
-    render(
-      <Provider store={store}>
-        <Amount {...annualIncomeProps} />
-      </Provider>
-    );
-    
-    expect(screen.getByText('HKD')).toBeInTheDocument();
-  });
+      {applicationSuccess && <Model name="saveSuccess" />}
+    </>
+  )
+}
 
-  test('handles other loans fields when otherLoans is Y', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        stages: [{ stageId: 'ad-6', stageInfo: { applicants: [{}] } }],
-        userInput: { applicants: [{ other_loans: 'Y' }] }
-      }
-    });
-    
-    const otherLoansProps = {
-      ...mockProps,
-      data: {
-        ...mockProps.data,
-        logical_field_name: 'monthly_installment_mortgage_payment',
-        rwb_label_name: 'Monthly Installment'
-      }
-    };
-    
-    render(
-      <Provider store={store}>
-        <Amount {...otherLoansProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByRole('textbox');
-    fireEvent.change(input, { target: { value: 'abc' } });
-    
-    expect(screen.getByText(/only numbers are allowed/)).toBeInTheDocument();
-  });
+export default Close;
 
-  test('clears value when otherLoans is N in ad-6 stage', () => {
-    store = mockStore({
-      ...store.getState(),
-      stages: {
-        stages: [{ stageId: 'ad-6', stageInfo: { applicants: [{}] } }],
-        userInput: { applicants: [{ other_loans: 'N' }] }
-      }
-    });
-    
-    const otherLoansProps = {
-      ...mockProps,
-      data: {
-        ...mockProps.data,
-        logical_field_name: 'monthly_installment_mortgage_payment',
-        rwb_label_name: 'Monthly Installment'
-      }
-    };
-    
-    render(
-      <Provider store={store}>
-        <Amount {...otherLoansProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByRole('textbox');
-    expect(input).toHaveValue('');
-  });
-
-  test('displays resume data when resumeAllowed is Y', () => {
-    store = mockStore({
-      ...store.getState(),
-      preApproval: { resumeAllowed: 'Y' },
-      stages: {
-        stages: [{
-          stageId: 'ad-1',
-          stageInfo: {
-            applicants: [{
-              requested_loan_amount_a_1: '50000'
-            }]
-          }
-        }],
-        userInput: { applicants: [{}] }
-      }
-    });
-    
-    render(
-      <Provider store={store}>
-        <Amount {...mockProps} />
-      </Provider>
-    );
-    
-    const input = screen.getByPlaceholderText('Loan Amount');
-    expect(input).toHaveValue('50000');
-  });
-});
+Please write an test cases using react and jest
