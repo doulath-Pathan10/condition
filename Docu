@@ -1,248 +1,338 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import DocumentUpload from './DocumentUpload';
-import '@testing-library/jest-dom';
+import "./onboarding-before-start.scss";
+import { useState, useEffect, useRef } from "react";
+import Pdf from "../../../../shared/components/pdf/pdf";
+import { getData, getPDFData } from "../../services/preApprovalServices";
+import { CATEGORIES, KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../services/constants";
+import { useDispatch, useSelector } from "react-redux";
+import { StoreModel } from "../../../../utils/model/common-model";
+import Spinner from "../../../../shared/components/spinner/spinner";
+import { preApprovalAction } from "../../store/preApproval-slice";
+import { dispatchLoader } from "../../../../services/common-service";
+import { getUrl } from "../../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../../utils/common/constants";
+import PILPdfUrl1 from "../../../../assets/pdf-file/PIL/hk-personal-loan-terms-pil-aug09.pdf";
+import PILPdfUrl2 from "../../../../assets/pdf-file/PIL/hk-gn175.pdf";
+import PILPdfUrl3 from "../../../../assets/pdf-file/PIL/hk-loans-personal-instalment-loan-eng.pdf";
+import CCPdfUrl1 from "../../../../assets/pdf-file/CC/hk-gn175.pdf";
+import CCPdfUrl2 from "../../../../assets/pdf-file/CC/hk-gn177.pdf";
+import CCPdfUrl3 from "../../../../assets/pdf-file/CC/hk-cc-tncs-downloadnow.pdf";
+import CCPdfUrl4 from "../../../../assets/pdf-file/CC/e-statement-en.pdf";
+import CCPdfUrl5 from "../../../../assets/pdf-file/CC/hk-rewards-tncs-en.pdf";
+import CCPdfUrl6 from "../../../../assets/pdf-file/CC/hk-tnc-credit-card-instalment-plan-en.pdf";
 
-// Mock the dependencies
-jest.mock('../../../services/preApprovalPostServices', () => ({
-  postDocuments: jest.fn().mockResolvedValue({
-    status: 200,
-    data: {
-      docId: '123',
-      documentStatus: 'UPLOADED'
+const OnboardingBeforeStart: React.FC<any> = ({
+  isVisible,
+  onScrollEnd,
+  stageID,
+  nextPage
+}) => {
+  const listInnerRef = useRef<HTMLDivElement>(null);
+  const pdfLinksRef = useRef<HTMLDivElement>(null);
+  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
+  const [kfsDocPDF, setkfsDocPDF] = useState("");
+  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
+  const [pdfHeight, setPdfHeight] = useState(0);
+  const [pdfName, setPdfName] = useState('')
+  const [showSpinner, setShowSpinner] = useState(true);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const campaignId = stageSelector[0]?.stageInfo?.products[0]?.campaign;
+  const premiumCode = getUrl.getParameterByName("premium");
+  const productType = stageSelector[0]?.stageInfo?.products[0]?.product_type;
+  const formConfigmetaData = useSelector(
+    (state: StoreModel) => state?.preApproval.formConfigmetaData
+  );
+  // const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const dispatch = useDispatch();
+  const language = getUrl.getLanguageInfo("lang");
+  useEffect(() => {
+    setShowSpinner(true);
+    dispatch(dispatchLoader(true));
+    let KFS;
+    if (language === 'zh') {
+      KFS = process.env.REACT_APP_KFS_DOC_URL_Chinees
+    } else {
+      KFS = process.env.REACT_APP_KFS_DOC_URL
     }
-  })
-}));
 
-jest.mock('../../../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn().mockReturnValue('EN')
-  }
-}));
-
-jest.mock('../../../../../services/common-service', () => ({
-  dispatchLoader: jest.fn()
-}));
-
-const mockStore = configureStore([]);
-
-describe('DocumentUpload Component', () => {
-  let store: any;
-  const mockSetShowContinueBtn = jest.fn();
-
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageId: 'DOC_3',
-          stageInfo: {
-            applicant_documents: [{
-              document_list: [{
-                document_category: 'Income Proof',
-                document_options: [{
-                  document_types: [{
-                    uploaded_documents: []
-                  }]
-                }]
-              }]
-            }],
-            application: {
-              channel_reference: 'test123'
-            }
-          }
-        }],
-        dynamicDocumentsUpload: {
-          documentCount: 0,
-          fileSectionData: {
-            document_category: 'Income Proof'
-          },
-          uploadedDocuments: []
+    getData(KFS)?.then((response: any) => {
+      let campaignID = formConfigmetaData?.products[0].campaign;
+      let pdfURLNew = "";
+      if (stageID === 0) {
+        const pdfURL = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.productsMob[campaignID] : response.data.products[campaignID];
+        const pdfMap = pdfURL.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        let localHost= window.location.host === "localhost:3000" || window.location.host === "localhost:3001" ? true : false;
+        if(localHost) {
+          pdfURLNew = pdfURL[0].pdfURL.replace("https://pt.sc.com/","http://"+window.location.host+"/");
         }
+        else {
+          pdfURLNew = pdfURL[0].pdfURL;
+        }
+        setPdfName(getPDFName);
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          const pdfurl: any = {};
+          pdfurl.pdf = response;
+          pdfurl.pdfurl = pdfURLNew;
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+        const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+        setPdfLinkTerms(allPDFLinks);
+      }
+      else if (stageID === 1) {
+        const pdfURLCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.CampaignTnCMob[campaignID] : response.data.CampaignTnC[campaignID];
+        const pdfMap = pdfURLCheck.map((item: any) => item.pdfURL)
+        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
+        let localHost= window.location.host === "localhost:3000" || window.location.host === "localhost:3001" ? true : false;
+        if(localHost) {
+          pdfURLNew = pdfURLCheck[0]?.pdfURL.replace("https://pt.sc.com/","http://"+window.location.host+"/");
+        }
+        else {
+          pdfURLNew = pdfURLCheck[0]?.pdfURL;
+        }
+        setPdfName(getPDFName);
+        setkfsDocPDF(pdfURLNew);
+        getPDFData(pdfURLNew).then((response: any) => {
+          setkfsDocPDFDownload(response);
+          dispatch(preApprovalAction.setTandCDocumentPdf(pdfURLNew));
+          dispatch(preApprovalAction.setDownloadPDFData(response));
+          onScrollEnd(true);
+          setShowSpinner(false);
+          dispatch(dispatchLoader(false));
+        });
+        if(productType === "1313" && campaignID === "HKSOZ00MCWB000") {
+          campaignID= campaignID+premiumCode
+        }
+        const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
+        setPdfLinkTerms(allPDFLinks);
       }
     });
+  }, [stageID]);
 
-    // Mock URL.createObjectURL
-    global.URL.createObjectURL = jest.fn(() => 'mock-url');
+  useEffect(() => {
+    const listInnerElement = listInnerRef.current;
+    const pdfListElement = pdfLinksRef.current;
+    /* istanbul ignore else */
+    if (pdfListElement) {
+      let container = pdfLinksRef.current;
+      let scrollHeight = container ? container.scrollHeight : 0;
+      setPdfHeight(scrollHeight * 2.5)
+    }
+    /* istanbul ignore else */
+    if (listInnerElement) {
+      listInnerElement.addEventListener("scroll", scrollToBottom);
+      // Clean-up
+      return () => {
+        listInnerElement.removeEventListener("scroll", scrollToBottom);
+      };
+    }
+    window.history.replaceState("", "", "/hk/before-start")
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  //Added for mock pdf
+  const downloadPdf = (title: any) => {
+    const lin = document.createElement('a');
+    if (campaignId === "HKPIL23PLSTP10" || campaignId === "HKBDC23PESTP10") {
+      if (title === "II. Personal Loan Terms") {
+        lin.href = PILPdfUrl1;
+      } else if (title === "III. Client Terms") {
+        lin.href = PILPdfUrl2;
+      } else if (title === "Welcome Offers") {
+        lin.href = PILPdfUrl3;
+      }
+    } else if (campaignId === "HKSOG20VAWV000" || campaignId === "HKSPG17VAWV000" || campaignId === "HKSPB17VAWV000" || campaignId === "HKSOA16VAWP000" || campaignId === "HKSOA16MCWP000" || campaignId === "HKSOZ00MCWB000" || campaignId === "HKSOZ01MCWB000" || campaignId === "HKSOZ02MCWB000") {
+      if (title === "III. Client Terms" || title === "III.Client Terms ") {
+        lin.href = CCPdfUrl1;
+      } else if (title === "III. Credit Card Terms") {
+        lin.href = CCPdfUrl2;
+      } else if (title === "VI. Welcome Offers" || title === "IV. Welcome Offers" || title === 'VI. Welcome Offers ') {
+        lin.href = CCPdfUrl3;
+      } else if (title === "IX.  E-Statement Service" || title === "IX. E-Statement Service" || title === "IX.E-Statement Service" || title === "IX.E-Statement Service ") {
+        lin.href = CCPdfUrl4;
+      } else if (title === "X. Points Redemption") {
+        lin.href = CCPdfUrl5;
+      } else if (title === "XI. Credit Card Instalment Plan" || title === "X.Credit Card Installment Plan " || title === "X.Credit Card Installment Plan") {
+        lin.href = CCPdfUrl6;
+      }
+    }
+    const urlParts = lin.href.split("/");
+    const extractedPDFName = urlParts[urlParts.length - 1].split(".")[0];
+    lin.download = extractedPDFName;
+    document.body.appendChild(lin);
+    lin.click();
+    document.body.removeChild(lin);
+  }
 
-  test('renders without crashing', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    expect(screen.getByText(/Upload/)).toBeInTheDocument();
-  });
+  const downloadPDFPreApproval = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    const lin = document.createElement('a');
+    lin.href = kfsDocPDFDownload;
+    const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
+    if (isSafari) {
+      lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
+    } else {
+      lin.download = pdfName;
+      document.body.appendChild(lin);
+      lin.click();
+      document.body.removeChild(lin);
+    }
+  };
 
-  test('displays upload button', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    expect(screen.getByLabelText(/Upload/)).toBeInTheDocument();
-  });
+  const btnClickScroll = () => {
+    if (!listInnerRef.current) return;
+    const container = listInnerRef.current;
+    let height = stageID === 0 ? 200 : 0;
+    const scrollStep = (container.scrollHeight / 4) - height;
+    listInnerRef.current?.scrollBy({ top: scrollStep, behavior: "smooth" });
+  };
 
-  test('handles file upload successfully', async () => {
-    const { postDocuments } = require('../../../services/preApprovalPostServices');
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
+  const scrollToBottom = () => {
+    /* istanbul ignore else */
+    if (listInnerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+      /* istanbul ignore else */
+      if (isNearBottom) {
+        onScrollEnd(false);
+      }
+    }
+  };
+  var className = "";
+  var isIPHONE = (navigator.userAgent.match('iPad') != null || navigator.userAgent.match('iPhone') != null || navigator.userAgent.match('iPod') != null);
+  var isANDROID = (navigator.userAgent.match('Android') != null);
+  if (isIPHONE) {
+    var isSafari = !!navigator.userAgent.match(/Version\/[\d\.]+.*Safari/);
+    if (isSafari) {
+      // $('body').addClass("iphoneDeviceSafari"); 
+      className = "iphoneDeviceSafari"
+    }
+    else {
+      // $('body').addClass("iphoneDevice"); 
+      className = "iphoneDevice"
+    }
+  } else if (isANDROID) {
+    // $('body').addClass("andriodDevice");
+    className = "andriodDevice"
+  } else {
+    // $rootScope.DesktopDevice = true;
+    // $('body').addClass("desktopDevice");
+    className = "desktopDevice"
+  }
+  return (
+    <div>
+      {showSpinner === true ?
+        (
+          <Spinner></Spinner>
+        )
+        :
+        (
+          <>
+            <div>
+              <button
+                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                  downloadPDFPreApproval(e);
+                }}
+                className="view-pdf"
+              // ng-if="source_sys == 'sc.com' || source_sys == 'asiamiles'" //for future reference
+              >
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN ? CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+              </button>
+            </div>
+            <div className="pdf-view">
+              <div
+                style={{ maxHeight: stageID === 1 ? `calc(100vh - ${pdfHeight}px)` : "" }}
+                id="pdf-view"
+                className={stageID == 0 ? "react-pdf__Page__canvas pdf__kfs__page" : "react-pdf__Page__canvas pdf__tnc__page"}
+                ref={listInnerRef}
+              >
+                <Pdf fileName={kfsDocPDF} />
+              </div>
+            </div>
 
-    const file = new File(['test'], 'test.png', { type: 'image/png' });
-    const input = screen.getByLabelText(/Upload/);
-    
-    fireEvent.change(input, { target: { files: [file] } });
-    
-    await waitFor(() => {
-      expect(postDocuments).toHaveBeenCalled();
-      expect(screen.getByText('Upload completed !')).toBeInTheDocument();
-    });
-  });
+            {stageID == 1 && (
+              <div className="pdf-table" ref={pdfLinksRef}>
+                <div className="download-section">
+                  <span className="download-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadHeader : language === CONSTANTS.LANG_CN ? CONSTANTS.DownloadHeader_CN : CONSTANTS.DownloadHeader_HK}</span>
+                  <span className="images"></span>
+                </div>
 
-  test('shows error for large file size', async () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
+                <div className="tc-container">
+                  <table className="tcTable" border={1}>
+                    <tbody>
+                      {pdfLinkTerms?.map((item: any, index: any) => {
+                        return (
+                          <tr key={index}>
+                            <td className="tcTable__title">{item.Title}</td>
+                            <td className="tcTable__read">
+                              <a
+                                href={item.url}
+                                download
+                                target="_blank"
+                              >
+                                {language === CONSTANTS.LANG_EN ? CONSTANTS.ReadBtn : language === CONSTANTS.LANG_CN ? CONSTANTS.ReadBtn_CN : CONSTANTS.ReadBtn_HK}
+                              </a>
+                              <span> / </span>
+                              <span className="tcTable__download"
+                                onClick={() => {
+                                  downloadPdf(item.Title);
+                                }}
+                              >
 
-    const largeFile = new File(['test'], 'large.png', { type: 'image/png' });
-    Object.defineProperty(largeFile, 'size', { value: 6 * 1024 * 1024 }); // 6MB
-    
-    const input = screen.getByLabelText(/Upload/);
-    fireEvent.change(input, { target: { files: [largeFile] } });
-    
-    expect(screen.getByText(/invalideimagesize/)).toBeInTheDocument();
-  });
+                                {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN ? CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="remarks-section">
+                  <span className="remarks-section__span">
+                    {" "}
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.Remarks : language === CONSTANTS.LANG_CN ? CONSTANTS.Remarks_CN : CONSTANTS.Remarks_HK}
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="footer-button-list app__footer">
+              {isVisible ?
+                (
+                  <>
+                    <div className="next-arrow" aria-describedby="submitButton">
+                      <footer
+                        // className={`${stageSelector[0].stageId!=='ad-9a'? 'footer-next1 enabled' : 'footer-next enabled'}`}
+                        className="footer-next enabled"
+                        onClick={btnClickScroll}
+                      >
+                        <i className="next-btn"></i>
+                      </footer>
+                    </div>
+                  </>
+                )
+                :
+                <button
+                  className="pre-approval-accept-button"
+                  onClick={nextPage}
+                >
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.acceptButton : language === CONSTANTS.LANG_CN ? CONSTANTS.acceptButton_CN : CONSTANTS.acceptButton_HK}
+                </button>
+              }
+            </div>
+          </>
+        )
+      }
+    </div>
+  );
+};
 
-  test('opens image preview when image is clicked', async () => {
-    const { postDocuments } = require('../../../services/preApprovalPostServices');
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
+export default OnboardingBeforeStart;
 
-    const file = new File(['test'], 'test.png', { type: 'image/png' });
-    const input = screen.getByLabelText(/Upload/);
-    
-    fireEvent.change(input, { target: { files: [file] } });
-    
-    await waitFor(() => {
-      const image = screen.getByTestId('image-preview-id');
-      fireEvent.click(image);
-      expect(screen.getByText(/Image Preview/)).toBeInTheDocument();
-    });
-  });
-
-  test('deletes uploaded file', async () => {
-    const { postDocuments } = require('../../../services/preApprovalPostServices');
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-
-    const file = new File(['test'], 'test.png', { type: 'image/png' });
-    const input = screen.getByLabelText(/Upload/);
-    
-    fireEvent.change(input, { target: { files: [file] } });
-    
-    await waitFor(() => {
-      const deleteBtn = screen.getByTestId('delete-btn');
-      fireEvent.click(deleteBtn);
-      expect(screen.queryByText('test.png')).not.toBeInTheDocument();
-    });
-  });
-
-  test('opens tips modal when help link is clicked', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-
-    const tipsLink = screen.getByText(/here/);
-    fireEvent.click(tipsLink);
-    expect(screen.getByText(/Tips for uploading/)).toBeInTheDocument();
-  });
-
-  test('disables continue button when no files are uploaded', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-
-    const continueBtn = screen.getByText(/Continue/);
-    expect(continueBtn).toBeDisabled();
-  });
-
-  test('enables continue button when files are uploaded', async () => {
-    const { postDocuments } = require('../../../services/preApprovalPostServices');
-    
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-
-    const file = new File(['test'], 'test.png', { type: 'image/png' });
-    const input = screen.getByLabelText(/Upload/);
-    
-    fireEvent.change(input, { target: { files: [file] } });
-    
-    await waitFor(() => {
-      const continueBtn = screen.getByText(/Continue/);
-      expect(continueBtn).not.toBeDisabled();
-    });
-  });
-
-  test('handles back button click', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-
-    const backBtn = screen.getByText(/Back/);
-    fireEvent.click(backBtn);
-    
-    const actions = store.getActions();
-    expect(actions.some(action => action.type === 'stages/updatefileSectionData')).toBe(true);
-  });
-
-  test('displays correct text for different languages', () => {
-    const { getUrl } = require('../../../../../utils/common/change.utils');
-    
-    // Test Chinese language
-    getUrl.getLanguageInfo.mockReturnValue('CN');
-    const { rerender } = render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    expect(screen.getByText(/上传/)).toBeInTheDocument();
-
-    // Test Hong Kong language
-    getUrl.getLanguageInfo.mockReturnValue('HK');
-    rerender(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
-      </Provider>
-    );
-    expect(screen.getByText(/上傳/)).toBeInTheDocument();
-  });
-});
+Please write an test cases using react and jest
