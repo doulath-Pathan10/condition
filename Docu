@@ -1,436 +1,463 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { Provider } from 'react-redux';
-import { BrowserRouter } from 'react-router-dom';
-import Submission from './Submission';
-import axios from 'axios';
-import { useSelector } from 'react-redux';
+import "./amount.scss"
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import validateService from "../../../services/validation-service";
+import { KeyWithAnyModel, LovInputModel, StoreModel } from "../../../utils/model/common-model";
+import { fieldError, fieldIdAppend, getUrl, isFieldUpdate, isFieldValueUpdate } from "../../../utils/common/change.utils";
+import "../phone/phone.scss";
+import errorMsg from "../../../assets/_json/error.json";
+import { CONSTANTS } from "../../../utils/common/constants";
+import { ContinueBtnAction } from "../../../utils/store/continue-validation-slice";
+import { lastAction } from "../../../utils/store/last-accessed-slice";
+import { fieldErrorAction } from "../../../utils/store/field-error-slice";
+import { stagesAction } from "../../../utils/store/stages-slice";
 
-// Mock the necessary modules and components
-jest.mock('react-redux', () => ({
-  ...jest.requireActual('react-redux'),
-  useSelector: jest.fn(),
-}));
+export const Amount = (props: KeyWithAnyModel) => {
 
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useNavigate: () => jest.fn(),
-}));
+  const [lovData, setLovData] = useState<any>([]);
+  const [error, setError] = useState('');
+  const lovSelector = useSelector((state: StoreModel) => state.lov);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
+  const fieldErrorSelector = useSelector(
+    (state: StoreModel) => state.fielderror.error
+  );
+  const madatoryFieldSelector = useSelector(
+    (state: StoreModel) => state.fielderror.mandatoryFields
+  );
+  const dispatch = useDispatch();
+  let propsData = props && props.data;
+  const [defaultValue, setDefaultValue] = useState("");
+  const [placeholder, setPlaceHolder] = useState(propsData && props.data.rwb_label_name)
+  const language = getUrl.getLanguageInfo("lang")
+  const boxRegex = /^[0-9]{8}$/; // /^[0-9]*$/;
+  const regex = /^[0-9]*$/;
+  const [otherLoansView, setOtherLoansView] = useState(false)
+  const [tickMark,setTickMark] = useState(false);
+  const userInputSelector = useSelector((state: StoreModel) => state.stages.userInput);
+  const otherLoans = userInputSelector.applicants[0].other_loans;
+  const relationshipWithBank=userInputSelector.applicants[0].related_party;
+  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
+  const resumePage = getUrl.getParameterByName("pageId")
 
-jest.mock('axios');
+  useEffect(() => {
+    /*istanbul ignore else*/
+    if (userInputSelector && userInputSelector.applicants[0] && userInputSelector.applicants[0][props.data.logical_field_name]) {
+      const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
+      setDefaultValue(displayValue);
+    }
+     /*istanbul ignore else*/
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0]) {
+       /*istanbul ignore else*/
+      if (stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"]
+      ) {
+        const displayValue = userInputSelector.applicants[0][props.data.logical_field_name];
+        setDefaultValue(displayValue);
+      }
+    }
+  }, []);
 
-// Mock environment variables
-process.env.REACT_APP_HOME_PAGE_URL = 'https://home-page-url.com';
-process.env.REACT_APP_RTOB_BASE_URL = 'https://rtob-base-url.com';
-process.env.NODE_ENV = 'test';
+  useEffect(() =>{
+    if(stageSelector[0].stageId === 'ad-6' && otherLoans === 'N'){
+      setDefaultValue('');
+      setTickMark(false);
+    } 
+  },[otherLoans==='N']) 
 
-// Mock imported assets
-jest.mock('../../../assets/_images/icon-sc-small-icon-sc-s-phone-call.png', () => 'phone-icon.png');
-jest.mock('../../../assets/_images/simply-cash-card-horizontal@2x.jpg', () => 'simply-cash-horizontal.jpg');
-jest.mock('../../../assets/_images/Simply Cash-Vertical@2x.jpg', () => 'simply-cash-vertical.jpg');
-jest.mock('../../preApproval/images/cards/SCB_SMART_CARD_1536x969_Wallet_0114.png', () => 'smart-card.png');
-jest.mock('../../../assets/_images/Tier-0-front.png', () => 'tier-0.png');
-jest.mock('../../../assets/_images/Tier-1-front.png', () => 'tier-1.png');
-jest.mock('../../../assets/_images/Tier-2-front.png', () => 'tier-2.png');
-
-// Mock submission.json data
-jest.mock('../../../assets/_json/submission.json', () => ({
-  EN: {
-    mainText: 'Thank you for your application',
-    nextText: 'What happens next?',
-    processingText: 'We will process your application',
-    enquiryContent: 'For any enquiries, please contact',
-    refNoText: 'Reference Number:',
-    refText: 'Please quote this reference number in all communications',
-    btnDeskTopText: 'Done',
-    btnMobileText: 'Done',
-    refPLText: 'For any enquiries, please contact us at',
-    btnPLText: 'Done',
-    scbHkCopyRights: '© Standard Chartered Bank (Hong Kong) Limited. All rights reserved.',
-    contactText: 'Contact us',
-    processingPLText: 'We will process your application and notify you of the outcome.'
-  },
-  CN: {
-    mainText: '感謝您的申請',
-    nextText: '下一步是什麼？',
-    processingText: '我們將處理您的申請',
-    enquiryContent: '如有任何疑問，請聯絡',
-    refNoText: '參考編號：',
-    refText: '請在所有通訊中注明此參考編號',
-    btnDeskTopText: '完成',
-    btnMobileText: '完成',
-    refPLText: '如有任何疑問，請聯絡我們',
-    btnPLText: '完成',
-    scbHkCopyRights: '© 渣打銀行（香港）有限公司。保留所有權利。',
-    contactText: '聯絡我們',
-    processingPLText: '我們將處理您的申請並通知您結果。'
-  },
-  phone: '2886 8868',
-  CCProducts: {
-    mainText: 'Thank you for your application',
-    ffdMainText: 'Open your bank account in just a few minutes',
-    nextText: 'What happens next?',
-    processingText: 'We will process your application',
-    enquiryContent: 'For any enquiries, please contact',
-    saveApplication: 'Download Application Form',
-    nextTextBtn: 'Next'
-  }
-}));
-
-// Mock getUrl utility
-jest.mock('../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn().mockReturnValue('en'),
-    getParameterByName: jest.fn().mockReturnValue('3264')
-  }
-}));
-
-// Mock FFDSubmission component
-jest.mock('./FFDSubmission', () => ({
-  FFDSubmission: jest.fn().mockReturnValue(<div data-testid="ffd-submission">FFD Submission Component</div>)
-}));
-
-// Mock window.URL.createObjectURL
-global.URL.createObjectURL = jest.fn(() => 'blob:url');
-
-describe('Submission Component', () => {
-  // Setup common mock data for all tests
-  const mockDefaultState = {
-    preApproval: {
-      formConfigmetaData: {}
-    },
-    stages: {
-      stages: [{
-        stageInfo: {
-          application: {
-            channel_reference: 'TEST-REF-123',
-            application_reference: 'TEST-REF-123'
-          },
-          applicants: [{
-            casaSegment: 'N',
-            asiaMilesCard: 'N',
-            aof_doc_id: 'test-doc-id',
-            repayDocId: 'test-repay-doc-id'
-          }],
-          products: [{
-            product_category: 'CC',
-            product_type: '1241',
-            campaign: 'HKSOZ00MCWB000',
-            offer_details: [{
-              offer_status: '1001'
-            }]
-          }]
+  useEffect(() => {
+    /*istanbul ignore else*/
+    if (lovSelector.lov.length > 0) {
+      lovSelector.lov.forEach((ref: LovInputModel) => {
+        /*istanbul ignore else*/
+        if (props.data.logical_field_name.includes(ref.label)) {
+          setLovData(ref.value);
         }
-      }]
+      });
+    }
+  }, [lovSelector.lov, props?.data?.logical_field_name]);
+
+  useEffect(() => {
+    let fieldName = props.data.logical_field_name;
+    /*istanbul ignore else*/ 
+    if (fieldError(fieldErrorSelector, props)) {
+      if (fieldName === "requested_loan_amount" && props.data.min_length && `${defaultValue}`.length < props.data.min_length) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' digits' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      if (fieldName === "requested_loan_amount" && (Number(defaultValue) / 1000) % 1 !== 0) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmountMin : language === CONSTANTS.LANG_CN ? errorMsg.loanAmountMin_CN : errorMsg.loanAmountMin_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      else if (fieldName === "requested_loan_amount" && Number(defaultValue) < 5000 || Number(defaultValue) > 2000000) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmount : language === CONSTANTS.LANG_CN ? errorMsg.loanAmount_CN : errorMsg.loanAmount_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      if ((fieldName === 'annual_income_pl' || fieldName === 'annual_income') && (Number(defaultValue) === 0)) {
+        setError(`${language === CONSTANTS.LANG_EN ? props.data?.rwb_label_name + ' ' + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}*`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+          return
+      }
+      else if ((fieldName === 'annual_income_pl' || fieldName === 'annual_income') && !(Number(defaultValue) >= 96000)) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePl : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePl_CN : errorMsg.annualIncomePl_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+          return
+      }
+      else if (fieldName === 'annual_income_pl' && error === '' && stageSelector[0].stageId === 'ad-1a') {
+        dispatch(
+          fieldErrorAction.removeFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      else if (error === '') {
+        dispatch(
+          fieldErrorAction.removeFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldErrorSelector, error, stageSelector]);
+
+  useEffect(() => {
+    if (error == "") {
+      dispatch(ContinueBtnAction.getContinueEnableState(true));
+      setError('')
+    } else {
+      dispatch(ContinueBtnAction.getContinueEnableState(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps  
+  }, [error, madatoryFieldSelector, dispatch])
+
+  const validations = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    /*istanbul ignore else*/ 
+    if ((props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") && event.target.value.length < 1) {
+      setError(`${language === CONSTANTS.LANG_EN ? errorMsg.emity : language === CONSTANTS.LANG_CN ? errorMsg.emity_CN : errorMsg.emity_HK}${props.data.rwb_label_name}`);
+      dispatch(
+        fieldErrorAction.getFieldError({
+          fieldName: props.data.logical_field_name,
+        }));
+    }
+    if (fieldName === "requested_loan_amount") {
+      /*istanbul ignore else*/
+      if (event.target.value === " " || event.target.value === null || event.target.value === "") {
+        setError(`${language === CONSTANTS.LANG_EN ? props?.data?.rwb_label_name : language === CONSTANTS.LANG_CN ? errorMsg.required_mandatory_CN + props?.data?.rwb_label_name : errorMsg.required_mandatory_HK + props?.data?.rwb_label_name}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      else {
+        if (props.data.min_length && `${event.target.value}`.length < props.data.min_length) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' digits' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        }
+        else if (Number(event.target.value) < 5000 || Number(event.target.value) > 2000000) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmount : language === CONSTANTS.LANG_CN ? errorMsg.loanAmount_CN : errorMsg.loanAmount_HK}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        }
+        else if ((Number(event.target.value) / 1000) % 1 !== 0) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.loanAmountMin : language === CONSTANTS.LANG_CN ? errorMsg.loanAmountMin_CN : errorMsg.loanAmountMin_HK}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+          // return
+        }
+        else {
+          dispatch(
+            fieldErrorAction.removeFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        }
+      }
+    }
+    else if (fieldName === 'annual_income_pl' || fieldName === 'annual_income') {
+      if ((Number(event.target.value) === 0)) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePlValid : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+          return
+      }
+      /*istanbul ignore else*/ 
+      if (error === '') {
+        dispatch(
+          fieldErrorAction.removeFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+      }
+      /*istanbul ignore else*/ 
+      if (!(Number(event.target.value) >= 96000)) {
+        setError(`${language === CONSTANTS.LANG_EN ? errorMsg.annualIncomePl : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePl_CN : errorMsg.annualIncomePl_HK}`);
+        dispatch(
+          fieldErrorAction.getFieldError({
+            fieldName: props.data.logical_field_name,
+          }));
+          return
+      }
+    }
+    if (otherLoans === 'Y') {
+      if (fieldName === "monthly_installment_mortgage_payment") {
+        if (!regex.test(event.target.value)) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        }
+      }
+      if (fieldName === "total_outstanding_other_loan_amount") {
+        /*istanbul ignore else*/ 
+        if (!regex.test(event.target.value)) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+          }
+      }
+      if (fieldName === "total_outstanding_other_monthly_payment") {
+        if (!regex.test(event.target.value)) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.patterns : language === CONSTANTS.LANG_CN ? errorMsg.patterns_CN : errorMsg.patterns_HK}${props?.data?.rwb_label_name}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+        } else if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
+          setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' characters' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`);
+          dispatch(
+            fieldErrorAction.getFieldError({
+              fieldName: props.data.logical_field_name,
+            }));
+          }
+      }
+      // else if (fieldName === "total_outstanding_other_loan_amount") {
+      //   if (props.data.min_length && `${event.target.value.trim()}`.length < props.data.min_length) {
+      //     setError(`${language === CONSTANTS.LANG_EN ? errorMsg.minLength + ' ' + props.data.min_length + ' charactershelllo' : language === CONSTANTS.LANG_CN ? errorMsg.minLength_CN + props.data.min_length + '位数字' : errorMsg.minLength_HK + props.data.min_length + '位數字'}`)
+      //     dispatch(
+      //       fieldErrorAction.getFieldError({
+      //         fieldName: props.data.logical_field_name,
+      //       }));
+      //   }
+      // }
+    }
+  }
+
+  const changeHandler = (fieldName: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    setDefaultValue(event.target.value.trim());
+    setError('');
+    if (event.target.value.length === 0) {
+      setTickMark(false);
+      // return setError(`${language === CONSTANTS.LANG_EN ? props?.data?.rwb_label_name + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.required_mandatory_CN + props?.data?.rwb_label_name : errorMsg.required_mandatory_HK + props?.data?.rwb_label_name}hi144`);; 
+    }
+    validations(fieldName, event)
+    props.handleCallback(props.data, event.target.value);
+    setTickMark(true);
+    const fieldValue = event.target.value;
+    dispatch(isFieldUpdate(props, fieldValue, fieldName));
+    dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
+    if (event.target.validity.valid ) {
+      const fieldValue = event.target.value;
+      dispatch(isFieldUpdate(props, fieldValue, fieldName));
+      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
     }
   };
 
-  beforeEach(() => {
-    // Reset all mocks before each test
-    jest.clearAllMocks();
-    
-    // Mock the useSelector hook with default state
-    useSelector.mockImplementation((selector) => selector(mockDefaultState));
-    
-    // Mock axios response
-    axios.get.mockResolvedValue({
-      status: 200,
-      data: new ArrayBuffer(10)
-    });
-  });
+  const allowOnlyCharacter = (event: any, fieldName: string) => {
+    validateService.allowOnlyCharacter(event, fieldName);
+  };
 
-  test('renders Credit Card submission screen correctly', () => {
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
+  const bindHandler = (fieldName: string, event: any) => {
+    /*istanbul ignore else*/ 
+    if (event.target.validity.valid) {
+      const fieldValue = event.target.value;
+      dispatch(isFieldUpdate(props, fieldValue, fieldName));
+      dispatch(isFieldValueUpdate(props, stageSelector, fieldValue));
+    }
+  };
 
-    // Check if the main text is rendered
-    expect(screen.getByText('Thank you for your application')).toBeInTheDocument();
-    expect(screen.getByText('What happens next?')).toBeInTheDocument();
-    expect(screen.getByText('We will process your application')).toBeInTheDocument();
-    expect(screen.getByText('Download Application Form')).toBeInTheDocument();
-    expect(screen.getByText('Reference Number: TEST-REF-123')).toBeInTheDocument();
-    expect(screen.getByText('Please quote this reference number in all communications')).toBeInTheDocument();
-  });
-
-  test('renders Personal Loan submission screen correctly', () => {
-    // Override the useSelector mock for Personal Loan
-    useSelector.mockImplementation((selector) => ({
-      ...mockDefaultState,
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: {
-              channel_reference: 'TEST-REF-123',
-              application_reference: 'TEST-REF-123'
-            },
-            applicants: [{
-              casaSegment: 'N',
-              asiaMilesCard: 'N'
-            }],
-            products: [{
-              product_category: 'PL',
-              product_type: 'PL',
-              offer_details: [{
-                offer_status: '1001'
-              }]
-            }]
-          }
-        }]
+  const focusHandler = (fieldName: string, event: React.FocusEvent<HTMLInputElement>) => {
+    dispatch(lastAction.getField(fieldName))
+  }
+  useEffect(() => {
+    /*istanbul ignore else*/ 
+    if (otherLoans === 'Y') {
+      setOtherLoansView(true);
+      setError("");
+      const monthly_installment = document.querySelector<HTMLInputElement>(`input[name="monthly_installment_mortgage_payment"]`);
+      /*istanbul ignore else*/ 
+      if (monthly_installment != null) {
+        monthly_installment.value = "";
       }
-    }[selector.name] || selector(mockDefaultState)));
-
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
-
-    // Check if the PL screen is rendered
-    expect(screen.getByText('Thank you for your application')).toBeInTheDocument();
-    expect(screen.getByText('What happens next?')).toBeInTheDocument();
-    expect(screen.getByText('We will process your application and notify you of the outcome.')).toBeInTheDocument();
-    expect(screen.getByText('For any enquiries, please contact us at')).toBeInTheDocument();
-    expect(screen.getByText('2886 8868')).toBeInTheDocument();
-    expect(screen.getByText('Reference Number: TEST-REF-123')).toBeInTheDocument();
-    expect(screen.getByText('We\'d like your feedback!')).toBeInTheDocument();
-  });
-
-  test('renders Simply Cash card correctly', () => {
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
-
-    // Check if the Simply Cash card image is displayed
-    const cardImage = screen.getByRole('img', { name: '' });
-    expect(cardImage).toBeInTheDocument();
-    expect(cardImage).toHaveAttribute('src', 'simply-cash-horizontal.jpg');
-  });
-
-  test('renders Smart Card correctly', () => {
-    // Override the useSelector mock for Smart Card
-    useSelector.mockImplementation((selector) => ({
-      ...mockDefaultState,
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: {
-              channel_reference: 'TEST-REF-123',
-              application_reference: 'TEST-REF-123'
-            },
-            applicants: [{
-              casaSegment: 'N',
-              asiaMilesCard: 'N'
-            }],
-            products: [{
-              product_category: 'CC',
-              product_type: '1282',
-              offer_details: [{
-                offer_status: '1001'
-              }]
-            }]
-          }
-        }]
+      const total_outstanding_other_loan_amount = document.querySelector<HTMLInputElement>(`input[name="total_outstanding_other_loan_amount"]`);
+      /*istanbul ignore else*/ 
+      if (total_outstanding_other_loan_amount != null) {
+        total_outstanding_other_loan_amount.value = "";
       }
-    }[selector.name] || selector(mockDefaultState)));
-
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
-
-    // Check if the Smart Card image is displayed
-    const cardImage = screen.getByRole('img', { name: '' });
-    expect(cardImage).toBeInTheDocument();
-    expect(cardImage).toHaveAttribute('src', 'smart-card.png');
-  });
-
-  test('renders Tier 0 card correctly', () => {
-    // Override the useSelector mock for Tier 0 card
-    useSelector.mockImplementation((selector) => ({
-      ...mockDefaultState,
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: {
-              channel_reference: 'TEST-REF-123',
-              application_reference: 'TEST-REF-123'
-            },
-            applicants: [{
-              casaSegment: 'N',
-              asiaMilesCard: 'N'
-            }],
-            products: [{
-              product_category: 'CC',
-              product_type: '1313',
-              campaign: 'HKSOZ00MCWB000',
-              offer_details: [{
-                offer_status: '1001'
-              }]
-            }]
-          }
-        }]
+      const total_outstanding_other_monthly_payment = document.querySelector<HTMLInputElement>(`input[name="total_outstanding_other_monthly_payment"]`);
+      /*istanbul ignore else*/ 
+      if (total_outstanding_other_monthly_payment != null) {
+        total_outstanding_other_monthly_payment.value = "";
       }
-    }[selector.name] || selector(mockDefaultState)));
+    }
 
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
+    return () => {
+    }
+  }, [otherLoans])
 
-    // Check if the Tier 0 card image is displayed
-    const cardImage = screen.getByRole('img', { name: '' });
-    expect(cardImage).toBeInTheDocument();
-    expect(cardImage).toHaveAttribute('src', 'tier-0.png');
-  });
+  const keyDownvalidations = (fieldName: string,event: any) => {
+    /*istanbul ignore else*/ 
+    if ((props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") &&  event.target.value === "") {
+      setError(`${language === CONSTANTS.LANG_EN ? props.data?.rwb_label_name + ' ' + errorMsg.required_mandatory : language === CONSTANTS.LANG_CN ? errorMsg.annualIncomePlValid_CN : errorMsg.annualIncomePlValid_HK}*`);
+    }
+  }
 
-  test('renders FFDSubmission component when path is /hk/ffd-casa and casaSegment is Y', () => {
-    // Mock window.location.pathname
-    Object.defineProperty(window, 'location', {
-      value: {
-        pathname: '/hk/ffd-casa'
-      },
-      writable: true
-    });
-
-    // Override the useSelector mock for FFD Casa
-    useSelector.mockImplementation((selector) => ({
-      ...mockDefaultState,
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: {
-              channel_reference: 'TEST-REF-123',
-              application_reference: 'TEST-REF-123'
-            },
-            applicants: [{
-              casaSegment: 'Y',
-              asiaMilesCard: 'N'
-            }],
-            products: [{
-              product_category: 'CC',
-              product_type: '1313',
-              campaign: 'HKSOZ00MCWB000',
-              offer_details: [{
-                offer_status: '1001'
-              }]
-            }]
-          }
-        }]
+  const keyDownHandler = (fieldName: string, event: React.KeyboardEvent<HTMLInputElement>) => {
+    /*istanbul ignore else*/ 
+    if(event?.key === "Tab"){
+      keyDownvalidations(fieldName,event)
+    }
+  }
+  const noPlaceholder = props.data.logical_field_name === "monthly_installment_mortgage_payment" || props.data.logical_field_name === "total_outstanding_other_loan_amount" || props.data.logical_field_name === "total_outstanding_other_monthly_payment"
+  
+  useEffect(() => {
+    /*istanbul ignore else*/ 
+    if (stageSelector && stageSelector[0] && stageSelector[0].stageInfo && stageSelector[0].stageInfo.applicants[0] && (resumeAllowed === "Y" || resumePage === "resume")) {
+      /*istanbul ignore else*/ 
+      if (props.data.logical_field_name) {
+        const displayValue = stageSelector[0].stageInfo.applicants[0][props.data.logical_field_name + "_a_1"];
+        setDefaultValue(displayValue);
       }
-    }[selector.name] || selector(mockDefaultState)));
+    }
+  }, []);
 
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
-
-    // Check if the FFDSubmission component is rendered
-    expect(screen.getByTestId('ffd-submission')).toBeInTheDocument();
-  });
-
-  test('handles Download Application Form button click', async () => {
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
-
-    // Mock document.createElement and its methods
-    const mockAppendChild = jest.fn();
-    const mockClick = jest.fn();
-    const mockCreateElement = jest.spyOn(document, 'createElement').mockImplementation(() => ({
-      style: {},
-      href: '',
-      target: '',
-      download: '',
-      click: mockClick,
-      appendChild: mockAppendChild
-    }));
-
-    // Click the Download Application Form button
-    fireEvent.click(screen.getByText('Download Application Form'));
-
-    // Wait for the axios call to resolve
-    await waitFor(() => {
-      expect(axios.get).toHaveBeenCalled();
-    });
-
-    // Cleanup
-    mockCreateElement.mockRestore();
-  });
-
-  test('handles Done button click', () => {
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
-
-    // Click the Done button
-    fireEvent.click(screen.getByText('Done'));
-
-    // Expect the window.location.href to be set
-    expect(window.location.href).toBe('https://home-page-url.com');
-  });
-
-  test('renders correctly in Chinese language', () => {
-    // Mock getLanguageInfo to return Chinese
-    jest.requireMock('../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue('zh');
-
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
-
-    // Check if Chinese text is rendered
-    expect(screen.getByText('© 渣打銀行（香港）有限公司。保留所有權利。')).toBeInTheDocument();
-    expect(screen.getByText('完成')).toBeInTheDocument();
-  });
-
-  test('renders correctly for special offer status', () => {
-    // Override the useSelector mock for special offer status
-    useSelector.mockImplementation((selector) => ({
-      ...mockDefaultState,
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: {
-              channel_reference: 'TEST-REF-123',
-              application_reference: 'TEST-REF-123'
-            },
-            applicants: [{
-              casaSegment: 'N',
-              asiaMilesCard: 'N'
-            }],
-            products: [{
-              product_category: 'CC',
-              product_type: '1241',
-              offer_details: [{
-                offer_status: '1002'
-              }]
-            }]
-          }
-        }]
+  return (
+    <>
+      {propsData && stageSelector[0].stageId !== 'ad-6' &&
+        <>
+          <div className={`${"amount"} `}>
+            <label htmlFor={props.data.logical_field_name} className={(props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") ? props.data.logical_field_name : ''}>
+              {(defaultValue && !error) && <div className="tick-class"></div>}
+              <span> {props.data.rwb_label_name}</span>
+            </label>
+            <div className={`${noPlaceholder ? 'amount-child' : ''}`}>
+              <div className={`amount__container ${props.data.editable ? 'disabled' : ''}`}>
+                {(props.data.logical_field_name === "annual_income_pl" || props.data.logical_field_name === "annual_income") &&
+                  <div className="amount_with_currency_lable">
+                    HKD
+                  </div>
+                }
+                <input
+                  type="tel"
+                  name={props.data.logical_field_name}
+                  id={fieldIdAppend(props)}
+                  placeholder={noPlaceholder ? '' : placeholder}
+                  value={defaultValue}
+                  minLength={props.data.min_length}
+                  maxLength={props.data.length && props.data.length}
+                  pattern={props.data.regex}
+                  onChange={changeHandler.bind(this, props.data.logical_field_name)}
+                  onKeyPress={(event) =>
+                    allowOnlyCharacter(event, props.data.logical_field_name)
+                  }
+                  onBlur={bindHandler.bind(this, props.data.logical_field_name)}
+                  onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+                  // required={
+                  //   (props.data.mandatory === "Yes" || props.data.mandatory === "Conditional") ? true : false
+                  // }
+                  disabled={props.data.editable}
+                  className={`${error ? 'input-error' : 'input-no-error'}`}
+                  onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          </div>
+          {error && (
+            <div className="error-msg">
+              {error}
+            </div>
+          )}
+        </>
       }
-    }[selector.name] || selector(mockDefaultState)));
+      {(stageSelector[0].stageId === 'ad-6' && propsData && otherLoans === 'Y') &&
+        <>
+          <div className={`${"amount"} `}>
+            <label htmlFor={props.data.logical_field_name}>
+              {(tickMark  && !error ) && <div className="tick-class"></div>}
+              <span> {props.data.rwb_label_name}</span>
+            </label>
+            <div className={`${noPlaceholder ? 'amount-child' : ''}`}>
+              <div className={`amount__container ${props.data.editable ? 'disabled' : ''}`}>
+                {noPlaceholder &&
+                  <div className="amount_with_currency_lable">
+                    HKD
+                  </div>
+                }
+                <input
+                  type="tel"
+                  name={props.data.logical_field_name}
+                  id={fieldIdAppend(props)}
+                  placeholder={noPlaceholder ? '' : placeholder}
+                  value={defaultValue}
+                  minLength={props.data.min_length}
+                  maxLength={props.data.length}
+                  // pattern={props.data.regex}
+                  onChange={changeHandler.bind(this, props.data.logical_field_name)}
+                  onBlur={bindHandler.bind(this, props.data.logical_field_name)}
+                  onFocus={focusHandler.bind(this, props.data.logical_field_name)}
+                  disabled={props.data.editable}
+                  className={`${error ? 'input-error' : 'input-no-error'}`}
+                  onKeyDown={keyDownHandler.bind(this, props?.data?.logical_field_name)}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          </div>
+          {error && (
+            <div className="error-msg">
+              {error}
+            </div>
+          )}
+        </>
+      }
+    </>
+  );
+};
 
-    render(
-      <BrowserRouter>
-        <Submission />
-      </BrowserRouter>
-    );
+export default Amount;
 
-    // Check if PL screen is rendered due to special offer status
-    expect(screen.getByText('We will process your application and notify you of the outcome.')).toBeInTheDocument();
-  });
-});
+Please write an test cases using react and jest
