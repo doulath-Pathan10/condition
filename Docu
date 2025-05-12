@@ -1,216 +1,317 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import { createStore } from 'redux';
-import ColorIdentityProof from './colour-Identity-Proof';
+import React, { useState, useEffect } from "react";
+import "./document-upload.scss";
+import { useDispatch, useSelector } from "react-redux";
+import Modal from "../modals/tipsModal/tips-modal";
+import PopupModel from "../../../../../shared/components/popup-model/popup-model";
+import ImagePreviewModal from "../modals/imagePreviewModal/image-preview-modal";
+import { postDocuments, } from "../../../services/preApprovalPostServices";
+import AlertModel from "../../../alertModal/alert-modal";
+import { dispatchLoader } from "../../../../../services/common-service";
+import { StoreModel } from "../../../../../utils/model/common-model";
+import { stagesAction } from "../../../../../utils/store/stages-slice";
+import { CONSTANTS } from "../../../../../utils/common/constants";
+import { errorAction } from "../../../../../utils/store/error-slice";
+import { getUrl } from "../../../../../utils/common/change.utils";
 
-// Mock entire modules
-jest.mock('../carousel/carousel', () => {
-  return function MockCarousel() {
-    return <div data-testid="mock-carousel">Mocked Carousel</div>;
-  };
-});
-
-jest.mock('../zoloz/zoloz', () => {
-  return function MockZoloz({ setHKIDVersion }: any) {
-    return <div data-testid="mock-zoloz">Mocked Zoloz</div>;
-  };
-});
-
-// Mock utility modules
-jest.mock('../../../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn(() => 'EN')
-  }
-}));
-
-jest.mock('../../../../../utils/common/constants', () => ({
-  CONSTANTS: {
-    LANG_EN: 'EN',
-    LANG_CN: 'CN',
-    LANG_HK: 'HK',
-    headerTextDoc: 'Header Text',
-    headerNote: 'Header Note',
-    radioBtnText: 'Radio Button Text',
-    back: 'Back',
-    continue: 'Continue',
-    hknotes: 'HK Notes',
-    scbHkCopyRights_EN: 'SCB HK Copyrights'
-  }
-}));
-
-// Create a mock reducer
-const createMockReducer = (initialState: any) => {
-  return (state = initialState, action: any) => {
-    switch (action.type) {
-      case 'UPDATE_SHOW_QR_CODE_PAGE':
-        return {
-          ...state,
-          stages: {
-            ...state.stages,
-            dynamicDocumentsUpload: {
-              ...state.stages.dynamicDocumentsUpload,
-              showQRCodePage: action.payload
-            }
-          }
-        };
-      default:
-        return state;
+const DocumentUpload: React.FC<any> = ({
+  setShowContinueBtn
+}) => {
+  const dispatch = useDispatch();
+  // const footerContent1 = "File format should be in JPG or PNG. The individual file size must not exceed 5MB. Click ";
+  // const footerContent2 = " on tips for uploading.";
+  // const copyRights = "© Standard Chartered Bank (HK) Limited";
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState(false);
+  const [imgeURL, setImageURL] = useState("");
+  const [name, setName] = useState("");
+  const [files, setFiles] = useState<any>([]);
+  const [openSuccessModal, setOpenSuccessModal] = useState(false);
+  const [validImageSizeModel, setValidImageSizeModel] = useState(false);
+  const stageSelector = useSelector(
+    (state: StoreModel) => state.stages.stages[0].stageInfo
+  );
+  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
+  const documentCount = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentCount);
+  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
+  const uploadedDocuments = useSelector((state: any) => state.stages.dynamicDocumentsUpload.uploadedDocuments);
+  const language = getUrl.getLanguageInfo("lang");
+  useEffect(() => {
+    dispatch(dispatchLoader(false));
+    var isMobile = false;
+    /*istanbul ignore else*/
+    if (
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      )
+    ) {
+      isMobile = true;
     }
+    setFiles([])
+  }, []);
+
+  // const closeFileUpload = () => {
+  //   setShowContinueBtn(false);
+  // };
+
+  const closeFileUploadBack = () => {
+    dispatch(stagesAction.updatefileSectionData(null))
   };
+
+  const handleUploadFile = async (e: any) => {
+    e.preventDefault();
+    const filename = e.target.files[0].name;
+    var _size = e.target.files[0].size;
+    var fSExt = new Array('Bytes', 'KB', 'MB', 'GB'),
+    i=0;while(_size>900){_size/=1024;i++;}
+    var exactSize = (Math.round(_size*100)/100)+' '+fSExt[i];
+    const file = e.target.files[0];
+    const maxSize = 5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      setValidImageSizeModel(true);
+      return;
+    }
+    try {
+      await dispatch(dispatchLoader(true));
+      await postDocuments(channel_reference, e.target.files[0])?.then(async (response: any) => {
+        const tempData = {
+          file: file,
+          filename: filename,
+          filesize: exactSize,
+          ...response.data,
+        };
+        if (response.status >= 200 && response.status <= 300) {
+          let newFiles = files;
+          newFiles.push(tempData)
+          setFiles(newFiles);
+        }
+        else {
+          dispatch(dispatchLoader(false));
+          dispatch(
+            errorAction.getError({
+              statusCode: "error",
+              statusText: "no response",
+            })
+          );
+        }
+      })
+      await dispatch(dispatchLoader(false));
+    } catch (err) {
+      console.log("err:", err);
+    }
+    e.target.value = null
+  };
+
+  const okBtnClick = () => {
+    let filesValue = stageSelector.applicant_documents[0].document_list
+    let filesData: any = JSON.parse(JSON.stringify(filesValue))
+    for (let i in filesData) {
+      if (filesData[i].document_category === fileSectionData.document_category) {
+        filesData[i].document_options[0].document_types[0].uploaded_documents = files;
+        filesData[i]["applicant_sequence_number"] = 1;
+      }
+    }
+    let stageData = JSON.parse(JSON.stringify(stageSelector));
+    stageData.applicant_documents[0].document_list = filesData;
+    let uploadedData: any = JSON.parse(JSON.stringify(uploadedDocuments));
+    for (let i in files) {
+      delete files[i].file
+      delete files[i].filename
+      delete files[i].filesize
+      uploadedData.push(files[i])
+    }
+    dispatch(stagesAction.uploadedDocumentData(uploadedData))
+    dispatch(
+      stagesAction.getStage({
+        id: CONSTANTS.STAGE_NAMES.DOC_3,
+        formConfig: stageData,
+      })
+    );
+    dispatch(stagesAction.updateDocumentCount(documentCount + 1));
+    dispatch(stagesAction.updatefileSectionData(null))
+    dispatch(stagesAction.updatechangechangeIconIncomeProof(false));
+    dispatch(stagesAction.updateSuccess(true))
+    setShowContinueBtn(false);
+  };
+
+  const handleDelete = (docId: any) => {
+    const updateFiles = files.filter((file: any) => file.docId !== docId);
+    setFiles(updateFiles)
+  };
+  const handleRefresh = (fileID: any, index: any) => { };
+
+  const callModal = () => {
+    setIsModalOpen(true);
+  };
+  const openImagePreview = (img: any, name: any) => {
+    setImageURL(img);
+    setName(name);
+    setImagePreview(true);
+  };
+
+  const successModalClose = () => {
+    setOpenSuccessModal(false);
+  };
+
+  const modelClose = () => {
+    setValidImageSizeModel(false);
+  };
+
+  return (
+    <div className={"document-view"}>
+      {
+        <PopupModel displayPopup={openSuccessModal}>
+          <AlertModel alertType="Success" goBack={successModalClose} />
+        </PopupModel>
+      }
+      {validImageSizeModel && (
+        <PopupModel displayPopup={validImageSizeModel}>
+          <AlertModel alertType={"invalideimagesize"} goBack={modelClose} />
+        </PopupModel>
+      )}
+      {imagePreview && (
+        <ImagePreviewModal
+          imgeURL={imgeURL}
+          name={name}
+          imagePreview={imagePreview}
+          setImagePreview={setImagePreview}
+        />
+      )}
+      <>
+        <Modal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} category={fileSectionData.document_category} />
+        <div className="container">
+          {/* <div className="uploadHkDocument">
+            <p className="doc-close" onClick={closeFileUpload}>
+              <span className="doc-close-btn"></span>
+              CLOSE
+            </p>
+            <p className="hk-proof-name">{fileSectionData.document_category}</p>
+          </div> */}
+          {files?.map((item: any, index: any) => {
+            return (
+              <div className="upload-btn1" key={index}>
+                <div className="thumbnail-img-container">
+                  <a>
+                    <img
+                      data-testid="image-preview-id"
+                      src={URL.createObjectURL(item.file)}
+                      alt={item.filename}
+                      onClick={() =>
+                        openImagePreview(
+                          URL.createObjectURL(item.file),
+                          item.filename
+                        )
+                      }
+                    ></img>
+                  </a>
+                </div>
+                <div className="container-image">
+                  <div className="uploading-doc-name">
+                    <span className="span-file-name">{item.filename}</span>
+                    <div className="progress-text-icon"></div>
+                    {item.documentStatus === "UPLOADED" && (
+                      <div
+                        data-testid="delete-btn"
+                        role="button"
+                        className="trash-icon"
+                        onClick={() => {
+                          handleDelete(item.docId);
+                        }}
+                      ></div>
+                    )}
+                    {item.documentStatus === "Upload failed" && (
+                      <div
+                        data-testid="refresh-btn"
+                        className="retry-icon"
+                        onClick={() => {
+                          handleRefresh(item.docId, index);
+                        }}
+                      ></div>
+                    )}
+                  </div>
+                  <div
+                    className={
+                      item.documentStatus === "UPLOADED"
+                        ? "uploaded"
+                        : "retry-uploaded"
+                    }
+                  ></div>
+                  <div
+                    className={
+                      item.documentStatus === "UPLOADED"
+                        ? "tick-mark"
+                        : "no-tick-mark"
+                    }
+                  >
+                    {item.documentStatus === "UPLOADED"
+                      ? `${"Upload completed"} !`
+                      : `${item.documentStatus} Retry?`}
+                  </div>
+                  <div className="fileSizeDetails">
+                    <span>{item.filesize}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div className="upload-btn-section">
+            <input
+              className="upload-input-file"
+              id="file-upload"
+              type="file"
+              accept=".jpg, .png"
+              onChange={(e) => handleUploadFile(e)}
+              multiple
+            />
+            <label htmlFor="file-upload" className="upload-btn">
+              <span className="upload-img"></span>
+              {language === CONSTANTS.LANG_EN ? CONSTANTS.upload : language === CONSTANTS.LANG_CN?CONSTANTS.upload_CN : CONSTANTS.upload_HK}
+            </label>
+          </div>
+          <div className="document-footer">
+            <div className="footer-banner">
+              <div className="footer-content">
+                <p className="sec-2">
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.fileFormatUpload1 : language === CONSTANTS.LANG_CN?CONSTANTS.fileFormatUpload1_CN : CONSTANTS.fileFormatUpload1_HK}
+                  <span className="tipsLink" onClick={callModal}>{language === CONSTANTS.LANG_EN ? CONSTANTS.here : language === CONSTANTS.LANG_CN?CONSTANTS.here_CN : CONSTANTS.here_HK}</span>
+                  {language === CONSTANTS.LANG_EN ? CONSTANTS.fileFormatUpload2 : language === CONSTANTS.LANG_CN?CONSTANTS.fileFormatUpload2_CN : CONSTANTS.fileFormatUpload2_HK}
+                </p>
+              </div>
+              <span className="images"></span>
+            </div>
+          </div>
+          <div className="hk-copy-rights">
+            <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
+          </div>
+          <div className="footer footer-set">
+            {" "}
+            {
+              <div title="back-btn-upload-doc1" className="back" onClick={closeFileUploadBack}>
+                <span className="arrow"></span> {`${language === CONSTANTS.LANG_EN ? CONSTANTS.back : language === CONSTANTS.LANG_CN? CONSTANTS.back_CN : CONSTANTS.back_HK}`}
+              </div>
+            }
+            <button
+              role="button"
+              title={fileSectionData.document_category}
+              type="submit"
+              style={{ border: "20px" }}
+              className={
+                files?.length === 0
+                  ? `continue form-invalid`
+                  : `continue form-valid`
+              }
+              onClick={() => okBtnClick()}
+              disabled={files?.length === 0}
+            >
+              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
+            </button>
+          </div>
+        </div>
+      </>
+    </div>
+  );
 };
 
-describe('ColorIdentityProof Component Comprehensive Tests', () => {
-  let store: any;
-  const mockCallQRCodeAPI = jest.fn();
-  const mockSetHKIDVersion = jest.fn();
+export default DocumentUpload;
 
-  beforeEach(() => {
-    // Create initial state
-    const initialState = {
-      stages: {
-        dynamicDocumentsUpload: {
-          showQRCodePage: false
-        }
-      }
-    };
-
-    // Create store with mock reducer
-    store = createStore(createMockReducer(initialState));
-
-    // Reset mocks
-    mockCallQRCodeAPI.mockClear();
-    mockSetHKIDVersion.mockClear();
-  });
-
-  const renderComponent = (props: any = {}) => {
-    return render(
-      <Provider store={store}>
-        <ColorIdentityProof
-          callQRCodeAPI={mockCallQRCodeAPI}
-          HKIDVersion=""
-          setHKIDVersion={mockSetHKIDVersion}
-          {...props}
-        />
-      </Provider>
-    );
-  };
-
-  // Test initial rendering
-  test('renders component initial state correctly', () => {
-    renderComponent();
-
-    // Check for key elements
-    expect(screen.getByText(/Smart HKID/i)).toBeInTheDocument();
-    expect(screen.getByText(/New Smart HKID/i)).toBeInTheDocument();
-    expect(screen.getByTestId('mock-carousel')).toBeInTheDocument();
-  });
-
-  // Test radio button selection
-  test('selects HKID version and enables continue button', () => {
-    renderComponent();
-
-    // Find and click radio button
-    const smartHKIDRadio = screen.getByLabelText(/Smart HKID/i);
-    fireEvent.click(smartHKIDRadio);
-
-    // Check continue button is enabled
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    expect(continueButton).not.toBeDisabled();
-  });
-
-  // Test continue button functionality
-  test('continue button triggers QR code flow', () => {
-    renderComponent();
-
-    // Select HKID version
-    const smartHKIDRadio = screen.getByLabelText(/Smart HKID/i);
-    fireEvent.click(smartHKIDRadio);
-
-    // Click continue button
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    fireEvent.click(continueButton);
-
-    // Verify API call and version reset
-    expect(mockCallQRCodeAPI).toHaveBeenCalled();
-    expect(mockSetHKIDVersion).toHaveBeenCalledWith('');
-  });
-
-  // Test back button functionality
-  test('back button resets state', () => {
-    renderComponent();
-
-    // Click back button
-    const backButton = screen.getByRole('button', { name: /back/i });
-    fireEvent.click(backButton);
-
-    // Verify state reset
-    expect(mockSetHKIDVersion).toHaveBeenCalledWith('');
-  });
-
-  // Test QR code page rendering
-  test('renders Zoloz component when QR code page is shown', () => {
-    // Update store state to show QR code page
-    store.dispatch({ 
-      type: 'UPDATE_SHOW_QR_CODE_PAGE', 
-      payload: true 
-    });
-
-    renderComponent();
-
-    // Check Zoloz component is rendered
-    expect(screen.getByTestId('mock-zoloz')).toBeInTheDocument();
-  });
-
-  // Multilanguage support test
-  describe('Language Support', () => {
-    const languageTestCases = [
-      { 
-        lang: 'CN', 
-        expectedTexts: ['智能身份證', '新智能身份證'] 
-      },
-      { 
-        lang: 'HK', 
-        expectedTexts: ['智能身份證', '新智能身份證'] 
-      }
-    ];
-
-    languageTestCases.forEach(({ lang, expectedTexts }) => {
-      test(`renders correct text for ${lang} language`, () => {
-        // Mock language utility
-        jest.spyOn(require('../../../../../utils/common/change.utils').getUrl, 'getLanguageInfo')
-          .mockReturnValue(lang);
-
-        renderComponent();
-
-        // Check for language-specific texts
-        expectedTexts.forEach(text => {
-          expect(screen.getByText(text)).toBeInTheDocument();
-        });
-      });
-    });
-  });
-
-  // Accessibility and interaction tests
-  test('radio buttons support keyboard interaction', () => {
-    renderComponent();
-
-    const smartHKIDRadio = screen.getByLabelText(/Smart HKID/i);
-    
-    // Simulate keyboard selection
-    fireEvent.keyDown(smartHKIDRadio, { key: 'Enter', code: 'Enter' });
-    fireEvent.click(smartHKIDRadio);
-
-    // Verify radio button becomes checked
-    expect(smartHKIDRadio).toBeChecked();
-  });
-
-  // Error boundary and edge case tests
-  test('handles empty HKID version correctly', () => {
-    renderComponent();
-
-    // Continue button should be disabled
-    const continueButton = screen.getByRole('button', { name: /continue/i });
-    expect(continueButton).toBeDisabled();
-  });
-});
+Please write an test cases using react and jest
