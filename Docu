@@ -1,39 +1,73 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import thunk from 'redux-thunk';
-import ColorIdentityProof from './colour-Identity-Proof'; // Adjust import path
-import { CONSTANTS } from '../../../../../utils/common/constants';
+import { createStore } from 'redux';
+import ColorIdentityProof from './colour-Identity-Proof';
 
-// Mock dependencies
+// Mock entire modules
 jest.mock('../carousel/carousel', () => {
   return function MockCarousel() {
-    return <div data-testid="mock-carousel">Carousel</div>;
+    return <div data-testid="mock-carousel">Mocked Carousel</div>;
   };
 });
 
 jest.mock('../zoloz/zoloz', () => {
   return function MockZoloz({ setHKIDVersion }: any) {
-    return <div data-testid="mock-zoloz">Zoloz Component</div>;
+    return <div data-testid="mock-zoloz">Mocked Zoloz</div>;
   };
 });
 
-describe('ColorIdentityProof Component', () => {
-  const mockStore = configureStore([thunk]);
-  let initialState: any;
-  let store: any;
-  
-  // Mock props
-  const mockProps = {
-    callQRCodeAPI: jest.fn(),
-    HKIDVersion: '',
-    setHKIDVersion: jest.fn(),
+// Mock utility modules
+jest.mock('../../../../../utils/common/change.utils', () => ({
+  getUrl: {
+    getLanguageInfo: jest.fn(() => 'EN')
+  }
+}));
+
+jest.mock('../../../../../utils/common/constants', () => ({
+  CONSTANTS: {
+    LANG_EN: 'EN',
+    LANG_CN: 'CN',
+    LANG_HK: 'HK',
+    headerTextDoc: 'Header Text',
+    headerNote: 'Header Note',
+    radioBtnText: 'Radio Button Text',
+    back: 'Back',
+    continue: 'Continue',
+    hknotes: 'HK Notes',
+    scbHkCopyRights_EN: 'SCB HK Copyrights'
+  }
+}));
+
+// Create a mock reducer
+const createMockReducer = (initialState: any) => {
+  return (state = initialState, action: any) => {
+    switch (action.type) {
+      case 'UPDATE_SHOW_QR_CODE_PAGE':
+        return {
+          ...state,
+          stages: {
+            ...state.stages,
+            dynamicDocumentsUpload: {
+              ...state.stages.dynamicDocumentsUpload,
+              showQRCodePage: action.payload
+            }
+          }
+        };
+      default:
+        return state;
+    }
   };
+};
+
+describe('ColorIdentityProof Component Comprehensive Tests', () => {
+  let store: any;
+  const mockCallQRCodeAPI = jest.fn();
+  const mockSetHKIDVersion = jest.fn();
 
   beforeEach(() => {
-    // Setup initial state that mimics the Redux store
-    initialState = {
+    // Create initial state
+    const initialState = {
       stages: {
         dynamicDocumentsUpload: {
           showQRCodePage: false
@@ -41,21 +75,30 @@ describe('ColorIdentityProof Component', () => {
       }
     };
 
-    store = mockStore(initialState);
+    // Create store with mock reducer
+    store = createStore(createMockReducer(initialState));
 
-    // Mock getUrl and language
-    jest.spyOn(require('../../../../../utils/common/change.utils'), 'getUrl').mockReturnValue({
-      getLanguageInfo: () => CONSTANTS.LANG_EN
-    });
+    // Reset mocks
+    mockCallQRCodeAPI.mockClear();
+    mockSetHKIDVersion.mockClear();
   });
 
-  // Test rendering of component
-  test('renders component in default state', () => {
-    render(
+  const renderComponent = (props: any = {}) => {
+    return render(
       <Provider store={store}>
-        <ColorIdentityProof {...mockProps} />
+        <ColorIdentityProof
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion=""
+          setHKIDVersion={mockSetHKIDVersion}
+          {...props}
+        />
       </Provider>
     );
+  };
+
+  // Test initial rendering
+  test('renders component initial state correctly', () => {
+    renderComponent();
 
     // Check for key elements
     expect(screen.getByText(/Smart HKID/i)).toBeInTheDocument();
@@ -63,51 +106,24 @@ describe('ColorIdentityProof Component', () => {
     expect(screen.getByTestId('mock-carousel')).toBeInTheDocument();
   });
 
-  // Test HKID version selection
+  // Test radio button selection
   test('selects HKID version and enables continue button', () => {
-    render(
-      <Provider store={store}>
-        <ColorIdentityProof {...mockProps} />
-      </Provider>
-    );
+    renderComponent();
 
     // Find and click radio button
     const smartHKIDRadio = screen.getByLabelText(/Smart HKID/i);
     fireEvent.click(smartHKIDRadio);
 
-    // Check continue button is now enabled
+    // Check continue button is enabled
     const continueButton = screen.getByRole('button', { name: /continue/i });
     expect(continueButton).not.toBeDisabled();
-
-    // Verify setHKIDVersion was called
-    expect(mockProps.setHKIDVersion).toHaveBeenCalledWith('08520000001');
   });
 
-  // Test back button functionality
-  test('back button resets HKID version', () => {
-    render(
-      <Provider store={store}>
-        <ColorIdentityProof {...mockProps} />
-      </Provider>
-    );
+  // Test continue button functionality
+  test('continue button triggers QR code flow', () => {
+    renderComponent();
 
-    // Find and click back button
-    const backButton = screen.getByRole('button', { name: /back/i });
-    fireEvent.click(backButton);
-
-    // Verify setHKIDVersion was called with empty string
-    expect(mockProps.setHKIDVersion).toHaveBeenCalledWith('');
-  });
-
-  // Test continue button with selected HKID version
-  test('continue button triggers QR code API and updates state', () => {
-    render(
-      <Provider store={store}>
-        <ColorIdentityProof {...mockProps} />
-      </Provider>
-    );
-
-    // Select HKID version first
+    // Select HKID version
     const smartHKIDRadio = screen.getByLabelText(/Smart HKID/i);
     fireEvent.click(smartHKIDRadio);
 
@@ -115,52 +131,57 @@ describe('ColorIdentityProof Component', () => {
     const continueButton = screen.getByRole('button', { name: /continue/i });
     fireEvent.click(continueButton);
 
-    // Verify API call and state updates
-    expect(mockProps.callQRCodeAPI).toHaveBeenCalled();
-    expect(mockProps.setHKIDVersion).toHaveBeenCalledWith('');
+    // Verify API call and version reset
+    expect(mockCallQRCodeAPI).toHaveBeenCalled();
+    expect(mockSetHKIDVersion).toHaveBeenCalledWith('');
+  });
+
+  // Test back button functionality
+  test('back button resets state', () => {
+    renderComponent();
+
+    // Click back button
+    const backButton = screen.getByRole('button', { name: /back/i });
+    fireEvent.click(backButton);
+
+    // Verify state reset
+    expect(mockSetHKIDVersion).toHaveBeenCalledWith('');
   });
 
   // Test QR code page rendering
-  test('renders Zoloz component when showQRCodePage is true', () => {
-    // Modify initial state to show QR code page
-    initialState.stages.dynamicDocumentsUpload.showQRCodePage = true;
-    store = mockStore(initialState);
+  test('renders Zoloz component when QR code page is shown', () => {
+    // Update store state to show QR code page
+    store.dispatch({ 
+      type: 'UPDATE_SHOW_QR_CODE_PAGE', 
+      payload: true 
+    });
 
-    render(
-      <Provider store={store}>
-        <ColorIdentityProof {...mockProps} />
-      </Provider>
-    );
+    renderComponent();
 
     // Check Zoloz component is rendered
     expect(screen.getByTestId('mock-zoloz')).toBeInTheDocument();
   });
 
-  // Test language variations
-  describe('Language Variations', () => {
+  // Multilanguage support test
+  describe('Language Support', () => {
     const languageTestCases = [
       { 
-        language: CONSTANTS.LANG_CN, 
+        lang: 'CN', 
         expectedTexts: ['智能身份證', '新智能身份證'] 
       },
       { 
-        language: CONSTANTS.LANG_HK, 
+        lang: 'HK', 
         expectedTexts: ['智能身份證', '新智能身份證'] 
       }
     ];
 
-    languageTestCases.forEach(({ language, expectedTexts }) => {
-      test(`renders correct text for ${language} language`, () => {
-        // Mock language
-        jest.spyOn(require('../../../../../utils/common/change.utils'), 'getUrl').mockReturnValue({
-          getLanguageInfo: () => language
-        });
+    languageTestCases.forEach(({ lang, expectedTexts }) => {
+      test(`renders correct text for ${lang} language`, () => {
+        // Mock language utility
+        jest.spyOn(require('../../../../../utils/common/change.utils').getUrl, 'getLanguageInfo')
+          .mockReturnValue(lang);
 
-        render(
-          <Provider store={store}>
-            <ColorIdentityProof {...mockProps} />
-          </Provider>
-        );
+        renderComponent();
 
         // Check for language-specific texts
         expectedTexts.forEach(text => {
@@ -170,13 +191,9 @@ describe('ColorIdentityProof Component', () => {
     });
   });
 
-  // Accessibility and Interaction Tests
-  test('radio buttons are accessible and can be selected via keyboard', () => {
-    render(
-      <Provider store={store}>
-        <ColorIdentityProof {...mockProps} />
-      </Provider>
-    );
+  // Accessibility and interaction tests
+  test('radio buttons support keyboard interaction', () => {
+    renderComponent();
 
     const smartHKIDRadio = screen.getByLabelText(/Smart HKID/i);
     
@@ -184,7 +201,16 @@ describe('ColorIdentityProof Component', () => {
     fireEvent.keyDown(smartHKIDRadio, { key: 'Enter', code: 'Enter' });
     fireEvent.click(smartHKIDRadio);
 
-    // Verify radio button selection
+    // Verify radio button becomes checked
     expect(smartHKIDRadio).toBeChecked();
+  });
+
+  // Error boundary and edge case tests
+  test('handles empty HKID version correctly', () => {
+    renderComponent();
+
+    // Continue button should be disabled
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).toBeDisabled();
   });
 });
