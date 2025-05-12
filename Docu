@@ -1,309 +1,248 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import DocumentUpload from './DocumentUpload';
-import { postDocuments } from '../../../services/preApprovalPostServices';
-import { dispatchLoader } from '../../../../../services/common-service';
-import { CONSTANTS } from '../../../../../utils/common/constants';
+import '@testing-library/jest-dom';
 
-// Mock the required modules
-jest.mock('../../../services/preApprovalPostServices');
-jest.mock('../../../../../services/common-service');
+// Mock the dependencies
+jest.mock('../../../services/preApprovalPostServices', () => ({
+  postDocuments: jest.fn().mockResolvedValue({
+    status: 200,
+    data: {
+      docId: '123',
+      documentStatus: 'UPLOADED'
+    }
+  })
+}));
+
 jest.mock('../../../../../utils/common/change.utils', () => ({
   getUrl: {
-    getLanguageInfo: jest.fn().mockReturnValue('en')
+    getLanguageInfo: jest.fn().mockReturnValue('EN')
   }
 }));
 
-// Mock URL.createObjectURL
-global.URL.createObjectURL = jest.fn(() => 'mock-url');
+jest.mock('../../../../../services/common-service', () => ({
+  dispatchLoader: jest.fn()
+}));
 
-// Mock Redux store
 const mockStore = configureStore([]);
 
 describe('DocumentUpload Component', () => {
-  let store;
-  const setShowContinueBtn = jest.fn();
-  
+  let store: any;
+  const mockSetShowContinueBtn = jest.fn();
+
   beforeEach(() => {
-    // Reset mocks
-    jest.clearAllMocks();
-    
-    // Create mock store with initial state
     store = mockStore({
       stages: {
         stages: [{
+          stageId: 'DOC_3',
           stageInfo: {
-            application: {
-              channel_reference: 'mock-channel-ref'
-            },
             applicant_documents: [{
-              document_list: [
-                {
-                  document_category: 'Address Proof',
-                  document_options: [{
-                    document_types: [{
-                      uploaded_documents: []
-                    }]
+              document_list: [{
+                document_category: 'Income Proof',
+                document_options: [{
+                  document_types: [{
+                    uploaded_documents: []
                   }]
-                }
-              ]
-            }]
+                }]
+              }]
+            }],
+            application: {
+              channel_reference: 'test123'
+            }
           }
         }],
         dynamicDocumentsUpload: {
           documentCount: 0,
-          fileSectionData: { document_category: 'Address Proof' },
+          fileSectionData: {
+            document_category: 'Income Proof'
+          },
           uploadedDocuments: []
         }
       }
     });
-    
-    // Mock store dispatch
-    store.dispatch = jest.fn();
+
+    // Mock URL.createObjectURL
+    global.URL.createObjectURL = jest.fn(() => 'mock-url');
   });
 
-  test('renders DocumentUpload component correctly', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('renders without crashing', () => {
     render(
       <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
       </Provider>
     );
-    
-    // Check if upload button is rendered
-    expect(screen.getByText('upload')).toBeInTheDocument();
-    
-    // Check if continue button is disabled initially (no files)
-    const continueButton = screen.getByRole('button', { name: 'continue' });
-    expect(continueButton).toBeDisabled();
+    expect(screen.getByText(/Upload/)).toBeInTheDocument();
+  });
+
+  test('displays upload button', () => {
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    expect(screen.getByLabelText(/Upload/)).toBeInTheDocument();
   });
 
   test('handles file upload successfully', async () => {
-    // Mock successful file upload response
-    postDocuments.mockResolvedValue({
-      status: 200,
-      data: {
-        docId: 'mock-doc-id',
-        documentStatus: 'UPLOADED'
-      }
-    });
-
+    const { postDocuments } = require('../../../services/preApprovalPostServices');
+    
     render(
       <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
       </Provider>
     );
-    
-    // Create a mock file
-    const file = new File(['test content'], 'test-file.jpg', { type: 'image/jpeg' });
-    const fileInput = screen.getByLabelText(/upload/i);
-    
-    // Upload file
-    fireEvent.change(fileInput, { target: { files: [file] } });
-    
-    // Wait for upload process to complete
-    await waitFor(() => {
-      expect(postDocuments).toHaveBeenCalledWith('mock-channel-ref', file);
-      expect(dispatchLoader).toHaveBeenCalledWith(true);
-      expect(dispatchLoader).toHaveBeenCalledWith(false);
-    });
-    
-    // Continue button should be enabled after file upload
-    await waitFor(() => {
-      const continueButton = screen.getByRole('button', { name: 'continue' });
-      expect(continueButton).not.toBeDisabled();
-    });
-  });
 
-  test('displays error when file size exceeds limit', async () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
-      </Provider>
-    );
+    const file = new File(['test'], 'test.png', { type: 'image/png' });
+    const input = screen.getByLabelText(/Upload/);
     
-    // Create a mock file that exceeds the 5MB limit
-    const largeFile = new File(['x'.repeat(6 * 1024 * 1024)], 'large-file.jpg', { type: 'image/jpeg' });
-    const fileInput = screen.getByLabelText(/upload/i);
+    fireEvent.change(input, { target: { files: [file] } });
     
-    // Upload large file
-    fireEvent.change(fileInput, { target: { files: [largeFile] } });
-    
-    // AlertModel with invalid image size should be displayed
-    await waitFor(() => {
-      expect(postDocuments).not.toHaveBeenCalled();
-      // We can't directly check for AlertModel as it's in a separate component,
-      // but we can verify that dispatchLoader wasn't called which indicates the upload process was halted
-      expect(dispatchLoader).not.toHaveBeenCalled();
-    });
-  });
-
-  test('opens tips modal when "here" is clicked', () => {
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
-      </Provider>
-    );
-    
-    // Click on the "here" link to open tips modal
-    const hereLink = screen.getByText('here');
-    fireEvent.click(hereLink);
-    
-    // Modal state should be updated (we can't directly test this as setIsModalOpen is within the component)
-    // But we can indirectly confirm the click handler was called
-    expect(hereLink).toBeInTheDocument();
-  });
-
-  test('handles document upload and submission flow', async () => {
-    // Mock successful file upload response
-    postDocuments.mockResolvedValue({
-      status: 200,
-      data: {
-        docId: 'doc123',
-        documentStatus: 'UPLOADED'
-      }
-    });
-
-    render(
-      <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
-      </Provider>
-    );
-    
-    // Create a mock file
-    const file = new File(['content'], 'test-file.jpg', { type: 'image/jpeg' });
-    const fileInput = screen.getByLabelText(/upload/i);
-    
-    // Upload file
-    fireEvent.change(fileInput, { target: { files: [file] } });
-    
-    // Wait for upload process to complete
     await waitFor(() => {
       expect(postDocuments).toHaveBeenCalled();
+      expect(screen.getByText('Upload completed !')).toBeInTheDocument();
     });
-    
-    // Click continue button to submit documents
-    const continueButton = screen.getByRole('button', { name: 'continue' });
-    fireEvent.click(continueButton);
-    
-    // Verify document submission actions
-    expect(store.dispatch).toHaveBeenCalled();
-    expect(setShowContinueBtn).toHaveBeenCalledWith(false);
   });
 
-  test('handles file deletion correctly', async () => {
-    // Set up store with existing files
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageInfo: {
-            application: {
-              channel_reference: 'mock-channel-ref'
-            },
-            applicant_documents: [{
-              document_list: [
-                {
-                  document_category: 'Address Proof',
-                  document_options: [{
-                    document_types: [{
-                      uploaded_documents: []
-                    }]
-                  }]
-                }
-              ]
-            }]
-          }
-        }],
-        dynamicDocumentsUpload: {
-          documentCount: 0,
-          fileSectionData: { document_category: 'Address Proof' },
-          uploadedDocuments: []
-        }
-      }
-    });
-
-    // Mock successful file upload response for test setup
-    postDocuments.mockResolvedValue({
-      status: 200,
-      data: {
-        docId: 'doc123',
-        documentStatus: 'UPLOADED'
-      }
-    });
-
-    const { rerender } = render(
+  test('shows error for large file size', async () => {
+    render(
       <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
       </Provider>
     );
-    
-    // Upload a file first
-    const file = new File(['content'], 'test-file.jpg', { type: 'image/jpeg' });
-    const fileInput = screen.getByLabelText(/upload/i);
-    fireEvent.change(fileInput, { target: { files: [file] } });
-    
-    // Wait for upload to complete
-    await waitFor(() => {
-      expect(postDocuments).toHaveBeenCalled();
-    });
 
-    // Force rerender with file in component state
-    const ComponentWithFiles = () => {
-      const setFiles = React.useState([{
-        file: file,
-        filename: 'test-file.jpg',
-        filesize: '0.1 KB',
-        docId: 'doc123',
-        documentStatus: 'UPLOADED'
-      }])[1];
-      
-      return (
-        <Provider store={store}>
-          <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
-        </Provider>
-      );
-    };
+    const largeFile = new File(['test'], 'large.png', { type: 'image/png' });
+    Object.defineProperty(largeFile, 'size', { value: 6 * 1024 * 1024 }); // 6MB
     
-    rerender(<ComponentWithFiles />);
+    const input = screen.getByLabelText(/Upload/);
+    fireEvent.change(input, { target: { files: [largeFile] } });
     
-    // Now we need to simulate the component with files already in state
-    // This is a bit tricky since we can't directly modify component state in tests
-    // We would typically use React Testing Library's rerender function or create a wrapper component
-    // For this test, we'll assert that after a file is uploaded, the document view should display
-    // We'll confirm this presence by checking for the "Upload completed" text
+    expect(screen.getByText(/invalideimagesize/)).toBeInTheDocument();
+  });
+
+  test('opens image preview when image is clicked', async () => {
+    const { postDocuments } = require('../../../services/preApprovalPostServices');
     
-    // Continue button should be enabled
-    expect(screen.getByRole('button', { name: 'continue' })).not.toBeDisabled();
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+
+    const file = new File(['test'], 'test.png', { type: 'image/png' });
+    const input = screen.getByLabelText(/Upload/);
+    
+    fireEvent.change(input, { target: { files: [file] } });
+    
+    await waitFor(() => {
+      const image = screen.getByTestId('image-preview-id');
+      fireEvent.click(image);
+      expect(screen.getByText(/Image Preview/)).toBeInTheDocument();
+    });
+  });
+
+  test('deletes uploaded file', async () => {
+    const { postDocuments } = require('../../../services/preApprovalPostServices');
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+
+    const file = new File(['test'], 'test.png', { type: 'image/png' });
+    const input = screen.getByLabelText(/Upload/);
+    
+    fireEvent.change(input, { target: { files: [file] } });
+    
+    await waitFor(() => {
+      const deleteBtn = screen.getByTestId('delete-btn');
+      fireEvent.click(deleteBtn);
+      expect(screen.queryByText('test.png')).not.toBeInTheDocument();
+    });
+  });
+
+  test('opens tips modal when help link is clicked', () => {
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+
+    const tipsLink = screen.getByText(/here/);
+    fireEvent.click(tipsLink);
+    expect(screen.getByText(/Tips for uploading/)).toBeInTheDocument();
+  });
+
+  test('disables continue button when no files are uploaded', () => {
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+
+    const continueBtn = screen.getByText(/Continue/);
+    expect(continueBtn).toBeDisabled();
+  });
+
+  test('enables continue button when files are uploaded', async () => {
+    const { postDocuments } = require('../../../services/preApprovalPostServices');
+    
+    render(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+
+    const file = new File(['test'], 'test.png', { type: 'image/png' });
+    const input = screen.getByLabelText(/Upload/);
+    
+    fireEvent.change(input, { target: { files: [file] } });
+    
+    await waitFor(() => {
+      const continueBtn = screen.getByText(/Continue/);
+      expect(continueBtn).not.toBeDisabled();
+    });
   });
 
   test('handles back button click', () => {
     render(
       <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
       </Provider>
     );
+
+    const backBtn = screen.getByText(/Back/);
+    fireEvent.click(backBtn);
     
-    // Click back button
-    const backButton = screen.getByText('back');
-    fireEvent.click(backButton);
-    
-    // Verify action dispatched
-    expect(store.dispatch).toHaveBeenCalled();
+    const actions = store.getActions();
+    expect(actions.some(action => action.type === 'stages/updatefileSectionData')).toBe(true);
   });
 
-  test('displays different language text based on language setting', () => {
-    // Mock language as Chinese
-    jest.requireMock('../../../../../utils/common/change.utils').getUrl.getLanguageInfo.mockReturnValue('cn');
+  test('displays correct text for different languages', () => {
+    const { getUrl } = require('../../../../../utils/common/change.utils');
     
-    render(
+    // Test Chinese language
+    getUrl.getLanguageInfo.mockReturnValue('CN');
+    const { rerender } = render(
       <Provider store={store}>
-        <DocumentUpload setShowContinueBtn={setShowContinueBtn} />
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
       </Provider>
     );
-    
-    // Check if Chinese language constants are used
-    expect(screen.getByText(CONSTANTS.upload_CN)).toBeInTheDocument();
+    expect(screen.getByText(/上传/)).toBeInTheDocument();
+
+    // Test Hong Kong language
+    getUrl.getLanguageInfo.mockReturnValue('HK');
+    rerender(
+      <Provider store={store}>
+        <DocumentUpload setShowContinueBtn={mockSetShowContinueBtn} />
+      </Provider>
+    );
+    expect(screen.getByText(/上傳/)).toBeInTheDocument();
   });
 });
