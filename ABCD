@@ -1,315 +1,201 @@
-import "./onboarding-before-start.scss";
-import { useState, useEffect, useRef } from "react";
-import Pdf from "../../../../shared/components/pdf/pdf";
-import { getData, getPDFData } from "../../services/preApprovalServices";
-import { CATEGORIES, KFS_DOC_URL, KFS_DOC_URL_Chinees } from "../../services/constants";
-import { useDispatch, useSelector } from "react-redux";
-import { StoreModel } from "../../../../utils/model/common-model";
-import Spinner from "../../../../shared/components/spinner/spinner";
-import { preApprovalAction } from "../../store/preApproval-slice";
-import { dispatchLoader } from "../../../../services/common-service";
-import { getUrl } from "../../../../utils/common/change.utils";
-import { CONSTANTS } from "../../../../utils/common/constants";
-import PILPdfUrl1 from "../../../../assets/pdf-file/PIL/hk-personal-loan-terms-pil-aug09.pdf";
-import PILPdfUrl2 from "../../../../assets/pdf-file/PIL/hk-gn175.pdf";
-import PILPdfUrl3 from "../../../../assets/pdf-file/PIL/hk-loans-personal-instalment-loan-eng.pdf";
-import CCPdfUrl1 from "../../../../assets/pdf-file/CC/hk-gn175.pdf";
-import CCPdfUrl2 from "../../../../assets/pdf-file/CC/hk-gn177.pdf";
-import CCPdfUrl3 from "../../../../assets/pdf-file/CC/hk-cc-tncs-downloadnow.pdf";
-import CCPdfUrl4 from "../../../../assets/pdf-file/CC/e-statement-en.pdf";
-import CCPdfUrl5 from "../../../../assets/pdf-file/CC/hk-rewards-tncs-en.pdf";
-import CCPdfUrl6 from "../../../../assets/pdf-file/CC/hk-tnc-credit-card-instalment-plan-en.pdf";
+Hong Kong ---- CCPL
 
-const OnboardingBeforeStart: React.FC<any> = ({
-  isVisible,
-  onScrollEnd,
-  stageID,
-  nextPage
-}) => {
-  const listInnerRef = useRef<HTMLDivElement>(null);
-  const [pdfLinkTerms, setPdfLinkTerms] = useState<any | null>(null);
-  const [kfsDocPDF, setkfsDocPDF] = useState("");
-  const [kfsDocPDFDownload, setkfsDocPDFDownload] = useState("");
-  const [pdfName, setPdfName] = useState('')
-  const [showSpinner, setShowSpinner] = useState(true);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages);
-  const campaignId = stageSelector[0].stageInfo.products[0].campaign;
-  const formConfigmetaData = useSelector(
-    (state: StoreModel) => state?.preApproval.formConfigmetaData
-  );
-  const dispatch = useDispatch();
-  const language = getUrl.getLanguageInfo("lang");  
-  useEffect(() => {
-    setShowSpinner(true);
-    dispatch(dispatchLoader(true));
-    let KFS;
-    if(language==='zh'){
-      KFS=KFS_DOC_URL_Chinees
-    }else{
-      KFS=KFS_DOC_URL
-    }
 
-    getData(KFS)?.then((response: any) => {
-      const campaignID = formConfigmetaData?.products[0].campaign;
-      let pdfURLNew = "";
-      if (stageID === 0) {
-        const pdfURL = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.productsMob[campaignID] : response.data.products[campaignID];
-        const pdfMap = pdfURL.map((item: any) => item.pdfURL)
-        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-        if (window.location.host === "localhost:3000") {
-          pdfURLNew = pdfURL[0].pdfURL.replace(
-            "https://pt.sc.com/",
-            "http://localhost:3000/"
+ETB-Existint to bank
+ETC-Existing to Card
+NTB-New to Bureau
+NTC-New to Card
 
-          );
-        } else {
-          pdfURLNew = pdfURL[0].pdfURL;
-        }
-        setPdfName(getPDFName);
-        setkfsDocPDF(pdfURLNew);
-        getPDFData(pdfURLNew).then((response: any) => {
-          const pdfurl: any = {};
-          pdfurl.pdf = response;
-          pdfurl.pdfurl = pdfURLNew;
-          setkfsDocPDFDownload(response);
-          dispatch(preApprovalAction.setKfsDocumentPdf(pdfurl.pdf));
-          onScrollEnd(true);
-          setShowSpinner(false);
-          dispatch(dispatchLoader(false));
-        });
-      }
-      else if (stageID === 1) {
-        const pdfURLCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? response.data.CampaignTnCMob[campaignID] : response.data.CampaignTnC[campaignID];
-        const pdfMap = pdfURLCheck.map((item: any) => item.pdfURL)
-        const getPDFName: any = new URL(pdfMap).pathname.split('/').pop();
-        if (window.location.host === "localhost:3000") {
-          pdfURLNew =pdfURLCheck[0]?.pdfURL.replace("https://pt.sc.com/", "http://localhost:3000/");
-        } else {
-          pdfURLNew = pdfURLCheck[0]?.pdfURL;
-        }
-        setPdfName(getPDFName);
-        setkfsDocPDF(pdfURLNew);
-        getPDFData(pdfURLNew).then((response: any) => {
-          setkfsDocPDFDownload(response);
-          dispatch(preApprovalAction.setTandCDocumentPdf(pdfURLNew));
-          dispatch(preApprovalAction.setDownloadPDFData(response));
-          onScrollEnd(true);
-          setShowSpinner(false);
-          dispatch(dispatchLoader(false));
-        });
-      }
-      const allPDFLinks = response?.data?.tncLinkCampaignCode[campaignID][0].pdfLinks;
-      setPdfLinkTerms(allPDFLinks);
-    });
-  }, [stageID]);
 
-  useEffect(() => {
-    const listInnerElement = listInnerRef.current;
-        /* istanbul ignore else */
-    if (listInnerElement) {
-      listInnerElement.addEventListener("scroll", scrollToBottom);
-      // Clean-up
-      return () => {
-        listInnerElement.removeEventListener("scroll", scrollToBottom);
-      };
-    }
-    window.history.replaceState("", "", "/hk/before-start")
-  });
 
+
+Simply Cash Horizontal
+OC20 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1241&campaign=HKSPG17VAWV000&premium=OC20&cardType=3264&affiliation=2131&lang=en	
  
-  const downloadPdf = (title: any) => {
-    const lin = document.createElement('a');
-    if(campaignId === "HKPIL23PLSTP10" || campaignId === "HKBDC23PESTP10") {
-      if(title === "II. Personal Loan Terms") {
-        lin.href = PILPdfUrl1;
-      } else if(title === "III. Client Terms") {
-        lin.href = PILPdfUrl2;
-      } else if(title === "Welcome Offers"){
-        lin.href = PILPdfUrl3;
-      }
-    } else if(campaignId === "HKSOG20VAWV000" || campaignId === "HKSPG17VAWV000" || campaignId === "HKSPB17VAWV000" || campaignId === "HKSOA16VAWP000" || campaignId === "HKSOA16MCWP000") {
-      if(title === "III. Client Terms"){
-        lin.href = CCPdfUrl1;
-      } else if(title === "III. Credit Card Terms"){
-        lin.href = CCPdfUrl2;
-      } else if(title === "VI. Welcome Offers" || title === "IV. Welcome Offers"){
-        lin.href = CCPdfUrl3;
-      } else if(title === "IX.  E-Statement Service" || title === "IX. E-Statement Service"){
-        lin.href = CCPdfUrl4;
-      } else if(title === "X. Points Redemption"){
-        lin.href = CCPdfUrl5;
-      } else if(title === "XI. Credit Card Instalment Plan"){
-        lin.href = CCPdfUrl6;
-      }
-    }
-    const urlParts = lin.href.split("/");
-    const extractedPDFName = urlParts[urlParts.length - 1].split(".")[0];
-    lin.download = extractedPDFName;
-    document.body.appendChild(lin);
-    lin.click();
-    document.body.removeChild(lin);
-  }
+SC21 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1282&campaign=HKSOG20VAWV000&premium=SC21&cardType=3267&affiliation=2131&lang=en
+ 
+ 
+Smart Card
+ 
+SC21 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1282&campaign=HKSOG20VAWV000&premium=SC21&cardType=3267&affiliation=2131&lang=en
+ 
+Simply Cash - Vertial
+ 
+OC20 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1241&campaign=HKSPB17VAWV000&premium=OC20&cardType=3265&affiliation=2131&lang=en
+ 
+Cathay Card
+ 
+CT00 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&lang=en
+ 
 
-  const downloadPDFPreApproval = (link: any) => {
-    const lin = document.createElement('a');
-    lin.href = kfsDocPDFDownload;
-    const isSafari = /^((?!chrome|andriod).)*safari/i.test(navigator.userAgent);
-    if (isSafari) {
-      lin.download = pdfName.endsWith('.pdf') ? pdfName : `${pdfName}.pdf`;
-      document.body.appendChild(lin);
-      lin.click();
-      document.body.removeChild(lin);
-    } else {
-      lin.download = pdfName;
-      document.body.appendChild(lin);
-      lin.click();
-      document.body.removeChild(lin);
-    }
-  };
 
-  const btnClickScroll = () => {
-    listInnerRef.current?.scrollBy({ top: stageID===0 ? 200 : 5000, behavior: "smooth" });
-  };
 
-  const scrollToBottom = () => {
-        /* istanbul ignore else */
-    if (listInnerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = listInnerRef.current;
-      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
-      /* istanbul ignore else */
-      if (isNearBottom) {
-        onScrollEnd(false);
-      }
-    }
-  };
-  var className= "";
-  var isIPHONE = (navigator.userAgent.match('iPad') != null || navigator.userAgent.match('iPhone') != null || navigator.userAgent.match('iPod') != null);
-  var isANDROID = (navigator.userAgent.match('Android') != null);
-  if (isIPHONE) {
-    var isSafari = !!navigator.userAgent.match(/Version\/[\d\.]+.*Safari/);
-    if (isSafari) { 
-      // $('body').addClass("iphoneDeviceSafari"); 
-      className="iphoneDeviceSafari"
-    }
-    else { 
-      // $('body').addClass("iphoneDevice"); 
-      className="iphoneDevice"
-    }
-  } else if (isANDROID) {
-    // $('body').addClass("andriodDevice");
-    className="andriodDevice"
-  } else {
-    // $rootScope.DesktopDevice = true;
-    // $('body').addClass("desktopDevice");
-    className="desktopDevice"
-  }
-  return (
-    <div>
-      {showSpinner === true ? (
-        <Spinner></Spinner>
-      ) : (
-        <>
-          <div>
-            <button 
-              onClick={(link) => {
-                downloadPDFPreApproval(link);
-              }}
-              className="view-pdf"
-              // ng-if="source_sys == 'sc.com' || source_sys == 'asiamiles'" //for future reference
-            >
-              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
-            </button>
-          </div>
-          <div className="pdf-view">
-            <div
-              // style={{ maxHeight: stageID == 0 ? "45vh" : "22vh" }}
-              className={stageID == 0 ? "react-pdf__Page__canvas pdf__kfs__page" : "react-pdf__Page__canvas pdf__tnc__page"}
-              ref={listInnerRef}
-            >
-              <Pdf fileName={kfsDocPDF} />
-            </div>
-          </div>
 
-          {stageID == 1 && (
-            <div className="pdf-table">
-              <div className="download-section">
-                <span className="download-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadHeader : language === CONSTANTS.LANG_CN? CONSTANTS.DownloadHeader_CN : CONSTANTS.DownloadHeader_HK}</span>
-                <span className="images"></span>
-              </div>
 
-              <div className="tc-container">
-                <table className="tcTable" border={1}>
-                  <tbody>
-                    {pdfLinkTerms?.map((item: any, index: any) => {
-                      return (
-                        <tr key={index}>
-                          <td className="tcTable__title">{item.Title}</td>
-                          <td className="tcTable__read">
-                            <a
-                              href={item.url}
-                              download
-                              target="_blank"
-                            >
-                             {language === CONSTANTS.LANG_EN ? CONSTANTS.ReadBtn : language === CONSTANTS.LANG_CN? CONSTANTS.ReadBtn_CN : CONSTANTS.ReadBtn_HK}
-                            </a>
-                            <span> / </span>
-                            <span className="tcTable__download"
-                              onClick={() => {
-                                downloadPdf(item.Title);
-                              }}
-                            >
-                              
-                              {language === CONSTANTS.LANG_EN ? CONSTANTS.DownloadBtn : language === CONSTANTS.LANG_CN?CONSTANTS.DownloadBtn_CN : CONSTANTS.DownloadBtn_HK}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="remarks-section">
-                <span className="remarks-section__span">
-                  {" "}
-                  {language === CONSTANTS.LANG_EN ? CONSTANTS.Remarks : language === CONSTANTS.LANG_CN? CONSTANTS.Remarks_CN : CONSTANTS.Remarks_HK}
-                </span>
-              </div>
-            </div>
-          )}
-          <div className="footer-button-list">
-            {isVisible ? (
-              <>
-                <div className="next-arrow" aria-describedby="submitButton">
-                  <footer
-                    className="footer-next enabled"
-                    onClick={btnClickScroll}
-                  >
-                    <i className="next-btn"></i>
-                  </footer>
-                </div>
-              </>
-            )
-              :
-              <div
-                className="pre-approval-accept accept-btn"
-                id="navigationBtn"
-              >
-                <button
-                  id="pre-approval-confirm-btn1"
-                  className="pre-approval-confirm-btn1"
-                  onClick={nextPage}
-                >
-                  {language === CONSTANTS.LANG_EN ? CONSTANTS.acceptButton : language === CONSTANTS.LANG_CN? CONSTANTS.acceptButton_CN : CONSTANTS.acceptButton_HK}
-                </button>
+//HKID-H 976531 1
+//mobile number- 98876554
 
-              </div>
-            }
+required
 
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
+--test data
+--with HK-ID is there any api call integrated 
+--need to know about stage levels AD/PD/BD/RP
 
-export default OnboardingBeforeStart;
+
+
+--PL Journey--
+
+lang=en -> English
+lang=zh-> Chinese
+ 
+PL: https://origination-test.sc.com/onboarding/hk/apply.html?product=1258&campaign=HKPIL23PLSTP10&premium=1258&cardType=3268&affiliation=2132&lang=en
+DC: https://origination-test.sc.com/onboarding/hk/apply.html?product=1312&campaign=HKBDC23PESTP10&premium=1312&cardType=3268&affiliation=2132&lang=en
+
+Asia miles
+https://origination-test.sc.com/onboarding/hk/asiamiles.html?product=1313&source=09&lang=en
+
+Post login---
+
+AMTD -  https://ob-test.sc.com/hk/ibank.html?product=AMT&source=NFS&SSCode=tdmen96236-e856-4e14-928b-04P940109
+MSA - https://ob-test.sc.com/hk/ibank.html?product=DUM&source=NFS&SSCode=tdmen96236-e856-4e14-928b-04P940109
+WSA - https://ob-test.sc.com/hk/ibank.html?product=DDA&source=NFS&SSCode=tdmen96236-e856-4e14-928b-04P940109
+BPA - https://ob-test.sc.com/hk/ibank.html?product=BPA&source=NFS&SSCode=tdmen96236-e856-4e14-928b-04P940109
+ 
+--Mobile and Online banking (Post Login)
+
+https://ob-test.sc.com/hk/ibank.html?product=DDA&source=NFS&SSCode=tdmen96236-e856-4e14-928b-01R483875
+
+--https://ob-test.sc.com/hk/ibank.html?product=DMA&source=NFS&SSCode=tdmen96236-e856-4e14-928b-01R483875(need to re check the url)
+
+https://pt.sc.com/onboarding/hk-sit/wsa/ibank.html?SSCode=tdmen96236-e856-4e14-928b-01M534586&source=NFS&product=
+DUM
+ 
+MBK is for mobile banking
+NFS is for online banking
+
+Post Login Journey :- for CC (5 Products)
+-- 
+AMTD -https://ob-test.sc.com/hk/ibank.html?product=AMT&source=NFS&SSCode=tdmen96236-e856-4e14-928b-04P940109 --verified
+-- No funds
+MSA - https://ob-test.sc.com/hk/ibank.html?product=DUM&source=NFS&SSCode=tdmen96236-e856-4e14-928b-04P940109
+WSA - https://ob-test.sc.com/hk/ibank.html?product=DDA&source=NFS&SSCode=tdmen96236-e856-4e14-928b-04P940109
+-- found error in final submit response
+BPA - https://ob-test.sc.com/hk/ibank.html?product=BPA&source=NFS&SSCode=tdmen96236-e856-4e14-928b-04P940109 --verified and found error in final submit response
+-- Technical issue
+FXTD -https://ob-test.sc.com/hk/ibank.html?SSCode=tdmen96236-fxtd-4e14-928b-01B940003&source=NFS&product=FXT
+ 
+https://ob-test.sc.com/hk/uat/ibank.html?product=DDA&source=NFS&SSCode=tdmen96236-e856-4e14-928b-01R483875
+ 
+https://pt.sc.com/onboarding/hk-sit/wsa/ibank.html?SSCode=tdmen96236-e856-4e14-928b-01M534586&source=NFS&product=DUM
+ 
+- MBK
+
+
+Green Branch
+
+https://origination-test.sc.com/onboarding/sgb/login/#/login
+ 
+1326246
+Rwbpassword0$
+-proceed with my data
+NRIC - S4145733C
+NRIC - S4145718Z
+
+WCA
+
+https://origination-test.sc.com/onboarding/sgb/apply.html?product=003&campaign=WM000
+ 
+S4145718Z
+ 
+https://origination-test.sc.com/onboarding/sgb/apply.html?product=004&campaign=WU000
+ 
+ 
+ PBVI--
+
+Use UAT url for development: https://pt.sc.com/onboarding/rtob-FFF/apply.html?product=880&campaign=5885
+ 
+https://pt.sc.com/onboarding/rtob-FFF/apply.html?product=880&campaign=5885&auth=myinfo
+
+
+
+Confulance Regression  URL
+ 
+RTOB HK - PRE PROD URL DETAILS - Welcome Experience - Confluence
+ 
+https://confluence.global.standardchartered.com/display/DOB/RTOB+HK+-+PRE+PROD+URL+DETAILS
+
+
+
+Confluence UAT URL
+https://confluence.global.standardchartered.com/display/DOB/RTOB+-+HK+CCPL+UAT+URL+DETAILS
+ 
+smart card SC21 AND SC24
+ 
+simply cash :- 0C20 & 0C22
+core platinum  :- OO19 & OO21
+asiamiles  :- https://origination-test.sc.com/onboarding/hk/asiamiles.html?product=1313&source=09&lang=en
+ 
+Asia miles membership :- 1910012217
+ 
+PL: https://origination-test.sc.com/onboarding/hk/apply.html?product=1258&campaign=HKPIL23PLSTP10&premium=1258&cardType=3268&affiliation=2132&lang=en
+DC: https://origination-test.sc.com/onboarding/hk/apply.html?product=1312&campaign=HKBDC23PESTP10&premium=1312&cardType=3268&affiliation=2132&lang=en
+
+Local PIL
+http://localhost:3000/onboarding/before-start?product=1258&campaign=HKPIL23PLSTP10&premium=1258&cardType=3268&affiliation=2132&lang=en
+
+Local DC
+http://localhost:3000/onboarding/before-start?product=1312&campaign=HKBDC23PESTP10&premium=1312&cardType=3268&affiliation=2132&lang=en
+
+Local Smart Card
+http://localhost:3000/onboarding/before-start?product=1282&campaign=HKSOG20VAWV000&premium=SC21&cardType=3267&affiliation=2131&lang=en
+
+Local Simply cash
+http://localhost:3000/onboarding/before-start?product=1241&campaign=HKSPB17VAWV000&premium=OC20&cardType=3265&affiliation=2131&lang=en
+
+Core Platinum
+http://localhost:3000/onboarding/before-start?product=1241&campaign=HKSOA16VAWP000&premium=OO19&cardType=3150&affiliation=2131&lang=en
+
+https://origination-test.sc.com/onboarding/hk/apply.html?product=1241&campaign=HKSPB17VAWV000&premium=OC20&cardType=3265&affiliation=2131&lang=zh
+
+
+
+HK- SIT URL's
+
+PIL -  
+DC - https://pt.sc.com/onboarding/hk-sit/hk_lending/hk_lending_sit/index.html?product=1312&campaign=HKBDC23PESTP10&premium=1312&cardType=3268&affiliation=2132&lang=en
+Simply Cash- https://pt.sc.com/onboarding/hk-sit/hk_lending/hk_lending_sit/index.html?product=1241&campaign=HKSPG17VAWV000&premium=OC20&cardType=3264&affiliation=2131&lang=en
+Smart Card - https://pt.sc.com/onboarding/hk-sit/hk_lending/hk_lending_sit/index.html?product=1282&campaign=HKSOG20VAWV000&premium=SC21&cardType=3267&affiliation=2131&lang=en
+
+HK Angular regression URL
+Smart Card English :
+SP98 - https://pt.sc.com/onboarding/hk-uat/hk/apply.html?product=1282&campaign=HKSOG20VAWV000&premium=SP98&cardType=3267&affiliation=2131&lang=en
+
+Asia miles -
+T1: https://pt.sc.com/onboarding/hk-sit/hk_lending/hk_lending_sit/index.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&lang=en
+T2: https://pt.sc.com/onboarding/hk-sit/hk_lending/hk_lending_sit/index.html?product=1313&campaign=HKSOZ01MCWB000&premium=CT00&cardType=3268&affiliation=2132&lang=en
+T3: https://pt.sc.com/onboarding/hk-sit/hk_lending/hk_lending_sit/index.html?product=1313&campaign=HKSOZ02MCWB000&premium=CT00&cardType=3268&affiliation=2132&lang=en
+
+Local -
+ 
+Tier 1-  http://localhost:3000/onboarding/before-start?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&lang=en
+Tier 2 -http://localhost:3000/onboarding/before-start?product=1313&campaign=HKSOZ01MCWB000&premium=CT00&cardType=3268&affiliation=2132&lang=en
+Tier 3- http://localhost:3000/onboarding/before-start?product=1313&campaign=HKSOZ02MCWB000&premium=CT00&cardType=3268&affiliation=2132&lang=en
+
+MSA - MVP 1 Screen Copy - Welcome Experience - Confluence
+WSA - MVP 2 Screen Copy - Welcome Experience - Confluence
+BPA - BPA MVP 1 Screen Copy - Welcome Experience - Confluence
+AMTD- AMTD - MVP 1 Screens - Welcome Experience - Confluence
+FXTD- FXTD - MVP1 Screen Copy - Welcome Experience - Confluence
+
+
+PIL - personal-instalment-loan - Standard Chartered 
+DC - debt-consolidation-loan - Standard Chartered 
+Smart card - Smart Card - Standard Chartered 
+Simply Cash - Simply Cash - Standard Chartered 
+Core Platinum - Core Platinum - Standard Chartered 
+Asia miles - Asia Miles - Standard Chartered
+
+Angular URL 
+Simply cash : https://origination-test.sc.com/onboarding/hk/apply.html?product=1241&campaign=HKSPG17VAWV000&premium=OC20&cardType=3264&affiliation=2131&lang=en
+
+Smart card  : https://origination-test.sc.com/onboarding/hk/apply.html?product=1282&campaign=HKSOG20VAWV000&premium=SC21&cardType=3267&affiliation=2131&lang=en
