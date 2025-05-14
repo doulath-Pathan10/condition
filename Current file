@@ -1,256 +1,281 @@
-import { useEffect, useState } from "react";
-import "./document-upload-main-scr.scss";
-import { useDispatch, useSelector } from "react-redux";
-import { preApprovalAction } from "../../../../preApproval/store/preApproval-slice";
-import { postDocSaveData, postFinalAcknowledge, postFulFilmentData, postTMXUserSession } from "../../../../preApproval/services/preApprovalPostServices";
-import DocumentTypeDynamic from "../documentType/document-type-dynamic";
-import { dispatchLoader, lovRequests } from "../../../../../services/common-service";
-import { StoreModel } from "../../../../../utils/model/common-model";
-import { stagesAction } from "../../../../../utils/store/stages-slice";
-import { CONSTANTS } from "../../../../../utils/common/constants";
-import Close from "../../../../../shared/components/close/close";
-import { errorAction } from "../../../../../utils/store/error-slice";
-import { HardStop } from "../../../services/preApprovalUtilsService";
-import Spinner from "../../../../../shared/components/spinner/spinner";
-import { stateUrl } from "../../../../dashboard/fields/stage.utils";
-import { getUrl } from "../../../../../utils/common/change.utils";
+NTB : New to Bank 
 
-const DucumentUploadMainSCR = () => {
-  
-  const document_list = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.applicant_documents[0].document_list)
-  const totalDocCount = document_list?.length;
-  const [showIncomeProof, setShowIncomeProof] = useState("");
-  const [HKIDQRCodeData, setHKIDQRCodeData] = useState(null);
-  const [showUploadFileSuccess, setShowUploadFileSuccess] = useState(false);
-  const [HKIDVersion, setHKIDVersion] = useState("");
-  const [showContinueBtn, setShowContinueBtn] = useState(false);
-  const [showSpinner, setShowSpinner] = useState(false);
-  const [ffd2Enable, setFFD2Enable] = useState(false);
-  const resumeAllowed = useSelector((state: StoreModel) => state.preApproval.resumeAllowed);
-  const resumePage = getUrl.getParameterByName("pageId");
-  let count = 0;
-  document_list.forEach((doc:any) => {
-    doc.document_options?.forEach((option:any) => {
-      option.document_types?.forEach((type:any) => {
-        /*istanbul ignore else*/
-        if(type.uploaded_documents !== null){
-          count += 1;
-        }
-      })
-    })
-  })
-  const documentData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentData);
-  const newHKIDQRCodeData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.HKIDQRCodeData);
-  useEffect(() => {
-    dispatch(dispatchLoader(false));
-  }, [])
+COS :  Custumer onboarding system
 
-  const changeIconColorIdentityProof = useSelector((state: any) => state.stages.dynamicDocumentsUpload.changeIconColorIdentityProof);
-  let documentCount = useSelector((state: any) => state.stages.dynamicDocumentsUpload.documentCount);
-  /*istanbul ignore else*/
-  if(resumeAllowed === "Y" || resumePage === "resume") {
-    documentCount = count
-  }
-  const success = useSelector((state: any) => state.stages.dynamicDocumentsUpload.success);
-  const channel_reference = useSelector((state: StoreModel) => state.stages && state.stages.stages[0].stageInfo.application.channel_reference);
-  const stageSelector = useSelector((state: StoreModel) => state.stages && state.stages.stages);
-  const fileSectionData = useSelector((state: any) => state.stages.dynamicDocumentsUpload.fileSectionData);
-  const dispatch = useDispatch();
-  const language = getUrl.getLanguageInfo("lang");
-  useEffect(()=>{
-    setShowSpinner(false);
-  },[])
-  
-  const nextStage = async () => {
-    dispatch(dispatchLoader(true));
-    await postTMXUserSession(channel_reference).then(async (res: any) => {
-      if (res.status === 200 && res.data.review_status.toLowerCase() === 'pass') {
-        await postFinalAcknowledge(channel_reference).then(async (res: any) => {
-          if (res.status === 202) {
-            dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
-            await postDocSaveData(documentData, newHKIDQRCodeData).then(async (res: any) => {
-              if (res.status >= 200 && res.status <= 300) {
-                let responseType = res.data.application.response_type.toUpperCase();
-                let responseAction = res.data.application.response_action.toUpperCase();
-                if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
-                  if (stageSelector[0].stageInfo.products[0].product_category === "CC") {
-                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_1));
-                    dispatch(dispatchLoader(false));
-                    setShowSpinner(true);
-                    postFulFilment(res.data);
-                  }
-                  else {
-                    dispatch(preApprovalAction.setCurrentStage("PD-3"));
-                    dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.LD_1));
-                    let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
-                    stageData.applicants = [res.data.applicants];
-                    stageData.application = res.data.application;
-                    stageData.applicant_documents = res.data.applicant_documents;
-                    dispatch(lovRequests(stageData, CONSTANTS.STAGE_NAMES.LD_1));
-                    dispatch(stagesAction.getStage({
-                      id: CONSTANTS.STAGE_NAMES.LD_1,
-                      formConfig: stageData,
-                    }))
-                    stateUrl(stageSelector[0].stageId);
-                    dispatch(dispatchLoader(false));
-                  }
-                }
-                else {
-                  HardStop(res);
-                }
-              }
-              else {
-                dispatch(dispatchLoader(false));
-                dispatch(
-                  errorAction.getError({
-                    statusCode: "error",
-                    statusText: "no response",
-                  })
-                );
-              }
-            })
-          }
-          else {
-            dispatch(dispatchLoader(false));
-            dispatch(
-              errorAction.getError({
-                statusCode: "error",
-                statusText: "no response",
-              })
-            );
-          }
-        })
-      }
-      else {
-        dispatch(dispatchLoader(false));
-        dispatch(
-          errorAction.getError({
-            statusCode: "error",
-            statusText: "no response",
-          })
-        );
-      }
-    })
-  }
+ETB : Existing to bank
 
-  const postFulFilment = async (res: any) => {
-    stateUrl(CONSTANTS.STAGE_NAMES.FFD_1);
-    postFulFilmentData(res).then(async (fulres: any) => {
-      if (fulres.status >= 200 && fulres.status < 300) {
-        dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
-        let stageData = JSON.parse(JSON.stringify(stageSelector[0].stageInfo));
-        stageData.applicants = [fulres.data.applicants];
-        stageData.application = fulres.data.application;
-        dispatch(
-          stagesAction.getStage({
-            id: CONSTANTS.STAGE_NAMES.FFD_2,
-            formConfig: stageData,
-          })
-        );
-        let responseType = fulres.data.application.response_type.toUpperCase();
-        let responseAction = fulres.data.application.response_action.toUpperCase();
-        if (responseAction === "SUCCESS" || responseType === "INFO" || (responseType === "SOFT" && responseAction === "CONTINUE")) {
-          dispatch(stagesAction.updateStageId(CONSTANTS.STAGE_NAMES.FFD_2));
-          setFFD2Enable(true)
-        }
-        else {
-          dispatch(HardStop(fulres));
-          setShowSpinner(false);
-        }
-      }
-      else {
-        dispatch(dispatchLoader(false));
-        dispatch(
-          errorAction.getError({
-            statusCode: "error",
-            statusText: "no response",
-          })
-        );
-      }
-    });
-  }
+MCCB : 
 
-  let stageId = stageSelector[0].stageId;
-  return (
-    <>
-      {showSpinner && (stageId === "ld-1" || stageId === "ffd-1" || stageId === "ffd-2") ? (
-        <Spinner loaderType="lastStep" enable={ffd2Enable} />
-      )
-        :
-        <>
-          <div className={HKIDVersion || showIncomeProof ? "" : "document-view"}>
-            <>
-              <div>
-                {fileSectionData === null &&
-                  <>
-                    <div className="sc-icons">
-                      <span className="banner-icon banner-icon-mobile"></span>
-                      <div className="card-titleHead">
-                        <div className="card-titleDoc">{language === CONSTANTS.LANG_EN ? CONSTANTS.provideDoc : language === CONSTANTS.LANG_CN?CONSTANTS.provideDoc_CN : CONSTANTS.provideDoc_HK}</div>
-                        <div className="hk-headerclose-btnH">
-                          <Close authType="resume" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="row doc-details" id="row-doc-details">
-                      <p className="col-md-10 col-sm-10 col-xs-10 col-lg-10 doc-field-Label">
-                        {language === CONSTANTS.LANG_EN ? CONSTANTS.uploadDoc : language === CONSTANTS.LANG_CN?CONSTANTS.uploadDoc_CN : CONSTANTS.uploadDoc_HK}
-                      </p>
-                      <p className="col-md-2 col-sm-2 col-xs-2 col-lg-2">
-                        {" "}
-                        <span className="count-doc">
-                          {documentCount}/{totalDocCount}
-                        </span>
-                      </p>
-                    </div>
-                  </>
-                }
-                <DocumentTypeDynamic
-                  showContinueBtn={showContinueBtn}
-                  setShowContinueBtn={setShowContinueBtn}
-                  setShowUploadFileSuccess={setShowUploadFileSuccess}
-                  setHKIDVersion={setHKIDVersion}
-                  HKIDVersion={HKIDVersion}
-                  showUploadFileSuccess={showUploadFileSuccess}
-                  setHKIDQRCodeData={setHKIDQRCodeData}
-                />
-                {fileSectionData === null &&
-                  <>
-                    <div className="noteTipDiv">
-                      <p className="noteTip">{language === CONSTANTS.LANG_EN ? CONSTANTS.tooltipText : language === CONSTANTS.LANG_CN?CONSTANTS.tooltipText_CN : CONSTANTS.tooltipText_HK}</p>
-                    </div>
-                    <div className="document-footer-main-document">
-                      <div
-                        className="footer-banner">
-                        <div className="footer-content">
-                          <p className="footer-content1">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent1 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent1_CN : CONSTANTS.footerContent1_HK}</p>
-                          <p className="footer-content2">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent2 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent2_CN : CONSTANTS.footerContent2_HK}</p>
-                          <p className="footer-content3">{language === CONSTANTS.LANG_EN ? CONSTANTS.footerContent3 : language === CONSTANTS.LANG_CN?CONSTANTS.footerContent3_CN : CONSTANTS.footerContent3_HK}</p>
-                        </div>
-                        <span className="images"></span>
-                      </div>
-                      <div className="hk-copy-rights">
-                        <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
-                      </div>
-                    </div>
-                  </>
-                }
-              </div>
-            </>
-          </div>
-          {fileSectionData === null && success && <>
-            <div className="footer footer-set">
-              <button role="button" type="submit" className={documentCount !== totalDocCount ? `continue form-invalid` : `continue form-valid`} onClick={nextStage} disabled={documentCount !== totalDocCount}>
-              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
-              </button>
-            </div>
-          </>}
-        </>
-      }
-    </>
-  );
-};
+My Learning Mandotary Trainings 
+https://sc.sabacloud.com/Saba/Web_spf/SPCTNT8Site/app/dashboard
 
-export default DucumentUploadMainSCR;
+// HKID H - 976531 - 1
+
+// mobile number 98876554
+
+
+React Repo link -- https://dev.azure.com/sc-ado/PDBQPR/_git/50540-rtob-ui-app-sg
+
+Simply Cash Horizontal
+OC20 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1241&campaign=HKSPG17VAWV000&premium=OC20&cardType=3264&affiliation=2131&lang=en	
+SC21 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1282&campaign=HKSOG20VAWV000&premium=SC21&cardType=3267&affiliation=2131&lang=en
+
+Smart Card
+SC21 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1282&campaign=HKSOG20VAWV000&premium=SC21&cardType=3267&affiliation=2131&lang=en
+Simply Cash Horizontal
+OC20 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1241&campaign=HKSPG17VAWV000&premium=OC20&cardType=3264&affiliation=2131&lang=en
+Simply Cash - Vertial
+OC20 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1241&campaign=HKSPB17VAWV000&premium=OC20&cardType=3265&affiliation=2131&lang=en
+Cathay Card
+CT00 - https://origination-test.sc.com/onboarding/hk/apply.html?product=1313&campaign=HKSOZ00MCWB000&premium=CT00&cardType=3268&affiliation=2132&lang=en
+
+
+
+Green Branch Journey : 
+
+https://origination-test.sc.com/onboarding/sgb/login/#/login
+
+1326246
+Rwbpassword0$
+-proceed with my data
+NRIC - S4145733C
+NRIC - S4145718Z
+
+Responsive ness
+Redux we have to use are not 
+==================================================================================================
+DCP: https://origination-test.sc.com/onboarding/sgb/ngf-apply.html?product=293&campaign=9484
+CLR: https://origination-test.sc.com/onboarding/sgb/ngf-apply.html?product=340&campaign=CLI001
+TCLI: https://origination-test.sc.com/onboarding/sgb/ngf-apply.html?product=350&campaign=TCLI001
+has context menu
+
+
+1326246
+Rwbpassword0$
+ 
+NRIC - S4145733C 
+
+==================================================================================================
+React Repo Parameters 
+?products=280&campaign=9999&auth=myinfo
+
+yesterday:26/09/2024
+DCP, CCFT PL, Wealth, Green Branch, 1 Product 1 app Multiple product Multiple Applicant
+Today:27/09/2024
+Bundle Product, Cross border,  
+
+Pending in KT,
+
+
+https://sc-ado@dev.azure.com/sc-ado/PDBQPR/_git/50540-rtob-ui-app-sg
+
+
+https://sc-ado@dev.azure.com/sc-ado/PDBQPR/_git/50540-rwb-ui-rto-forms-sg
+
+
+
+25-09-2024:
+
+
+Angular: https://origination-test.sc.com/onboarding/sgb/ngf/FFF_products.html
+React CC : https://origination-test.sc.com/onboarding/sgb/ngl-apply.html?product=164&campaign=2502
+React CASA: https://origination-test.sc.com/onboarding/sgb/ngl-apply.html?product=507&campaign=SA001
+TestData:  Please do find the attachment.
+ 
+Repo URL:(React)  https://dev.azure.com/sc-ado/PDBQPR/_git/50540-rtob-ui-app-sg
+Repo URL (Angular):  https://dev.azure.com/sc-ado/PDBQPR/_git/50540-rwb-ui-rto-forms-sg
+
+
+Guys when ever raise PR follow below steps
+ 
+1,Push your code in your branch
+2,then switch to feature/onboarding branch
+3,git pull from onboarding branch
+4,then switch back to your branch
+5,then use git merge feature/onboarding command
+6,then git add -A, git commit -m"ur changes" then git push to your branch
+then create Pull request
+
+
+https://dev.azure.com/sc-ado/PDBQPR/_git/50540-rtob-ui-app-hk-lending?version=GBfeature%2FreviewpageCode
+
+FYI, for committing code with commands
+step-1 >----own branch(feature/bharathm)
+git status
+git add ...(add the change files)
+git commit -m "Comment"
+git push origin feature/bharathm
+ 
+step-2 >---pull the latest code to your branch
+git checkout feature/onboarding
+git pull origin feature/onboarding
+git checkout feature/bharathm
+git merge feature/onboarding
+if any conflicts----- fix and do Step-1
+ 
+git push origin feature/bharathm
+ 
+Raise a PR once done or you can continue
+
+claude
+kdoulath2@gmail.com
+9052831431@D
+
+git hub
+doulathkhanpathan65@gmail.com
+Doulath!9052
+
+npm run ci:tests
+
+
+jest.mock("axios", () => ({
+  __esModule: true,
+}));
+
+jest.mock("@lottiefiles/react-lottie-player", () => ({
+  __esModule: true,
+  Player: jest.fn().mockReturnValue(null),
+}));
+
+1, document-type-dynamic.tsx
+2, email.tsx
+3, information.tsx
+4, phone.tsx
+5, change.utils.ts
+6, Amount.tsx
+
+Hi Haiku,
+Please write RTL test cases for 100 percent coverage with given file.
 
 I am unable to cover this file above 30 percent please try to complete at least 90 percent coverage using react with jest. thank you please accept my request.
+
+Please write an test cases using react and jest including branches with 100 percent coverage 
+
+I have tried in claude but failing test cases please provide some unique test cases so that i can achieve more coverage	
+
+getting above error please provide another valuable test cases
+
+
+http://localhost:3000/onboarding/before-start?product=1258&campaign=HKPIL23PLSTP10&premium=1258&cardType=3268&affiliation=2132&lang=en
+
+  {stageSelector[0].stageInfo.applicants[0].marketing_mobile_message_a_1 === 'Y'?<div>'mobile message',</div>:""}
+                  {stageSelector[0].stageInfo.applicants[0].marketing_post_a_1 === 'Y'?<div>'post',</div>:""}
+                  {stageSelector[0].stageInfo.applicants[0].marketing_phone_others_a_1 === 'Y'?<div>'phone call',</div>:""}
+                  {stageSelector[0].stageInfo.applicants[0].marketing_phone_all_a_1 === 'Y'?<div>'phone call',</div>:""}
+
+
+       {props.data.rwb_label_name === "Opt out for Direct Marketing" && 
+              stageSelector[0].stageInfo.applicants[0].marketing_email_a_1 === 'Y'?<span>Email </span>:''}
+             { props.data.rwb_label_name === "Opt out for Direct Marketing" && 
+              stageSelector[0].stageInfo.applicants[0].marketing_mobile_message_a_1 === 'Y'?<span> Mobile message</span>:''}
+             { props.data.rwb_label_name === "Opt out for Direct Marketing" && 
+              stageSelector[0].stageInfo.applicants[0].marketing_post_a_1 === 'Y'?<span> Post</span>:''}
+             { props.data.rwb_label_name === "Opt out for Direct Marketing" && 
+              stageSelector[0].stageInfo.applicants[0].marketing_phone_others_a_1 === 'Y'?<span> Phone call(except calls from Relationship Managers or Premium Executive)</span>:''}
+             { props.data.rwb_label_name === "Opt out for Direct Marketing" && 
+              stageSelector[0].stageInfo.applicants[0].marketing_phone_all_a_1 === 'Y'?<span> Phone call</span>:''}
+
+http://localhost:3000/onboarding/before-start?product=1312&campaign=HKBDC23PESTP10&premium=1312&cardType=3268&affiliation=2132&lang=en
+
+/* istanbul ignore file */
+ 
+/* istanbul ignore next */
+
+
+/*istanbul ignore else*/
+
+17,794
+
+
+featurepathanDC0901
+
+
+Rahul bank ID 8215258
+
+ "journey_type_hk": "ETC"
+ "journey_type": "ETC",
+
+
+in line number 253 if there is no data in userInputSelector.applicants[0].total_outstanding_other_loan_amount.length == 0 and userInputSelector.applicants[0].total_outstanding_other_monthly_payment.length ==0
+
+then {props.data.rwb_label_name} this should not been shown Please help me in logic
+
+My PR's regading conditions for HK journey 
+16/01/2025 selection box changes
+
+https://dev.azure.com/sc-ado/PDBQPR/_git/50540-rtob-ui-app-hk-lending/pullrequest/1166181
+
+23/01/2025
+
+
+28/01/2025 In Review page empty HKD is fixed with testcase file
+https://dev.azure.com/sc-ado/PDBQPR/_git/50540-rtob-ui-app-hk-lending/pullrequest/1199226
+
+selection-box.test.tsx:
+text.test.tsx
+dates.test.tsx
+
+
+https://scbnow01.service-now.com/myit
+https://axess.sc.net/
+
+https://dev.azure.com/sc-ado/PDBQPR/_git/50540-rtob-ui-app-sg
+
+
+
+
+
+ in myit githubcopilot
+
+
+Simplified is CN
+Traditional is HK
+
+8213623_scenggcb 
+
+
+featurepathanLang2702
+
+PIL - personal-instalment-loan - Standard Chartered  	
+DC - debt-consolidation-loan - Standard Chartered 
+Smart card - Smart Card - Standard Chartered 
+Simply Cash - Simply Cash - Standard Chartered 
+Core Platinum - Core Platinum - Standard Chartered 
+
+
+Bugs
+Null text in gender page
+District coming in eng 
+
+
+45000
+24 months
+slo pri
+art nd design
+artict
+500000
+
+{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}
+Password doesn't match with Reconfirm password.Please try again
+
+
+
+Asia Miles Membership Number:
+ 
+1910012217	 
+
+
+principal amount: 
+
+no need to work on these files
+Adress search 
+selection 
+text 
+
+2-5-2025 RBL Loan
+principle Amount: 52,594.59
+3% : 1577.83
+18% : 284.01
+
+Total Amount : 54,456.43
+
