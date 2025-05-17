@@ -1,340 +1,165 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import { BrowserRouter } from 'react-router-dom';
-import Spinner from './Spinner';
-import { postFulFilmentData } from '../../../modules/preApproval/services/preApprovalPostServices';
-import { HardStop } from '../../../modules/preApproval/services/preApprovalUtilsService';
-import { CONSTANTS } from '../../../utils/common/constants';
-import * as commonUtils from '../../../utils/common/change.utils';
+import React, { useEffect, useState } from "react";
+import "./colour-Identity-Proof.scss";
+import Carousel from "../carousel/carousel";
+import { useDispatch, useSelector } from "react-redux";
+import { getUrl } from "../../../../../utils/common/change.utils";
+import { CONSTANTS } from "../../../../../utils/common/constants";
+import { dispatchLoader } from "../../../../../services/common-service";
+import { stagesAction } from "../../../../../utils/store/stages-slice";
+import Zoloz from "../zoloz/zoloz";
+import { lovDescAction } from "../../../../../utils/store/lov-desc-slice";
 
-// Mock required dependencies
-jest.mock('../../../modules/preApproval/services/preApprovalPostServices');
-jest.mock('../../../modules/preApproval/services/preApprovalUtilsService');
-jest.mock('@lottiefiles/react-lottie-player', () => ({
-  Player: () => <div data-testid="lottie-player" />
-}));
+const ColorIdentityProof: React.FC<any> = ({
+  callQRCodeAPI,
+  HKIDVersion,
+  setHKIDVersion
+}) => {
+  const language = getUrl.getLanguageInfo("lang")
+  const showQRCodePage = useSelector((state: any) => state.stages.dynamicDocumentsUpload.showQRCodePage);
+  const [lovData, setLovData] = useState([]);
+  const dispatch = useDispatch();
 
-// Mock React Router's useNavigate
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useNavigate: () => mockNavigate
-}));
-
-// Create a mock Redux store
-const createMockStore = (stageId = 'STAGE_1', channelReference = '12345') => {
-  return {
-    getState: () => ({
-      stages: {
-        stages: [{
-          stageId,
-          stageInfo: {
-            application: {
-              channel_reference: channelReference
-            },
-            applicants: [{}]
-          }
-        }]
+  useEffect(() => {
+    let lov: any = language === CONSTANTS.LANG_EN ? [
+      {
+        "CODE_VALUE": "08520000001",
+        "CODE_DESC": "Smart HKID"
       },
-      preApproval: {
-        currentStage: 'FFD'
+      {
+        "CODE_VALUE": "08520000002",
+        "CODE_DESC": "New Smart HKID"
       }
-    }),
-    subscribe: jest.fn(),
-    dispatch: jest.fn()
+    ] : [
+      {
+        "CODE_VALUE": "08520000001",
+        "CODE_DESC": "智能身份證"
+      },
+      {
+        "CODE_VALUE": "08520000002",
+        "CODE_DESC": "新智能身份證"
+      }
+    ];
+    setLovData(lov);
+  }, [])
+
+  const handleRadioBtnHKID = (item: any) => {
+    const label = item.CODE_DESC;
+    const value = item.CODE_VALUE;
+    setHKIDVersion(value);
+    dispatch(stagesAction.updateHKIDVersionValue(value));
+    dispatch(stagesAction.updatechangeIconColorIdentityProof(false));
+    dispatch(
+      lovDescAction.addLovData({
+        fieldData: {
+          fieldName: "hkid_type",
+          code_desc: label,
+          code_value: value
+        }
+      })
+    );
+    let newLovData: any = JSON.parse(JSON.stringify(lovData));
+    for (let i in newLovData) {
+      if (newLovData[i].CODE_VALUE === value) {
+        newLovData[i].checked = true;
+      }
+      else {
+        newLovData[i].checked = false;
+      }
+    }
   };
+
+  const onBackClick = () => {
+    setHKIDVersion("");
+    dispatch(stagesAction.updatefileSectionData(null));
+    dispatch(stagesAction.updateShowQRCodePage(false));
+  };
+
+  const onContinue = async () => {
+    dispatch(dispatchLoader(true));
+    dispatch(stagesAction.updateShowQRCodePage(true));
+    callQRCodeAPI();
+    setHKIDVersion("");
+  };
+
+  return (
+    <>
+      {!showQRCodePage &&
+        <>
+          <div className="document-view">
+            <div className="main-container">
+              <section className="hkid-docPage">
+                <p className="hkid-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.headerTextDoc : language === CONSTANTS.LANG_CN?CONSTANTS.headerTextDoc_CN : CONSTANTS.headerTextDoc_HK}</p>
+                <span className="header-note">{language === CONSTANTS.LANG_EN ? CONSTANTS.headerNote : language === CONSTANTS.LANG_CN?CONSTANTS.headerNote_CN : CONSTANTS.headerNote_HK}</span>
+                <div className="radio-btn-section">
+                  <label className="floatlabel">
+                    <span className="textbox-label">
+                      <b>{language === CONSTANTS.LANG_EN ? CONSTANTS.radioBtnText : language === CONSTANTS.LANG_CN?CONSTANTS.radioBtnText_CN : CONSTANTS.radioBtnText_HK}</b>
+                    </span>
+                  </label>
+                  <div className="rto-form-component-hk">
+                    <div className="radioOptions radioWithLabel" id="hkid_type_a_1">
+                      {lovData.map((item: any, index: any) => {
+                        return (
+                          <div key={index} className="radioAligner" style={{ marginRight: 10 }}>
+                            <label htmlFor={item.CODE_VALUE}>
+                              <input
+                                type="radio"
+                                id={"hkid_type" + index}
+                                name="hkid_type"
+                                className="radio-btn"
+                                onChange={() => handleRadioBtnHKID(item)}
+                                checked={item.checked}
+                              />
+                              <span className="radio-button-lbl">{item.CODE_DESC}</span>
+                            </label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div className="hkid-prepare-points">
+                  <div className="desktop-img">
+                    <Carousel />
+                  </div>
+                </div>
+                <div className="hkid-notes">{language === CONSTANTS.LANG_EN ? CONSTANTS.hknotes : language === CONSTANTS.LANG_CN?CONSTANTS.hknotes_CN : CONSTANTS.hknotes_HK}</div>
+                <div className="hk-copy-rights">
+                  <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
+                </div>
+              </section>
+            </div>
+          </div>
+          <div className="footer footer-set">
+            <div
+              role="button"
+              className="back"
+              onClick={onBackClick}>
+              <span className="arrow"></span>
+              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.back : language === CONSTANTS.LANG_CN? CONSTANTS.back_CN : CONSTANTS.back_HK}`}
+            </div>
+            <button
+              role="button"
+              title="Colour Identity Proof"
+              type="submit"
+              className={
+                !HKIDVersion ? `continue form-invalid` : `continue form-valid`
+              }
+              onClick={onContinue}
+              disabled={HKIDVersion === ""}
+            >
+              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
+            </button>
+          </div>
+        </>
+      }
+      {showQRCodePage &&
+        <Zoloz
+          setHKIDVersion={setHKIDVersion}
+        />
+      }
+    </>
+  );
 };
 
-describe('Spinner Component', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    jest.spyOn(commonUtils.getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_EN);
-    jest.useFakeTimers();
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  test('renders default spinner with lottie animation', () => {
-    const store = createMockStore();
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByTestId('lottie-player')).toBeInTheDocument();
-    expect(screen.getByText(/processing/i)).toBeInTheDocument();
-  });
-
-  test('renders with opacity class when channel reference is missing', () => {
-    const store = createMockStore(CONSTANTS.STAGE_NAMES.FFD_1, null);
-    
-    const { container } = render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    expect(container.querySelector('.opacity')).toBeInTheDocument();
-  });
-
-  test('renders different message for specific stages', () => {
-    const store = createMockStore(CONSTANTS.STAGE_NAMES.ACD_1);
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    // Should show processing3 text for ACD stages
-    expect(screen.getByText(CONSTANTS.processing3)).toBeInTheDocument();
-  });
-
-  test('renders showTimmer loader type correctly', () => {
-    const store = createMockStore();
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="showTimmer" />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByText('Thank you for your application. We are checking your details.')).toBeInTheDocument();
-    expect(screen.getByText('Please do not close or refresh browser.')).toBeInTheDocument();
-    expect(screen.getByText('Just a moment')).toBeInTheDocument();
-  });
-
-  test('renders resumeTimmer loader type correctly', () => {
-    const store = createMockStore();
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="resumeTimmer" />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByText('Resume application...')).toBeInTheDocument();
-  });
-
-  test('renders showSearchSpinner loader type correctly', () => {
-    const store = createMockStore();
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="showSearchSpinner" />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByText('We are reviewing your application submission.')).toBeInTheDocument();
-    expect(screen.getByText('Please do not close or refresh browser.')).toBeInTheDocument();
-    expect(screen.getByText('Just a moment')).toBeInTheDocument();
-  });
-
-  test('renders lastStep loader type correctly with enabled button', () => {
-    const store = createMockStore();
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="lastStep" enable={true} />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByText("You're at the last step!")).toBeInTheDocument();
-    expect(screen.getByText('Please do not close or refresh browser.')).toBeInTheDocument();
-    expect(screen.getByText('Please wait a few minutes while we are reviewing on your application.')).toBeInTheDocument();
-    
-    const button = screen.getByText('See final approval result');
-    expect(button).toBeInTheDocument();
-    expect(button).not.toBeDisabled();
-    expect(button.className).toContain('bg-button');
-  });
-
-  test('renders lastStep loader type correctly with disabled button', () => {
-    const store = createMockStore();
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="lastStep" enable={false} />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    const button = screen.getByText('See final approval result');
-    expect(button).toBeDisabled();
-    expect(button.className).toContain('bg-grey');
-  });
-
-  test('changes to Chinese language when language is set to CN', () => {
-    const store = createMockStore();
-    jest.spyOn(commonUtils.getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_CN);
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="lastStep" enable={true} />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    expect(screen.getByText('最後一步!')).toBeInTheDocument();
-    expect(screen.getByText('請不要關閉或重新整理瀏覽器')).toBeInTheDocument();
-    expect(screen.getByText('查看最終批核結果')).toBeInTheDocument();
-  });
-
-  test('calls getFFD2Status when button is clicked', async () => {
-    const store = createMockStore();
-    const mockDispatch = jest.fn();
-    store.dispatch = mockDispatch;
-    
-    // Setup the mock response for postFulFilmentData
-    const mockSuccessResponse = {
-      status: 200,
-      data: {
-        application: {
-          response_type: 'INFO',
-          response_action: 'SUCCESS'
-        },
-        applicants: [{}]
-      }
-    };
-    postFulFilmentData.mockResolvedValue(mockSuccessResponse);
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="lastStep" enable={true} />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    // Click the button
-    fireEvent.click(screen.getByText('See final approval result'));
-    
-    // Wait for the postFulFilmentData to be called
-    await waitFor(() => {
-      expect(postFulFilmentData).toHaveBeenCalled();
-    });
-    
-    // Verify the dispatches and navigation
-    expect(mockDispatch).toHaveBeenCalledTimes(2);
-    expect(mockNavigate).toHaveBeenCalledWith('/hk/preference');
-  });
-
-  test('handles error in getFFD2Status', async () => {
-    const store = createMockStore();
-    const mockDispatch = jest.fn();
-    store.dispatch = mockDispatch;
-    
-    // Setup the mock error response
-    postFulFilmentData.mockResolvedValue({
-      status: 500
-    });
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="lastStep" enable={true} />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    // Click the button
-    fireEvent.click(screen.getByText('See final approval result'));
-    
-    // Wait for the postFulFilmentData to be called
-    await waitFor(() => {
-      expect(postFulFilmentData).toHaveBeenCalled();
-    });
-    
-    // Verify error state and dispatch
-    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
-      payload: expect.objectContaining({
-        statusCode: "error",
-        statusText: "no response"
-      })
-    }));
-  });
-
-  test('handles hard stop scenario in getFFD2Status', async () => {
-    const store = createMockStore();
-    
-    // Setup the mock response for a hard stop
-    const mockHardStopResponse = {
-      status: 200,
-      data: {
-        application: {
-          response_type: 'HARD',
-          response_action: 'STOP'
-        }
-      }
-    };
-    postFulFilmentData.mockResolvedValue(mockHardStopResponse);
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner loaderType="lastStep" enable={true} />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    // Click the button
-    fireEvent.click(screen.getByText('See final approval result'));
-    
-    // Wait for the postFulFilmentData to be called
-    await waitFor(() => {
-      expect(postFulFilmentData).toHaveBeenCalled();
-    });
-    
-    // Verify HardStop was called
-    expect(HardStop).toHaveBeenCalledWith(mockHardStopResponse);
-  });
-
-  test('sets current year correctly', () => {
-    // Mock the Date object
-    const mockDate = new Date(2025, 4, 17); // May 17, 2025
-    global.Date = class extends Date {
-      constructor() {
-        return mockDate;
-      }
-    };
-    
-    const store = createMockStore();
-    
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Spinner />
-        </BrowserRouter>
-      </Provider>
-    );
-    
-    // The currentYear should be set to 2025 - 1859 = 166
-    // This is a bit tricky to test since we don't directly display the year
-    // One approach would be to expose it for testing purposes
-    
-    jest.advanceTimersByTime(10000);
-    // After 10 seconds, requestUpdate should be false
-    // This is also hard to test directly without exposing the state
-  });
-});
+export default ColorIdentityProof;
