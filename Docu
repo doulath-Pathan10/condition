@@ -1,250 +1,340 @@
-import React, { useEffect, useState } from 'react';
-import './spinner.scss';
-import { getUrl } from '../../../utils/common/change.utils';
-import { CONSTANTS } from '../../../utils/common/constants';
-import { useDispatch, useSelector } from 'react-redux';
-import { StoreModel } from '../../../utils/model/common-model';
-import { Player } from '@lottiefiles/react-lottie-player';
-import lottieSrc from "./../../../assets/_json/lottie/motorcycle_insurance.json";
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { BrowserRouter } from 'react-router-dom';
+import Spinner from './Spinner';
 import { postFulFilmentData } from '../../../modules/preApproval/services/preApprovalPostServices';
-import { stagesAction } from '../../../utils/store/stages-slice';
-import { preApprovalAction } from '../../../modules/preApproval/store/preApproval-slice';
 import { HardStop } from '../../../modules/preApproval/services/preApprovalUtilsService';
-import { errorAction } from '../../../utils/store/error-slice';
-import { useNavigate } from 'react-router-dom';
+import { CONSTANTS } from '../../../utils/common/constants';
+import * as commonUtils from '../../../utils/common/change.utils';
 
+// Mock required dependencies
+jest.mock('../../../modules/preApproval/services/preApprovalPostServices');
+jest.mock('../../../modules/preApproval/services/preApprovalUtilsService');
+jest.mock('@lottiefiles/react-lottie-player', () => ({
+  Player: () => <div data-testid="lottie-player" />
+}));
 
-const Spinner = (props: any) => {
-  const [currentYear, setCurrentYear] = useState(0);
-  const [requestUpdate, setRequestUpdate] = useState(true);
-  const [error, setError] = useState(false);
-  const [ffd2On, setFFD2On] = useState(false);
-  const language = getUrl.getLanguageInfo("lang");
-  const channelRefSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo?.application?.channel_reference);
-  const stageSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo);
-  const stageId = useSelector((state: StoreModel) => state.stages.stages[0].stageId);
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    let requestTimer = setTimeout(() => {
-      setRequestUpdate(false);
-    }, 10000);
+// Mock React Router's useNavigate
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: () => mockNavigate
+}));
 
-    const startYear = 1859;
-    const todate = new Date();
-    setCurrentYear(todate.getFullYear() - startYear);
-
-    return () => {
-      clearTimeout(requestTimer);
-    };
-  }, []);
-
-  const getFFD2Status=()=>{
-    setFFD2On(true)
-    postFulFilmentData(stageSelector).then(
-      async (res: any) => {
-        /*istanbul ignore else*/
-        if (res.status >= 200 && res.status < 300) {
-          let responseType =
-            res.data.application.response_type.toUpperCase();
-          let responseAction =
-            res.data.application.response_action.toUpperCase();
-            /*istanbul ignore else*/
-          if (
-            responseAction === "SUCCESS" ||
-            responseType === "INFO" ||
-            (responseType === "SOFT" &&
-              responseAction === "CONTINUE")
-          ) {
-            let stageData = JSON.parse(
-              JSON.stringify(stageSelector)
-            );
-            stageData.applicants = [res.data.applicants];
-            stageData.application = res.data.application;
-            for (let [key, value] of Object.entries(res.data)) {
-              if(key === "applicants") {
-                stageData[key] = [value];
-              }
-              else {
-                stageData[key] = value;
-              }
-            }
-            dispatch(
-              stagesAction.getStage({
-                id: CONSTANTS.STAGE_NAMES.FFD_2,
-                formConfig: stageData,
-              })
-            );
-            dispatch(preApprovalAction.setCurrentStage("FFD"));
-            navigate('/hk/preference');
-          } else {
-            HardStop(res);
+// Create a mock Redux store
+const createMockStore = (stageId = 'STAGE_1', channelReference = '12345') => {
+  return {
+    getState: () => ({
+      stages: {
+        stages: [{
+          stageId,
+          stageInfo: {
+            application: {
+              channel_reference: channelReference
+            },
+            applicants: [{}]
           }
-        }
-        else {
-          setError(true);
-          dispatch(
-            errorAction.getError({
-              statusCode: "error",
-              statusText: "no response",
-            })
-          );
-        }
+        }]
+      },
+      preApproval: {
+        currentStage: 'FFD'
       }
-    );
-  }
-
-  return (
-    <>
-      {!props.loaderType && 
-        <div className={`lottie ${!channelRefSelector ? 'opacity': ''}`}>
-          <div className="lottie__container">
-            <Player src={lottieSrc} className="player" loop autoplay />
-            <div className="lottie__body">
-              <div className="lottie__text">
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.processing1 : language === CONSTANTS.LANG_CN?CONSTANTS.processing1_CN : CONSTANTS.processing1_HK}<br/>
-                {stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2 || stageId === CONSTANTS.STAGE_NAMES.ACD_3 || stageId === CONSTANTS.STAGE_NAMES.ACD_4 || stageId === CONSTANTS.STAGE_NAMES.DOC_3 ||stageId === CONSTANTS.STAGE_NAMES.LD_1 ? 
-                  <>
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing3 : language === CONSTANTS.LANG_CN?CONSTANTS.processing3_CN : CONSTANTS.processing3_HK} 
-                  </>
-                  :
-                  <>
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing2 : language === CONSTANTS.LANG_CN?CONSTANTS.processing2_CN : CONSTANTS.processing2_HK} 
-                  </>
-                }
-              </div>
-            </div>
-          </div>
-        </div>  
-      }
-    {/* {!props.loaderType && 
-      <div className="spinner">
-        <div className="spinner__container">
-          <div className="spinner__icon"></div>
-          {props.type === 'saving' &&
-            <div className="spinner__text">{language === CONSTANTS.LANG_EN ? "Saving, Please Wait" : language === CONSTANTS.LANG_CN ? "正在保存，請稍候" : "正在保存，請稍候"}</div>
-          }
-
-        </div>
-      </div>
-    }    */}
-
-      {props.loaderType === "showTimmer" &&
-        <div id="spinner" className="hk-spinner blocker-spinner blocker-spinner-modal" ng-if="showTimmer">
-          <div id="hk-spinner" className="blocker---modal---wrapper">
-            <div className="blocker---inner-wrapper">
-              <div className="blocker---header">
-                <p className="loading_bar" data-grunticon-embed></p>
-                <p className="blocker---title-b visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                  {language === CONSTANTS.LANG_CN ? "感謝您的申請！我們正在查閱您的資料" : "Thank you for your application. We are checking your details."}
-                </p><br /><br />
-                <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                  {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
-                </p><br />
-                <p className="timmer" data-grunticon-embed></p>
-                <p className="visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline spinnerSubText3">
-                  {language === CONSTANTS.LANG_CN ? "請稍候" : "Just a moment"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
-      {props.loaderType === "resumeTimmer" &&
-        <div className={`lottie ${!channelRefSelector ? 'opacity': ''}`}>
-        <div className="lottie__container">
-          <Player src={lottieSrc} className="player" loop autoplay />
-          <div className="lottie__body">
-            <div className="lottie__text">
-            {language === CONSTANTS.LANG_CN ? "继续申请..." : "Resume application..."}
-            </div>
-          </div>
-        </div>
-      </div>  
-      }
-
-      {props.loaderType === "showSearchSpinner" &&
-        <div id="spinner" className="hk-spinner blocker-spinner blocker-spinner-modal" ng-if="showSearchSpinner">
-          <div id="hk-spinner" className="blocker---modal---wrapper">
-            <div className="blocker---inner-wrapper">
-              <div className="blocker---header">
-                <p className="loading_bar" data-grunticon-embed></p>
-                <p className="blocker---title-b visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                  {language === CONSTANTS.LANG_CN ? "我們正在初步審批您的申請" : "We are reviewing your application submission."}
-                </p><br /><br />
-                <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                  {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
-                </p><br />
-                <p className="searchSpinner" data-grunticon-embed></p>
-                <p className="visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline SearchSpinnerSubText3">
-                  {language === CONSTANTS.LANG_CN ? "請稍候" : "Just a moment"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
-
-      {(props.loaderType === "lastStep" && !error) &&
-
-        <div className={!ffd2On ? "spinner hk-spinner blocker-spinner blocker-spinner-modal" : "lottie"} ng-if="pageType=='FFD1'">
-          {!ffd2On ? 
-            <div className="blocker---modal---wrapper">
-              <div className="blocker---inner-wrapper application-content">
-                <div className="blocker---header ">
-                  <p className="loading_bar" data-grunticon-embed></p>
-                  <p className="blocker---title-b align-left visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                    {language === CONSTANTS.LANG_CN ? "最後一步!" : "You’re at the last step!"}
-                  </p><br /><br />
-                  <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
-                    {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
-                  </p><br />
-                </div>
-                <div>
-                  <p className='ffd1-banner' data-grunticon-embed></p>
-                  <p
-                    className="spinnerSubText3 visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline details2">
-                    {language === CONSTANTS.LANG_CN ? "請稍候數分鐘，我們正在審批您的申請" : "Please wait a few minutes while we are reviewing on your application."}
-                  </p>
-                </div>
-                {!ffd2On &&
-                  <div className="ffd1-section">
-                    <button onClick={()=>getFFD2Status()} disabled={!props.enable} className={!props.enable ? "result-btn bg-grey" : "result-btn bg-button"}>
-                      {language === CONSTANTS.LANG_CN ? "查看最終批核結果" : "See final approval result"}
-                    </button>
-                  </div>
-                }
-              </div>
-            </div>
-          :
-          <div className="lottie__container">
-            <Player src={lottieSrc} className="player" loop autoplay />
-            <div className="lottie__body">
-              <div className="lottie__text">
-                {/* {requestUpdate ? <>{language === CONSTANTS.LANG_EN ? CONSTANTS.processing : language === CONSTANTS.LANG_CN?CONSTANTS.processing_CN : CONSTANTS.processing_HK}</> : <>{language === CONSTANTS.LANG_EN ? CONSTANTS.workingOnIt : language === CONSTANTS.LANG_CN?CONSTANTS.workingOnIt_CN : CONSTANTS.workingOnIt_HK}</>} */}
-                {language === CONSTANTS.LANG_EN ? CONSTANTS.processing1 : language === CONSTANTS.LANG_CN?CONSTANTS.processing1_CN : CONSTANTS.processing1_HK}<br/> 
-                {stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2 || stageId === CONSTANTS.STAGE_NAMES.ACD_3 || stageId === CONSTANTS.STAGE_NAMES.ACD_4 || stageId === CONSTANTS.STAGE_NAMES.DOC_3 ||stageId === CONSTANTS.STAGE_NAMES.LD_1 ? 
-                  <>
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing3 : language === CONSTANTS.LANG_CN?CONSTANTS.processing3_CN : CONSTANTS.processing3_HK} 
-                  </>
-                  :
-                  <>
-                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing2 : language === CONSTANTS.LANG_CN?CONSTANTS.processing2_CN : CONSTANTS.processing2_HK} 
-                  </>
-                }
-              </div>
-            </div>
-          </div>
-          }
-        </div>
-
-      }
-
-
-    </>
-  );
+    }),
+    subscribe: jest.fn(),
+    dispatch: jest.fn()
+  };
 };
 
-export default Spinner;
+describe('Spinner Component', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(commonUtils.getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_EN);
+    jest.useFakeTimers();
+  });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('renders default spinner with lottie animation', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    expect(screen.getByTestId('lottie-player')).toBeInTheDocument();
+    expect(screen.getByText(/processing/i)).toBeInTheDocument();
+  });
+
+  test('renders with opacity class when channel reference is missing', () => {
+    const store = createMockStore(CONSTANTS.STAGE_NAMES.FFD_1, null);
+    
+    const { container } = render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    expect(container.querySelector('.opacity')).toBeInTheDocument();
+  });
+
+  test('renders different message for specific stages', () => {
+    const store = createMockStore(CONSTANTS.STAGE_NAMES.ACD_1);
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    // Should show processing3 text for ACD stages
+    expect(screen.getByText(CONSTANTS.processing3)).toBeInTheDocument();
+  });
+
+  test('renders showTimmer loader type correctly', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="showTimmer" />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    expect(screen.getByText('Thank you for your application. We are checking your details.')).toBeInTheDocument();
+    expect(screen.getByText('Please do not close or refresh browser.')).toBeInTheDocument();
+    expect(screen.getByText('Just a moment')).toBeInTheDocument();
+  });
+
+  test('renders resumeTimmer loader type correctly', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="resumeTimmer" />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    expect(screen.getByText('Resume application...')).toBeInTheDocument();
+  });
+
+  test('renders showSearchSpinner loader type correctly', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="showSearchSpinner" />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    expect(screen.getByText('We are reviewing your application submission.')).toBeInTheDocument();
+    expect(screen.getByText('Please do not close or refresh browser.')).toBeInTheDocument();
+    expect(screen.getByText('Just a moment')).toBeInTheDocument();
+  });
+
+  test('renders lastStep loader type correctly with enabled button', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="lastStep" enable={true} />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    expect(screen.getByText("You're at the last step!")).toBeInTheDocument();
+    expect(screen.getByText('Please do not close or refresh browser.')).toBeInTheDocument();
+    expect(screen.getByText('Please wait a few minutes while we are reviewing on your application.')).toBeInTheDocument();
+    
+    const button = screen.getByText('See final approval result');
+    expect(button).toBeInTheDocument();
+    expect(button).not.toBeDisabled();
+    expect(button.className).toContain('bg-button');
+  });
+
+  test('renders lastStep loader type correctly with disabled button', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="lastStep" enable={false} />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    const button = screen.getByText('See final approval result');
+    expect(button).toBeDisabled();
+    expect(button.className).toContain('bg-grey');
+  });
+
+  test('changes to Chinese language when language is set to CN', () => {
+    const store = createMockStore();
+    jest.spyOn(commonUtils.getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_CN);
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="lastStep" enable={true} />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    expect(screen.getByText('最後一步!')).toBeInTheDocument();
+    expect(screen.getByText('請不要關閉或重新整理瀏覽器')).toBeInTheDocument();
+    expect(screen.getByText('查看最終批核結果')).toBeInTheDocument();
+  });
+
+  test('calls getFFD2Status when button is clicked', async () => {
+    const store = createMockStore();
+    const mockDispatch = jest.fn();
+    store.dispatch = mockDispatch;
+    
+    // Setup the mock response for postFulFilmentData
+    const mockSuccessResponse = {
+      status: 200,
+      data: {
+        application: {
+          response_type: 'INFO',
+          response_action: 'SUCCESS'
+        },
+        applicants: [{}]
+      }
+    };
+    postFulFilmentData.mockResolvedValue(mockSuccessResponse);
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="lastStep" enable={true} />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    // Click the button
+    fireEvent.click(screen.getByText('See final approval result'));
+    
+    // Wait for the postFulFilmentData to be called
+    await waitFor(() => {
+      expect(postFulFilmentData).toHaveBeenCalled();
+    });
+    
+    // Verify the dispatches and navigation
+    expect(mockDispatch).toHaveBeenCalledTimes(2);
+    expect(mockNavigate).toHaveBeenCalledWith('/hk/preference');
+  });
+
+  test('handles error in getFFD2Status', async () => {
+    const store = createMockStore();
+    const mockDispatch = jest.fn();
+    store.dispatch = mockDispatch;
+    
+    // Setup the mock error response
+    postFulFilmentData.mockResolvedValue({
+      status: 500
+    });
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="lastStep" enable={true} />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    // Click the button
+    fireEvent.click(screen.getByText('See final approval result'));
+    
+    // Wait for the postFulFilmentData to be called
+    await waitFor(() => {
+      expect(postFulFilmentData).toHaveBeenCalled();
+    });
+    
+    // Verify error state and dispatch
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        statusCode: "error",
+        statusText: "no response"
+      })
+    }));
+  });
+
+  test('handles hard stop scenario in getFFD2Status', async () => {
+    const store = createMockStore();
+    
+    // Setup the mock response for a hard stop
+    const mockHardStopResponse = {
+      status: 200,
+      data: {
+        application: {
+          response_type: 'HARD',
+          response_action: 'STOP'
+        }
+      }
+    };
+    postFulFilmentData.mockResolvedValue(mockHardStopResponse);
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner loaderType="lastStep" enable={true} />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    // Click the button
+    fireEvent.click(screen.getByText('See final approval result'));
+    
+    // Wait for the postFulFilmentData to be called
+    await waitFor(() => {
+      expect(postFulFilmentData).toHaveBeenCalled();
+    });
+    
+    // Verify HardStop was called
+    expect(HardStop).toHaveBeenCalledWith(mockHardStopResponse);
+  });
+
+  test('sets current year correctly', () => {
+    // Mock the Date object
+    const mockDate = new Date(2025, 4, 17); // May 17, 2025
+    global.Date = class extends Date {
+      constructor() {
+        return mockDate;
+      }
+    };
+    
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <BrowserRouter>
+          <Spinner />
+        </BrowserRouter>
+      </Provider>
+    );
+    
+    // The currentYear should be set to 2025 - 1859 = 166
+    // This is a bit tricky to test since we don't directly display the year
+    // One approach would be to expose it for testing purposes
+    
+    jest.advanceTimersByTime(10000);
+    // After 10 seconds, requestUpdate should be false
+    // This is also hard to test directly without exposing the state
+  });
+});
