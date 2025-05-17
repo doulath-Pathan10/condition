@@ -1,45 +1,215 @@
-import { createSlice } from "@reduxjs/toolkit";
-import { KeyWithAnyModel } from "../model/common-model";
+import { configureStore } from "@reduxjs/toolkit";
+import lovReducer, { lovAction } from "./lov";
 
-const initialState: {lov:Array<KeyWithAnyModel>} = {
-    lov: []
-}
+describe("LOV Slice", () => {
+  let store;
 
-const lov = createSlice({
-    name: 'lov',
-    initialState: initialState,
-    reducers: {
-        getLovData(state, action) {
-            const newStage = action.payload;
-            const existingStages = state.lov.find((item: KeyWithAnyModel) => item.label === newStage.label);
-            if (!existingStages) {
-                state.lov.push({
-                    label: newStage.label,
-                    value: newStage.value
-                })
-            } else if(newStage.label === 'res_city_3') {
-                const objWithIdIndex = state.lov.findIndex((obj: any) => obj.label === newStage.label);
-                if (objWithIdIndex > -1) {
-                    state.lov.splice(objWithIdIndex, 1);
-                    state.lov.push({
-                        label: newStage.label,
-                        value: newStage.value
-                    })
-                }
-            } else if(newStage.label === 'res_city_4') {
-                const objWithIdIndex = state.lov.findIndex((obj: any) => obj.label === newStage.label);
-                if (objWithIdIndex > -1) {
-                    state.lov.splice(objWithIdIndex, 1);
-                    state.lov.push({
-                        label: newStage.label,
-                        value: newStage.value
-                    })
-                }
-            }
-        }
-    }
+  beforeEach(() => {
+    // Create a fresh store for each test
+    store = configureStore({
+      reducer: {
+        lov: lovReducer,
+      },
+    });
+  });
+
+  test("should return the initial state", () => {
+    expect(store.getState().lov).toEqual({ lov: [] });
+  });
+
+  test("should add a new entry when it doesn't exist", () => {
+    // Arrange
+    const newEntry = {
+      label: "country",
+      value: [
+        { id: 1, name: "USA" },
+        { id: 2, name: "Canada" },
+      ],
+    };
+
+    // Act
+    store.dispatch(lovAction.getLovData(newEntry));
+
+    // Assert
+    expect(store.getState().lov.lov).toHaveLength(1);
+    expect(store.getState().lov.lov[0]).toEqual({
+      label: "country",
+      value: [
+        { id: 1, name: "USA" },
+        { id: 2, name: "Canada" },
+      ],
+    });
+  });
+
+  test("should not duplicate entries with the same label", () => {
+    // Arrange
+    const entry1 = {
+      label: "state",
+      value: [{ id: 1, name: "California" }],
+    };
+    const entry2 = {
+      label: "state",
+      value: [
+        { id: 1, name: "California" },
+        { id: 2, name: "Texas" },
+      ],
+    };
+
+    // Act
+    store.dispatch(lovAction.getLovData(entry1));
+    store.dispatch(lovAction.getLovData(entry2));
+
+    // Assert
+    expect(store.getState().lov.lov).toHaveLength(1);
+    expect(store.getState().lov.lov[0]).toEqual({
+      label: "state",
+      value: [{ id: 1, name: "California" }],
+    });
+  });
+
+  test("should replace entry when label is res_city_3", () => {
+    // Arrange
+    const initialEntry = {
+      label: "res_city_3",
+      value: [{ id: 1, name: "San Francisco" }],
+    };
+    const updatedEntry = {
+      label: "res_city_3",
+      value: [{ id: 2, name: "Los Angeles" }],
+    };
+
+    // Act
+    store.dispatch(lovAction.getLovData(initialEntry));
+    store.dispatch(lovAction.getLovData(updatedEntry));
+
+    // Assert
+    expect(store.getState().lov.lov).toHaveLength(1);
+    expect(store.getState().lov.lov[0]).toEqual({
+      label: "res_city_3",
+      value: [{ id: 2, name: "Los Angeles" }],
+    });
+  });
+
+  test("should replace entry when label is res_city_4", () => {
+    // Arrange
+    const initialEntry = {
+      label: "res_city_4",
+      value: [{ id: 1, name: "Chicago" }],
+    };
+    const updatedEntry = {
+      label: "res_city_4",
+      value: [{ id: 2, name: "Houston" }],
+    };
+
+    // Act
+    store.dispatch(lovAction.getLovData(initialEntry));
+    store.dispatch(lovAction.getLovData(updatedEntry));
+
+    // Assert
+    expect(store.getState().lov.lov).toHaveLength(1);
+    expect(store.getState().lov.lov[0]).toEqual({
+      label: "res_city_4",
+      value: [{ id: 2, name: "Houston" }],
+    });
+  });
+
+  test("should handle multiple entries with different labels", () => {
+    // Arrange
+    const entry1 = {
+      label: "country",
+      value: [{ id: 1, name: "USA" }],
+    };
+    const entry2 = {
+      label: "state",
+      value: [{ id: 1, name: "California" }],
+    };
+    const entry3 = {
+      label: "city",
+      value: [{ id: 1, name: "San Francisco" }],
+    };
+
+    // Act
+    store.dispatch(lovAction.getLovData(entry1));
+    store.dispatch(lovAction.getLovData(entry2));
+    store.dispatch(lovAction.getLovData(entry3));
+
+    // Assert
+    expect(store.getState().lov.lov).toHaveLength(3);
+    expect(store.getState().lov.lov[0]).toEqual({
+      label: "country",
+      value: [{ id: 1, name: "USA" }],
+    });
+    expect(store.getState().lov.lov[1]).toEqual({
+      label: "state",
+      value: [{ id: 1, name: "California" }],
+    });
+    expect(store.getState().lov.lov[2]).toEqual({
+      label: "city",
+      value: [{ id: 1, name: "San Francisco" }],
+    });
+  });
+
+  test("should replace res_city_3 entry among multiple entries", () => {
+    // Arrange
+    const entry1 = {
+      label: "country",
+      value: [{ id: 1, name: "USA" }],
+    };
+    const entry2 = {
+      label: "res_city_3",
+      value: [{ id: 1, name: "Seattle" }],
+    };
+    const updatedEntry = {
+      label: "res_city_3",
+      value: [{ id: 2, name: "Portland" }],
+    };
+
+    // Act
+    store.dispatch(lovAction.getLovData(entry1));
+    store.dispatch(lovAction.getLovData(entry2));
+    store.dispatch(lovAction.getLovData(updatedEntry));
+
+    // Assert
+    expect(store.getState().lov.lov).toHaveLength(2);
+    expect(store.getState().lov.lov[0]).toEqual({
+      label: "country",
+      value: [{ id: 1, name: "USA" }],
+    });
+    expect(store.getState().lov.lov[1]).toEqual({
+      label: "res_city_3",
+      value: [{ id: 2, name: "Portland" }],
+    });
+  });
+
+  test("should replace res_city_4 entry among multiple entries", () => {
+    // Arrange
+    const entry1 = {
+      label: "country",
+      value: [{ id: 1, name: "USA" }],
+    };
+    const entry2 = {
+      label: "res_city_4",
+      value: [{ id: 1, name: "Miami" }],
+    };
+    const updatedEntry = {
+      label: "res_city_4",
+      value: [{ id: 2, name: "Orlando" }],
+    };
+
+    // Act
+    store.dispatch(lovAction.getLovData(entry1));
+    store.dispatch(lovAction.getLovData(entry2));
+    store.dispatch(lovAction.getLovData(updatedEntry));
+
+    // Assert
+    expect(store.getState().lov.lov).toHaveLength(2);
+    expect(store.getState().lov.lov[0]).toEqual({
+      label: "country",
+      value: [{ id: 1, name: "USA" }],
+    });
+    expect(store.getState().lov.lov[1]).toEqual({
+      label: "res_city_4",
+      value: [{ id: 2, name: "Orlando" }],
+    });
+  });
 });
-
-export const lovAction = lov.actions;
-
-export default lov;
