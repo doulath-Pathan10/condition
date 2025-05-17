@@ -1,11 +1,10 @@
 import { configureStore } from "@reduxjs/toolkit";
-import lovReducer, { lovAction } from "./lov";
+import lovReducer, { lovAction } from "../path/to/your/lov"; // Update this import path to match your project structure
 
 describe("LOV Slice", () => {
   let store;
 
   beforeEach(() => {
-    // Create a fresh store for each test
     store = configureStore({
       reducer: {
         lov: lovReducer,
@@ -13,203 +12,183 @@ describe("LOV Slice", () => {
     });
   });
 
-  test("should return the initial state", () => {
-    expect(store.getState().lov).toEqual({ lov: [] });
+  // Basic test for initial state
+  test("should initialize with empty LOV array", () => {
+    const state = store.getState().lov;
+    expect(state).toEqual({ lov: [] });
   });
 
-  test("should add a new entry when it doesn't exist", () => {
-    // Arrange
-    const newEntry = {
-      label: "country",
-      value: [
-        { id: 1, name: "USA" },
-        { id: 2, name: "Canada" },
-      ],
+  // Test adding a new entry
+  test("should add a new LOV entry when it doesn't exist", () => {
+    const newLov = {
+      label: "test_label",
+      value: ["item1", "item2"]
     };
-
-    // Act
-    store.dispatch(lovAction.getLovData(newEntry));
-
-    // Assert
-    expect(store.getState().lov.lov).toHaveLength(1);
-    expect(store.getState().lov.lov[0]).toEqual({
-      label: "country",
-      value: [
-        { id: 1, name: "USA" },
-        { id: 2, name: "Canada" },
-      ],
+    
+    store.dispatch(lovAction.getLovData(newLov));
+    
+    const state = store.getState().lov;
+    expect(state.lov.length).toBe(1);
+    expect(state.lov[0]).toEqual({
+      label: "test_label",
+      value: ["item1", "item2"]
     });
   });
 
-  test("should not duplicate entries with the same label", () => {
-    // Arrange
-    const entry1 = {
-      label: "state",
-      value: [{ id: 1, name: "California" }],
+  // Test not adding duplicate entries (unless they're special cases)
+  test("should not add duplicate LOV entries with the same label", () => {
+    const lovEntry = {
+      label: "regular_label",
+      value: ["value1"]
     };
-    const entry2 = {
-      label: "state",
-      value: [
-        { id: 1, name: "California" },
-        { id: 2, name: "Texas" },
-      ],
+    
+    // Add the entry once
+    store.dispatch(lovAction.getLovData(lovEntry));
+    
+    // Try to add it again with different value
+    const updatedEntry = {
+      label: "regular_label",
+      value: ["updated_value"]
     };
-
-    // Act
-    store.dispatch(lovAction.getLovData(entry1));
-    store.dispatch(lovAction.getLovData(entry2));
-
-    // Assert
-    expect(store.getState().lov.lov).toHaveLength(1);
-    expect(store.getState().lov.lov[0]).toEqual({
-      label: "state",
-      value: [{ id: 1, name: "California" }],
-    });
+    store.dispatch(lovAction.getLovData(updatedEntry));
+    
+    const state = store.getState().lov;
+    expect(state.lov.length).toBe(1);
+    // Should keep the first entry's value
+    expect(state.lov[0].value).toEqual(["value1"]);
   });
 
-  test("should replace entry when label is res_city_3", () => {
-    // Arrange
+  // Test the res_city_3 special case
+  test("should replace existing res_city_3 entry", () => {
+    // First add the initial entry
     const initialEntry = {
       label: "res_city_3",
-      value: [{ id: 1, name: "San Francisco" }],
+      value: ["city1"]
     };
+    store.dispatch(lovAction.getLovData(initialEntry));
+    
+    // Add updated entry with the same label
     const updatedEntry = {
       label: "res_city_3",
-      value: [{ id: 2, name: "Los Angeles" }],
+      value: ["city2", "city3"]
     };
-
-    // Act
-    store.dispatch(lovAction.getLovData(initialEntry));
     store.dispatch(lovAction.getLovData(updatedEntry));
-
-    // Assert
-    expect(store.getState().lov.lov).toHaveLength(1);
-    expect(store.getState().lov.lov[0]).toEqual({
-      label: "res_city_3",
-      value: [{ id: 2, name: "Los Angeles" }],
-    });
+    
+    const state = store.getState().lov;
+    expect(state.lov.length).toBe(1);
+    // Should have updated to the new value
+    expect(state.lov[0].value).toEqual(["city2", "city3"]);
   });
 
-  test("should replace entry when label is res_city_4", () => {
-    // Arrange
+  // Test the res_city_4 special case
+  test("should replace existing res_city_4 entry", () => {
+    // First add the initial entry
     const initialEntry = {
       label: "res_city_4",
-      value: [{ id: 1, name: "Chicago" }],
+      value: ["oldCity"]
     };
-    const updatedEntry = {
-      label: "res_city_4",
-      value: [{ id: 2, name: "Houston" }],
-    };
-
-    // Act
     store.dispatch(lovAction.getLovData(initialEntry));
-    store.dispatch(lovAction.getLovData(updatedEntry));
-
-    // Assert
-    expect(store.getState().lov.lov).toHaveLength(1);
-    expect(store.getState().lov.lov[0]).toEqual({
-      label: "res_city_4",
-      value: [{ id: 2, name: "Houston" }],
-    });
-  });
-
-  test("should handle multiple entries with different labels", () => {
-    // Arrange
-    const entry1 = {
-      label: "country",
-      value: [{ id: 1, name: "USA" }],
-    };
-    const entry2 = {
-      label: "state",
-      value: [{ id: 1, name: "California" }],
-    };
-    const entry3 = {
-      label: "city",
-      value: [{ id: 1, name: "San Francisco" }],
-    };
-
-    // Act
-    store.dispatch(lovAction.getLovData(entry1));
-    store.dispatch(lovAction.getLovData(entry2));
-    store.dispatch(lovAction.getLovData(entry3));
-
-    // Assert
-    expect(store.getState().lov.lov).toHaveLength(3);
-    expect(store.getState().lov.lov[0]).toEqual({
-      label: "country",
-      value: [{ id: 1, name: "USA" }],
-    });
-    expect(store.getState().lov.lov[1]).toEqual({
-      label: "state",
-      value: [{ id: 1, name: "California" }],
-    });
-    expect(store.getState().lov.lov[2]).toEqual({
-      label: "city",
-      value: [{ id: 1, name: "San Francisco" }],
-    });
-  });
-
-  test("should replace res_city_3 entry among multiple entries", () => {
-    // Arrange
-    const entry1 = {
-      label: "country",
-      value: [{ id: 1, name: "USA" }],
-    };
-    const entry2 = {
-      label: "res_city_3",
-      value: [{ id: 1, name: "Seattle" }],
-    };
-    const updatedEntry = {
-      label: "res_city_3",
-      value: [{ id: 2, name: "Portland" }],
-    };
-
-    // Act
-    store.dispatch(lovAction.getLovData(entry1));
-    store.dispatch(lovAction.getLovData(entry2));
-    store.dispatch(lovAction.getLovData(updatedEntry));
-
-    // Assert
-    expect(store.getState().lov.lov).toHaveLength(2);
-    expect(store.getState().lov.lov[0]).toEqual({
-      label: "country",
-      value: [{ id: 1, name: "USA" }],
-    });
-    expect(store.getState().lov.lov[1]).toEqual({
-      label: "res_city_3",
-      value: [{ id: 2, name: "Portland" }],
-    });
-  });
-
-  test("should replace res_city_4 entry among multiple entries", () => {
-    // Arrange
-    const entry1 = {
-      label: "country",
-      value: [{ id: 1, name: "USA" }],
-    };
-    const entry2 = {
-      label: "res_city_4",
-      value: [{ id: 1, name: "Miami" }],
-    };
+    
+    // Add updated entry with the same label
     const updatedEntry = {
       label: "res_city_4",
-      value: [{ id: 2, name: "Orlando" }],
+      value: ["newCity"]
     };
-
-    // Act
-    store.dispatch(lovAction.getLovData(entry1));
-    store.dispatch(lovAction.getLovData(entry2));
     store.dispatch(lovAction.getLovData(updatedEntry));
+    
+    const state = store.getState().lov;
+    expect(state.lov.length).toBe(1);
+    // Should have updated to the new value
+    expect(state.lov[0].value).toEqual(["newCity"]);
+  });
 
-    // Assert
-    expect(store.getState().lov.lov).toHaveLength(2);
-    expect(store.getState().lov.lov[0]).toEqual({
-      label: "country",
-      value: [{ id: 1, name: "USA" }],
+  // Test with multiple different entries
+  test("should handle multiple different LOV entries", () => {
+    // Add three different entries
+    store.dispatch(lovAction.getLovData({
+      label: "label1",
+      value: ["value1"]
+    }));
+    
+    store.dispatch(lovAction.getLovData({
+      label: "label2",
+      value: ["value2"]
+    }));
+    
+    store.dispatch(lovAction.getLovData({
+      label: "label3",
+      value: ["value3"]
+    }));
+    
+    const state = store.getState().lov;
+    expect(state.lov.length).toBe(3);
+    // Check values are preserved in order
+    expect(state.lov[0].label).toBe("label1");
+    expect(state.lov[1].label).toBe("label2");
+    expect(state.lov[2].label).toBe("label3");
+  });
+
+  // Test updating res_city_3 among other entries
+  test("should update only res_city_3 when multiple entries exist", () => {
+    // Add two different entries
+    store.dispatch(lovAction.getLovData({
+      label: "regular_label",
+      value: ["regular_value"]
+    }));
+    
+    store.dispatch(lovAction.getLovData({
+      label: "res_city_3",
+      value: ["original_city"]
+    }));
+    
+    // Update res_city_3
+    store.dispatch(lovAction.getLovData({
+      label: "res_city_3",
+      value: ["updated_city"]
+    }));
+    
+    const state = store.getState().lov;
+    expect(state.lov.length).toBe(2);
+    
+    // Find entries and verify their values
+    const regularEntry = state.lov.find(item => item.label === "regular_label");
+    const cityEntry = state.lov.find(item => item.label === "res_city_3");
+    
+    expect(regularEntry.value).toEqual(["regular_value"]);
+    expect(cityEntry.value).toEqual(["updated_city"]);
+  });
+
+  // Test the behavior with empty values
+  test("should handle entries with empty values", () => {
+    const emptyValueEntry = {
+      label: "empty_label",
+      value: []
+    };
+    
+    store.dispatch(lovAction.getLovData(emptyValueEntry));
+    
+    const state = store.getState().lov;
+    expect(state.lov.length).toBe(1);
+    expect(state.lov[0]).toEqual({
+      label: "empty_label",
+      value: []
     });
-    expect(store.getState().lov.lov[1]).toEqual({
-      label: "res_city_4",
-      value: [{ id: 2, name: "Orlando" }],
+  });
+
+  // Test the behavior with object values instead of arrays
+  test("should handle entries with object values", () => {
+    const objectValueEntry = {
+      label: "object_label",
+      value: { key: "value" }
+    };
+    
+    store.dispatch(lovAction.getLovData(objectValueEntry));
+    
+    const state = store.getState().lov;
+    expect(state.lov.length).toBe(1);
+    expect(state.lov[0]).toEqual({
+      label: "object_label",
+      value: { key: "value" }
     });
   });
 });
