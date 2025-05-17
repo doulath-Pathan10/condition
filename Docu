@@ -1,165 +1,308 @@
-import React, { useEffect, useState } from "react";
-import "./colour-Identity-Proof.scss";
-import Carousel from "../carousel/carousel";
-import { useDispatch, useSelector } from "react-redux";
-import { getUrl } from "../../../../../utils/common/change.utils";
-import { CONSTANTS } from "../../../../../utils/common/constants";
-import { dispatchLoader } from "../../../../../services/common-service";
-import { stagesAction } from "../../../../../utils/store/stages-slice";
-import Zoloz from "../zoloz/zoloz";
-import { lovDescAction } from "../../../../../utils/store/lov-desc-slice";
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import ColorIdentityProof from './ColorIdentityProof';
+import { CONSTANTS } from '../../../../../utils/common/constants';
+import * as commonUtils from '../../../../../utils/common/change.utils';
+import { dispatchLoader } from '../../../../../services/common-service';
 
-const ColorIdentityProof: React.FC<any> = ({
-  callQRCodeAPI,
-  HKIDVersion,
-  setHKIDVersion
-}) => {
-  const language = getUrl.getLanguageInfo("lang")
-  const showQRCodePage = useSelector((state: any) => state.stages.dynamicDocumentsUpload.showQRCodePage);
-  const [lovData, setLovData] = useState([]);
-  const dispatch = useDispatch();
+// Mock dependencies
+jest.mock('../../../../../services/common-service');
+jest.mock('../carousel/carousel', () => () => <div data-testid="carousel" />);
+jest.mock('../zoloz/zoloz', () => ({ setHKIDVersion }) => (
+  <div data-testid="zoloz-component">Mock Zoloz Component</div>
+));
 
-  useEffect(() => {
-    let lov: any = language === CONSTANTS.LANG_EN ? [
-      {
-        "CODE_VALUE": "08520000001",
-        "CODE_DESC": "Smart HKID"
-      },
-      {
-        "CODE_VALUE": "08520000002",
-        "CODE_DESC": "New Smart HKID"
-      }
-    ] : [
-      {
-        "CODE_VALUE": "08520000001",
-        "CODE_DESC": "智能身份證"
-      },
-      {
-        "CODE_VALUE": "08520000002",
-        "CODE_DESC": "新智能身份證"
-      }
-    ];
-    setLovData(lov);
-  }, [])
-
-  const handleRadioBtnHKID = (item: any) => {
-    const label = item.CODE_DESC;
-    const value = item.CODE_VALUE;
-    setHKIDVersion(value);
-    dispatch(stagesAction.updateHKIDVersionValue(value));
-    dispatch(stagesAction.updatechangeIconColorIdentityProof(false));
-    dispatch(
-      lovDescAction.addLovData({
-        fieldData: {
-          fieldName: "hkid_type",
-          code_desc: label,
-          code_value: value
+// Create a mock for Redux store
+const createMockStore = (showQRCodePage = false) => {
+  return {
+    getState: () => ({
+      stages: {
+        dynamicDocumentsUpload: {
+          showQRCodePage
         }
-      })
-    );
-    let newLovData: any = JSON.parse(JSON.stringify(lovData));
-    for (let i in newLovData) {
-      if (newLovData[i].CODE_VALUE === value) {
-        newLovData[i].checked = true;
       }
-      else {
-        newLovData[i].checked = false;
-      }
-    }
+    }),
+    subscribe: jest.fn(),
+    dispatch: jest.fn()
   };
-
-  const onBackClick = () => {
-    setHKIDVersion("");
-    dispatch(stagesAction.updatefileSectionData(null));
-    dispatch(stagesAction.updateShowQRCodePage(false));
-  };
-
-  const onContinue = async () => {
-    dispatch(dispatchLoader(true));
-    dispatch(stagesAction.updateShowQRCodePage(true));
-    callQRCodeAPI();
-    setHKIDVersion("");
-  };
-
-  return (
-    <>
-      {!showQRCodePage &&
-        <>
-          <div className="document-view">
-            <div className="main-container">
-              <section className="hkid-docPage">
-                <p className="hkid-header">{language === CONSTANTS.LANG_EN ? CONSTANTS.headerTextDoc : language === CONSTANTS.LANG_CN?CONSTANTS.headerTextDoc_CN : CONSTANTS.headerTextDoc_HK}</p>
-                <span className="header-note">{language === CONSTANTS.LANG_EN ? CONSTANTS.headerNote : language === CONSTANTS.LANG_CN?CONSTANTS.headerNote_CN : CONSTANTS.headerNote_HK}</span>
-                <div className="radio-btn-section">
-                  <label className="floatlabel">
-                    <span className="textbox-label">
-                      <b>{language === CONSTANTS.LANG_EN ? CONSTANTS.radioBtnText : language === CONSTANTS.LANG_CN?CONSTANTS.radioBtnText_CN : CONSTANTS.radioBtnText_HK}</b>
-                    </span>
-                  </label>
-                  <div className="rto-form-component-hk">
-                    <div className="radioOptions radioWithLabel" id="hkid_type_a_1">
-                      {lovData.map((item: any, index: any) => {
-                        return (
-                          <div key={index} className="radioAligner" style={{ marginRight: 10 }}>
-                            <label htmlFor={item.CODE_VALUE}>
-                              <input
-                                type="radio"
-                                id={"hkid_type" + index}
-                                name="hkid_type"
-                                className="radio-btn"
-                                onChange={() => handleRadioBtnHKID(item)}
-                                checked={item.checked}
-                              />
-                              <span className="radio-button-lbl">{item.CODE_DESC}</span>
-                            </label>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-                <div className="hkid-prepare-points">
-                  <div className="desktop-img">
-                    <Carousel />
-                  </div>
-                </div>
-                <div className="hkid-notes">{language === CONSTANTS.LANG_EN ? CONSTANTS.hknotes : language === CONSTANTS.LANG_CN?CONSTANTS.hknotes_CN : CONSTANTS.hknotes_HK}</div>
-                <div className="hk-copy-rights">
-                  <p>{language === CONSTANTS.LANG_EN ? CONSTANTS.scbHkCopyRights_EN : language === CONSTANTS.LANG_CN?CONSTANTS.scbHkCopyRights_CN : CONSTANTS.scbHkCopyRights_HK}</p>
-                </div>
-              </section>
-            </div>
-          </div>
-          <div className="footer footer-set">
-            <div
-              role="button"
-              className="back"
-              onClick={onBackClick}>
-              <span className="arrow"></span>
-              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.back : language === CONSTANTS.LANG_CN? CONSTANTS.back_CN : CONSTANTS.back_HK}`}
-            </div>
-            <button
-              role="button"
-              title="Colour Identity Proof"
-              type="submit"
-              className={
-                !HKIDVersion ? `continue form-invalid` : `continue form-valid`
-              }
-              onClick={onContinue}
-              disabled={HKIDVersion === ""}
-            >
-              {`${language === CONSTANTS.LANG_EN ? CONSTANTS.continue : language === CONSTANTS.LANG_CN? CONSTANTS.continue_CN : CONSTANTS.continue_HK}`}
-            </button>
-          </div>
-        </>
-      }
-      {showQRCodePage &&
-        <Zoloz
-          setHKIDVersion={setHKIDVersion}
-        />
-      }
-    </>
-  );
 };
 
-export default ColorIdentityProof;
+describe('ColorIdentityProof Component', () => {
+  const mockSetHKIDVersion = jest.fn();
+  const mockCallQRCodeAPI = jest.fn();
+  
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(commonUtils.getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_EN);
+  });
+
+  test('renders the component in English language', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion=""
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    // Check for English language content
+    expect(screen.getByText(CONSTANTS.headerTextDoc)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.headerNote)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.radioBtnText)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.hknotes)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.scbHkCopyRights_EN)).toBeInTheDocument();
+    
+    // Check for the radio options
+    expect(screen.getByText('Smart HKID')).toBeInTheDocument();
+    expect(screen.getByText('New Smart HKID')).toBeInTheDocument();
+    
+    // Check for buttons
+    expect(screen.getByText(CONSTANTS.back)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.continue)).toBeInTheDocument();
+    
+    // Check if Carousel is rendered
+    expect(screen.getByTestId('carousel')).toBeInTheDocument();
+  });
+
+  test('renders the component in Chinese language', () => {
+    const store = createMockStore();
+    jest.spyOn(commonUtils.getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_CN);
+    
+    render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion=""
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    // Check for Chinese language content
+    expect(screen.getByText(CONSTANTS.headerTextDoc_CN)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.headerNote_CN)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.radioBtnText_CN)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.hknotes_CN)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.scbHkCopyRights_CN)).toBeInTheDocument();
+    
+    // Check for the radio options in Chinese
+    expect(screen.getByText('智能身份證')).toBeInTheDocument();
+    expect(screen.getByText('新智能身份證')).toBeInTheDocument();
+    
+    // Check for buttons in Chinese
+    expect(screen.getByText(CONSTANTS.back_CN)).toBeInTheDocument();
+    expect(screen.getByText(CONSTANTS.continue_CN)).toBeInTheDocument();
+  });
+
+  test('Continue button is disabled when no HKID version is selected', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion=""
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).toBeDisabled();
+    expect(continueButton.className).toContain('form-invalid');
+  });
+
+  test('Continue button is enabled when HKID version is selected', () => {
+    const store = createMockStore();
+    
+    render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion="08520000001"
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    const continueButton = screen.getByRole('button', { name: /continue/i });
+    expect(continueButton).not.toBeDisabled();
+    expect(continueButton.className).toContain('form-valid');
+  });
+
+  test('Selecting a radio button updates HKID version and dispatches actions', () => {
+    const store = createMockStore();
+    const mockDispatch = jest.fn();
+    store.dispatch = mockDispatch;
+    
+    render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion=""
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    // Click on first radio button
+    const smartHkidRadio = screen.getAllByRole('radio')[0];
+    fireEvent.click(smartHkidRadio);
+    
+    // Check if setHKIDVersion was called with correct value
+    expect(mockSetHKIDVersion).toHaveBeenCalledWith('08520000001');
+    
+    // Check if actions were dispatched
+    expect(mockDispatch).toHaveBeenCalledTimes(3);
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: '08520000001',
+      type: expect.any(String)  // updateHKIDVersionValue action
+    }));
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: false,
+      type: expect.any(String)  // updatechangeIconColorIdentityProof action
+    }));
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: {
+        fieldData: {
+          fieldName: "hkid_type",
+          code_desc: "Smart HKID",
+          code_value: "08520000001"
+        }
+      },
+      type: expect.any(String)  // addLovData action
+    }));
+  });
+
+  test('Back button clears HKID version and dispatches actions', () => {
+    const store = createMockStore();
+    const mockDispatch = jest.fn();
+    store.dispatch = mockDispatch;
+    
+    render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion="08520000001"
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    // Click on back button
+    const backButton = screen.getByRole('button', { name: CONSTANTS.back });
+    fireEvent.click(backButton);
+    
+    // Check if setHKIDVersion was called with empty string
+    expect(mockSetHKIDVersion).toHaveBeenCalledWith("");
+    
+    // Check if actions were dispatched
+    expect(mockDispatch).toHaveBeenCalledTimes(2);
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: null,
+      type: expect.any(String)  // updatefileSectionData action
+    }));
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: false,
+      type: expect.any(String)  // updateShowQRCodePage action
+    }));
+  });
+
+  test('Continue button click triggers QR code API call and updates state', async () => {
+    const store = createMockStore();
+    const mockDispatch = jest.fn();
+    store.dispatch = mockDispatch;
+    
+    render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion="08520000001"
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    // Click on continue button
+    const continueButton = screen.getByRole('button', { name: CONSTANTS.continue });
+    fireEvent.click(continueButton);
+    
+    // Check if dispatchLoader was called
+    expect(dispatchLoader).toHaveBeenCalledWith(true);
+    
+    // Check if showQRCodePage was updated
+    expect(mockDispatch).toHaveBeenCalledWith(expect.objectContaining({
+      payload: true,
+      type: expect.any(String)  // updateShowQRCodePage action
+    }));
+    
+    // Check if QR code API was called
+    expect(mockCallQRCodeAPI).toHaveBeenCalled();
+    
+    // Check if HKID version was reset
+    expect(mockSetHKIDVersion).toHaveBeenCalledWith("");
+  });
+
+  test('renders Zoloz component when showQRCodePage is true', () => {
+    const store = createMockStore(true);
+    
+    render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion=""
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    // Check if Zoloz component is rendered
+    expect(screen.getByTestId('zoloz-component')).toBeInTheDocument();
+    
+    // Check that the main component is not rendered
+    expect(screen.queryByText(CONSTANTS.headerTextDoc)).not.toBeInTheDocument();
+  });
+
+  test('lovData state is initialized correctly based on language', () => {
+    const store = createMockStore();
+    
+    // Test English language
+    jest.spyOn(commonUtils.getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_EN);
+    
+    const { rerender } = render(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion=""
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    // Check English options
+    expect(screen.getByText('Smart HKID')).toBeInTheDocument();
+    expect(screen.getByText('New Smart HKID')).toBeInTheDocument();
+    
+    // Test Chinese language
+    jest.spyOn(commonUtils.getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_CN);
+    
+    rerender(
+      <Provider store={store}>
+        <ColorIdentityProof 
+          callQRCodeAPI={mockCallQRCodeAPI}
+          HKIDVersion=""
+          setHKIDVersion={mockSetHKIDVersion}
+        />
+      </Provider>
+    );
+    
+    // Check Chinese options
+    expect(screen.getByText('智能身份證')).toBeInTheDocument();
+    expect(screen.getByText('新智能身份證')).toBeInTheDocument();
+  });
+});
