@@ -1,144 +1,45 @@
-import { configureStore } from '@reduxjs/toolkit';
-import lastAccessed, { lastAction } from './lastAccessed'; // Adjust the import path as needed
+import { createSlice } from "@reduxjs/toolkit";
+import { KeyWithAnyModel } from "../model/common-model";
 
-describe('lastAccessed slice', () => {
-  let store: any;
+const initialState: {lov:Array<KeyWithAnyModel>} = {
+    lov: []
+}
 
-  beforeEach(() => {
-    // Create a fresh store before each test
-    store = configureStore({
-      reducer: {
-        lastAccessed: lastAccessed.reducer
-      }
-    });
-  });
-
-  describe('initial state', () => {
-    it('should have the correct initial state', () => {
-      // Get the initial state without dispatching any actions
-      const state = store.getState().lastAccessed;
-      
-      // Assert the initial state is correct
-      expect(state.fieldFocused).toBeNull();
-    });
-  });
-
-  describe('getField reducer', () => {
-    it('should update fieldFocused when a field is focused', () => {
-      // Dispatch the action with a string payload
-      store.dispatch(lastAction.getField('username'));
-      
-      // Get the current state
-      const state = store.getState().lastAccessed;
-      
-      // Assert that fieldFocused was updated
-      expect(state.fieldFocused).toBe('username');
-    });
-
-    it('should update fieldFocused with a new value when changed', () => {
-      // Dispatch the action with a string payload
-      store.dispatch(lastAction.getField('username'));
-      
-      // Get the current state
-      let state = store.getState().lastAccessed;
-      
-      // Assert that fieldFocused was updated
-      expect(state.fieldFocused).toBe('username');
-      
-      // Dispatch another action with a different payload
-      store.dispatch(lastAction.getField('password'));
-      
-      // Get the updated state
-      state = store.getState().lastAccessed;
-      
-      // Assert that fieldFocused was updated to the new value
-      expect(state.fieldFocused).toBe('password');
-    });
-
-    it('should handle null payload', () => {
-      // First set a value
-      store.dispatch(lastAction.getField('username'));
-      
-      // Then set it to null
-      store.dispatch(lastAction.getField(null));
-      
-      // Get the current state
-      const state = store.getState().lastAccessed;
-      
-      // Assert that fieldFocused was updated to null
-      expect(state.fieldFocused).toBeNull();
-    });
-
-    it('should handle undefined payload', () => {
-      // First set a value
-      store.dispatch(lastAction.getField('username'));
-      
-      // Then set it to undefined
-      store.dispatch(lastAction.getField(undefined));
-      
-      // Get the current state
-      const state = store.getState().lastAccessed;
-      
-      // Assert that fieldFocused was updated to undefined
-      expect(state.fieldFocused).toBeUndefined();
-    });
-
-    it('should handle complex object payload', () => {
-      // Create a complex object
-      const complexPayload = {
-        fieldName: 'username',
-        timestamp: Date.now(),
-        metadata: {
-          formId: 'login-form',
-          validationStatus: 'pending'
+const lov = createSlice({
+    name: 'lov',
+    initialState: initialState,
+    reducers: {
+        getLovData(state, action) {
+            const newStage = action.payload;
+            const existingStages = state.lov.find((item: KeyWithAnyModel) => item.label === newStage.label);
+            if (!existingStages) {
+                state.lov.push({
+                    label: newStage.label,
+                    value: newStage.value
+                })
+            } else if(newStage.label === 'res_city_3') {
+                const objWithIdIndex = state.lov.findIndex((obj: any) => obj.label === newStage.label);
+                if (objWithIdIndex > -1) {
+                    state.lov.splice(objWithIdIndex, 1);
+                    state.lov.push({
+                        label: newStage.label,
+                        value: newStage.value
+                    })
+                }
+            } else if(newStage.label === 'res_city_4') {
+                const objWithIdIndex = state.lov.findIndex((obj: any) => obj.label === newStage.label);
+                if (objWithIdIndex > -1) {
+                    state.lov.splice(objWithIdIndex, 1);
+                    state.lov.push({
+                        label: newStage.label,
+                        value: newStage.value
+                    })
+                }
+            }
         }
-      };
-      
-      // Dispatch the action with a complex object payload
-      store.dispatch(lastAction.getField(complexPayload));
-      
-      // Get the current state
-      const state = store.getState().lastAccessed;
-      
-      // Assert that fieldFocused was updated to the complex object
-      expect(state.fieldFocused).toEqual(complexPayload);
-    });
-  });
-
-  describe('integration with React components', () => {
-    // Note: In a real application, you might want to implement these tests
-    // using React Testing Library or Enzyme to test the integration with
-    // actual React components. Here's an example of how you might structure
-    // such a test:
-    
-    it('should update fieldFocused when a field receives focus', () => {
-      // This is a pseudocode example - in a real test, you would:
-      // 1. Render a component with Redux Provider
-      // 2. Simulate a user interaction (like focusing on an input)
-      // 3. Assert that the state was updated correctly
-      
-      /*
-      Example pseudocode (not actually runnable):
-      
-      // Render a component with Redux
-      const { getByLabelText } = render(
-        <Provider store={store}>
-          <FormComponent />
-        </Provider>
-      );
-      
-      // Simulate focus on an input
-      fireEvent.focus(getByLabelText('Username'));
-      
-      // Get the updated state
-      const state = store.getState().lastAccessed;
-      
-      // Assert that fieldFocused was updated
-      expect(state.fieldFocused).toBe('username');
-      */
-      
-      // Since this is just a test structure example, we'll skip the assertion
-      expect(true).toBeTruthy();
-    });
-  });
+    }
 });
+
+export const lovAction = lov.actions;
+
+export default lov;
