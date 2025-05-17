@@ -1,309 +1,393 @@
-import { createSlice } from "@reduxjs/toolkit";
-import { StageSliceModel } from "../model/common-model";
-import { CONSTANTS } from "../common/constants";
+import { configureStore } from "@reduxjs/toolkit";
+import stagesReducer, { stagesAction } from "../redux/stages"; // Update this path to match your project structure
+import { CONSTANTS } from "../common/constants"; // Update this path to match your project structure
 
-const initialState: StageSliceModel = {
-  stages: [],
-  userInput: {
-    applicants: [{}],
-    missingFields: {},
-    removeFields: {},
-    downshell: false
-  },
-  taxCustom: {
-    toggle: false,
-  },
-  conditionalFields: {
-    newFields: {},
-    removedFields: {},
-  },
-  dependencyFields: {
-    workType: null,
-  },
-  currentStage: null,
-  journeyType: null,
-  investmentToggle: false,
-  userNameChange: {
-    toggle: false,
-  },
-  parentChildFields: {
-    parentChildToggle: false,
-    selectFields: [],
-    addSelectFields: [],
-    deleteSelectFields: [],
-    resFields: [],
-  },
-  natureOfEmployeeField: {
-    employeeToggle: false,
-    addFields: [],
-    deleteFields: [],
-  },
-  pinyinToggle: false,
-  otpResume: false,
-  otpOpen: false,
-  AddressFields: [],
-  dynamicFields: {
-    casa_fatca_declaration_1: "",
-    casa_fatca_declaration_2: "",
-    casa_fatca_declaration_3: "",
-    cash_needs: "",
-    decision: "",
-    supplementary_invest_experience: "",
-    investment_experience: "",
-    education_level: "",
-    financial_product: "",
-    financial_institution: "",
-    financial_product2: "",
-  },
-  cityDynamicField: {
-    cityValue: "",
-  },
-  isCasa:[],
-  casaFlags: [],
-  dynamicDocumentsUpload:{
-    fileSectionData: null,
-    success: true,
-    goBack: false,
-    changeIconColorIdentityProof: true,
-    changeIconIncomeProof: true,
-    documentCount: 0,
-    documentData: [],
-    uploadedDocuments: [],
-    showQRCodePage:false,
-    HKIDQRCodeData:{},
-    zolozDocumentData:[],
-    showUploadFileSuccess:false,
-    HKIDVersionValue:"", 
-    showIncomeProof:"",
-  },
-};
-const stages = createSlice({
-  name: "stages",
-  initialState,
-  reducers: {
-    getStage(state, action) {
-      let newStage = action.payload;
-
-      if (!(state.stages.length > 0)) {
-        state.stages.push({
-          stageId: newStage.id,
-          stageInfo: newStage.formConfig,
-        });
-      } else {
-        state.stages[0].stageId = newStage.id;
-        state.stages[0].stageInfo = newStage.formConfig;
-      }
-      
-    },
-    modifyStage(state, action) {
-      const stageId = action.payload.fieldData;
-      state.userInput.applicants[0][stageId.fieldName] = stageId.value;
-      if (stageId && stageId.fieldName === "full_name") {
-        state.userInput.applicants[0]["first_name"] = stageId.value;
-      }
-    },
-    updateTaxToggle(state) {
-      state.taxCustom.toggle = !state.taxCustom.toggle;
-    },
-    updateUserInputFields(state, action) {
-      state.userInput.applicants = action.payload;
-    },
-    removeAddToggleField(state, action) {
-      const stageId = action.payload;
-      if (Object.keys(state.userInput).length > 0) {
-        stageId.removeFields?.forEach((remove: string) => {
-          delete state.userInput.applicants[0][remove];
-        });
-        stageId.newFields?.forEach((add: string) => {
-          state.userInput.applicants[0][add] = stageId.value;
-        });
-      }
-      stageId.removeFields?.forEach((remove: string) => {
-        state.conditionalFields.removedFields[remove] = "";
-        delete state.conditionalFields.newFields[remove];
-      });
-      stageId.newFields?.forEach((add: string) => {
-        state.conditionalFields.newFields[add] = stageId.value;
-      });
-    },
-    modifyData(state, action) {
-      if (action.payload && action.payload.value) {
-        state.userInput.applicants[0][action.payload.label] =
-          action.payload.value;
-      }
-    },
-    resetNewAndOldFields(state) {
-      state.conditionalFields.newFields = {};
-      state.conditionalFields.removedFields = {};
-    },
-    updateStageFields(state, action) {
-      const stageId = action.payload;
-      state.stages[0] = stageId;
-    },
-    updateStageId(state, action) {
-      const stageId = action.payload;
-      state.stages[0].stageId = stageId;
-    },
-    removeMandatoryFields(state, action) {
-      state.userInput.missingFields = action.payload;
-    },
-    resetDefaultValue(state, action) {
-      const data = action.payload;
-      if (
-        JSON.stringify(state.dependencyFields.workType) !== JSON.stringify(data)
-      ) {
-        state.dependencyFields.workType = data;
-      }
-    },
-    resetCurrentStage(state, action) {
-      state.currentStage = action.payload;
-    },
-    setJourneyType(state, action) {
-      state.journeyType = action.payload;
-    },
-    updateInvestmentToggle(state) {
-      state.investmentToggle = !state.investmentToggle;
-    },
-    userNameChange(state) {
-      state.userNameChange.toggle = !state.userNameChange.toggle;
-    },
-    updatePinyinToggle(state) {
-      state.pinyinToggle = !state.pinyinToggle;
-    },
-    setOtpResume(state, action) {
-      state.otpResume = action.payload;
-    },
-    setOtpShow(state, action) {
-      state.otpOpen = action.payload;
-    },
-    updateParentChildToggle(state, action) {
-      state.parentChildFields.parentChildToggle =
-        !state.parentChildFields.parentChildToggle;
-      state.parentChildFields.selectFields = action.payload.selectFields;
-      state.parentChildFields.addSelectFields = action.payload.addSelectFields;
-      state.parentChildFields.deleteSelectFields =
-        action.payload.deleteSelectFields;
-      state.parentChildFields.resFields = action.payload.resFields;
-    },
-    updateNatureOfEmployeeField(state, action) {
-      state.natureOfEmployeeField.employeeToggle =
-        !state.natureOfEmployeeField.employeeToggle;
-      state.natureOfEmployeeField.addFields = action.payload.addFields;
-      state.natureOfEmployeeField.deleteFields = action.payload.removeFields;
-    },
-    updateAddressFields(state, action) {
-      state.AddressFields = action.payload;
-    },
-    updateDynamicFields(state, action) {
-      const data = action.payload;
-      switch (data.label) {
-        case CONSTANTS.LOGICAL_FIELD_NAMES.CASA_FACTA_DECLARATION_1:
-          state.dynamicFields.casa_fatca_declaration_1 = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.CASA_FACTA_DECLARATION_2:
-          state.dynamicFields.casa_fatca_declaration_2 = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.CASA_FACTA_DECLARATION_3:
-          state.dynamicFields.casa_fatca_declaration_3 = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.EDUCATION_LEVEL:
-          state.dynamicFields.education_level = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.SUPPLEMENTARY_INVEST_EXPERINECE:
-          state.dynamicFields.supplementary_invest_experience = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.INVESTMENT_EXPERIENCE:
-          state.dynamicFields.investment_experience = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.DECISION:
-          state.dynamicFields.decision = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.CASH_NEEDS:
-          state.dynamicFields.cash_needs = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.FINANCIAL_PRODUCT:
-          state.dynamicFields.financial_product = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.FINANCIAL_PRODUCT_2:
-          state.dynamicFields.financial_product2 = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.FINANCIAL_INSTITUTION:
-          state.dynamicFields.financial_institution = data.value;
-          break;
-        default:
-          return state;
-      }
-    },
-    updateDynamicCityField(state, action) {
-      const data = action.payload;
-      switch (data.label) {
-        case CONSTANTS.LOGICAL_FIELD_NAMES.RES_CITY_3:
-          state.cityDynamicField.cityValue = data.value;
-          break;
-        case CONSTANTS.LOGICAL_FIELD_NAMES.RES_CITY_4:
-          state.cityDynamicField.cityValue = data.value;
-          break;
-        default:
-          return state;
-      }
-    },
-    updateCasa(state,action){
-      state.isCasa = action.payload;
-    },
-    setCasaFlag(state,action){
-      state.casaFlags = action.payload
-    },
-    updatefileSectionData(state, action){
-      state.dynamicDocumentsUpload.fileSectionData= action.payload;
-    },
-    updateSuccess(state, action){
-      state.dynamicDocumentsUpload.success= action.payload;
-    },
-    updategoBack(state, action){
-      state.dynamicDocumentsUpload.goBack= action.payload;
-    },
-    updatechangeIconColorIdentityProof(state, action){
-      state.dynamicDocumentsUpload.changeIconColorIdentityProof= action.payload;
-    },
-    updatechangechangeIconIncomeProof(state, action){
-      state.dynamicDocumentsUpload.changeIconIncomeProof= action.payload;
-    },
-    updateDocumentCount(state, action){
-      state.dynamicDocumentsUpload.documentCount= action.payload;
-    },
-    updateIncomeProofDocument(state, action){
-      state.dynamicDocumentsUpload.documentCount= action.payload;
-    },
-    updateShowQRCodePage(state, action) {
-      state.dynamicDocumentsUpload.showQRCodePage = action.payload;
-    },
-    updateHKIDQRCodeData(state, action) {
-      state.dynamicDocumentsUpload.HKIDQRCodeData = action.payload;
-    },
-    updatezolozDocumentData(state, action) {
-      state.dynamicDocumentsUpload.zolozDocumentData = action.payload;
-    },
-    updateshowUploadFileSuccess(state, action) {
-      state.dynamicDocumentsUpload.showUploadFileSuccess = action.payload;
-    },
-    updateHKIDVersionValue(state, action) {
-      state.dynamicDocumentsUpload.HKIDVersionValue = action.payload;
-    },
-    updateShowIncomeProof(state, action) {
-      state.dynamicDocumentsUpload.showIncomeProof = action.payload;
-    },
-    updatedocumentData(state, action) {
-      state.dynamicDocumentsUpload.documentData = action.payload;
-    },
-    uploadedDocumentData(state, action) {
-      state.dynamicDocumentsUpload.uploadedDocuments = action.payload;
-    },
-    updateDownShell(state, action) {
-      state.userInput.downshell = action.payload;
+// Mock the CONSTANTS object if needed
+jest.mock("../common/constants", () => ({
+  CONSTANTS: {
+    LOGICAL_FIELD_NAMES: {
+      CASA_FACTA_DECLARATION_1: "casa_fatca_declaration_1",
+      CASA_FACTA_DECLARATION_2: "casa_fatca_declaration_2",
+      CASA_FACTA_DECLARATION_3: "casa_fatca_declaration_3",
+      EDUCATION_LEVEL: "education_level",
+      SUPPLEMENTARY_INVEST_EXPERINECE: "supplementary_invest_experience",
+      INVESTMENT_EXPERIENCE: "investment_experience",
+      DECISION: "decision",
+      CASH_NEEDS: "cash_needs",
+      FINANCIAL_PRODUCT: "financial_product",
+      FINANCIAL_PRODUCT_2: "financial_product2",
+      FINANCIAL_INSTITUTION: "financial_institution",
+      RES_CITY_3: "res_city_3",
+      RES_CITY_4: "res_city_4"
     }
-  },
+  }
+}));
+
+describe("Stages Slice", () => {
+  let store;
+
+  beforeEach(() => {
+    // Create a fresh store for each test
+    store = configureStore({
+      reducer: {
+        stages: stagesReducer,
+      },
+    });
+  });
+
+  // Test initial state
+  test("should return the initial state", () => {
+    const state = store.getState().stages;
+    expect(state.stages).toEqual([]);
+    expect(state.userInput.applicants).toEqual([{}]);
+    expect(state.currentStage).toBeNull();
+  });
+
+  // Test getStage reducer
+  test("should add a new stage when stages array is empty", () => {
+    const stageData = {
+      id: "stage1",
+      formConfig: { fields: ["field1", "field2"] }
+    };
+    
+    store.dispatch(stagesAction.getStage(stageData));
+    
+    const state = store.getState().stages;
+    expect(state.stages.length).toBe(1);
+    expect(state.stages[0]).toEqual({
+      stageId: "stage1",
+      stageInfo: { fields: ["field1", "field2"] }
+    });
+  });
+
+  test("should update the existing stage when stages array is not empty", () => {
+    // First add a stage
+    const firstStageData = {
+      id: "stage1",
+      formConfig: { fields: ["field1", "field2"] }
+    };
+    store.dispatch(stagesAction.getStage(firstStageData));
+    
+    // Then update it
+    const updatedStageData = {
+      id: "stage2",
+      formConfig: { fields: ["field3", "field4"] }
+    };
+    store.dispatch(stagesAction.getStage(updatedStageData));
+    
+    const state = store.getState().stages;
+    expect(state.stages.length).toBe(1);
+    expect(state.stages[0]).toEqual({
+      stageId: "stage2",
+      stageInfo: { fields: ["field3", "field4"] }
+    });
+  });
+
+  // Test modifyStage reducer
+  test("should update user input when modifyStage is called", () => {
+    const fieldData = {
+      fieldName: "email",
+      value: "test@example.com"
+    };
+    
+    store.dispatch(stagesAction.modifyStage({ fieldData }));
+    
+    const state = store.getState().stages;
+    expect(state.userInput.applicants[0].email).toBe("test@example.com");
+  });
+
+  test("should update both full_name and first_name when modifying full_name field", () => {
+    const fieldData = {
+      fieldName: "full_name",
+      value: "John Doe"
+    };
+    
+    store.dispatch(stagesAction.modifyStage({ fieldData }));
+    
+    const state = store.getState().stages;
+    expect(state.userInput.applicants[0].full_name).toBe("John Doe");
+    expect(state.userInput.applicants[0].first_name).toBe("John Doe");
+  });
+
+  // Test updateTaxToggle reducer
+  test("should toggle taxCustom.toggle value", () => {
+    // Initial value should be false
+    expect(store.getState().stages.taxCustom.toggle).toBe(false);
+    
+    store.dispatch(stagesAction.updateTaxToggle());
+    expect(store.getState().stages.taxCustom.toggle).toBe(true);
+    
+    store.dispatch(stagesAction.updateTaxToggle());
+    expect(store.getState().stages.taxCustom.toggle).toBe(false);
+  });
+
+  // Test updateUserInputFields reducer
+  test("should update all applicants in userInput", () => {
+    const newApplicants = [
+      { name: "John", email: "john@example.com" },
+      { name: "Jane", email: "jane@example.com" }
+    ];
+    
+    store.dispatch(stagesAction.updateUserInputFields(newApplicants));
+    
+    const state = store.getState().stages;
+    expect(state.userInput.applicants).toEqual(newApplicants);
+  });
+
+  // Test removeAddToggleField reducer
+  test("should remove and add fields in userInput and conditionalFields", () => {
+    // First add some fields to work with
+    store.dispatch(stagesAction.modifyStage({ 
+      fieldData: { fieldName: "field1", value: "value1" }
+    }));
+    store.dispatch(stagesAction.modifyStage({ 
+      fieldData: { fieldName: "field2", value: "value2" }
+    }));
+    
+    // Now test removeAddToggleField
+    store.dispatch(stagesAction.removeAddToggleField({
+      removeFields: ["field1"],
+      newFields: ["field3"],
+      value: "value3"
+    }));
+    
+    const state = store.getState().stages;
+    // Check field1 was removed
+    expect(state.userInput.applicants[0].field1).toBeUndefined();
+    // Check field3 was added
+    expect(state.userInput.applicants[0].field3).toBe("value3");
+    // Check conditionalFields was updated
+    expect(state.conditionalFields.removedFields.field1).toBe("");
+    expect(state.conditionalFields.newFields.field3).toBe("value3");
+  });
+
+  // Test modifyData reducer
+  test("should update applicant data when modifyData is called", () => {
+    store.dispatch(stagesAction.modifyData({
+      label: "phone",
+      value: "123-456-7890"
+    }));
+    
+    const state = store.getState().stages;
+    expect(state.userInput.applicants[0].phone).toBe("123-456-7890");
+  });
+
+  // Test resetNewAndOldFields reducer
+  test("should reset conditionalFields when resetNewAndOldFields is called", () => {
+    // First set up some conditional fields
+    store.dispatch(stagesAction.removeAddToggleField({
+      removeFields: ["field1"],
+      newFields: ["field3"],
+      value: "value3"
+    }));
+    
+    // Now reset them
+    store.dispatch(stagesAction.resetNewAndOldFields());
+    
+    const state = store.getState().stages;
+    expect(state.conditionalFields.newFields).toEqual({});
+    expect(state.conditionalFields.removedFields).toEqual({});
+  });
+
+  // Test updateStageFields reducer
+  test("should update the entire stage object when updateStageFields is called", () => {
+    const newStage = {
+      stageId: "updatedStage",
+      stageInfo: { title: "Updated Stage" }
+    };
+    
+    // First ensure we have a stage to update
+    store.dispatch(stagesAction.getStage({
+      id: "originalStage",
+      formConfig: { title: "Original Stage" }
+    }));
+    
+    // Now update it
+    store.dispatch(stagesAction.updateStageFields(newStage));
+    
+    const state = store.getState().stages;
+    expect(state.stages[0]).toEqual(newStage);
+  });
+
+  // Test updateStageId reducer
+  test("should update only the stageId when updateStageId is called", () => {
+    // First ensure we have a stage to update
+    store.dispatch(stagesAction.getStage({
+      id: "originalStage",
+      formConfig: { title: "Original Stage" }
+    }));
+    
+    // Now update just the ID
+    store.dispatch(stagesAction.updateStageId("newStageId"));
+    
+    const state = store.getState().stages;
+    expect(state.stages[0].stageId).toBe("newStageId");
+    expect(state.stages[0].stageInfo).toEqual({ title: "Original Stage" });
+  });
+
+  // Test removeMandatoryFields reducer
+  test("should update missingFields when removeMandatoryFields is called", () => {
+    const missingFields = {
+      field1: "required",
+      field2: "required"
+    };
+    
+    store.dispatch(stagesAction.removeMandatoryFields(missingFields));
+    
+    const state = store.getState().stages;
+    expect(state.userInput.missingFields).toEqual(missingFields);
+  });
+
+  // Test resetDefaultValue reducer
+  test("should update workType when resetDefaultValue is called with new data", () => {
+    const workTypeData = {
+      type: "full-time",
+      company: "Acme Inc."
+    };
+    
+    store.dispatch(stagesAction.resetDefaultValue(workTypeData));
+    
+    const state = store.getState().stages;
+    expect(state.dependencyFields.workType).toEqual(workTypeData);
+  });
+
+  // Test resetCurrentStage reducer
+  test("should update currentStage when resetCurrentStage is called", () => {
+    store.dispatch(stagesAction.resetCurrentStage("stage5"));
+    
+    const state = store.getState().stages;
+    expect(state.currentStage).toBe("stage5");
+  });
+
+  // Test setJourneyType reducer
+  test("should update journeyType when setJourneyType is called", () => {
+    store.dispatch(stagesAction.setJourneyType("premium"));
+    
+    const state = store.getState().stages;
+    expect(state.journeyType).toBe("premium");
+  });
+
+  // Test updateInvestmentToggle reducer
+  test("should toggle investmentToggle value", () => {
+    // Initial value should be false
+    expect(store.getState().stages.investmentToggle).toBe(false);
+    
+    store.dispatch(stagesAction.updateInvestmentToggle());
+    expect(store.getState().stages.investmentToggle).toBe(true);
+    
+    store.dispatch(stagesAction.updateInvestmentToggle());
+    expect(store.getState().stages.investmentToggle).toBe(false);
+  });
+
+  // Test userNameChange reducer
+  test("should toggle userNameChange.toggle value", () => {
+    // Initial value should be false
+    expect(store.getState().stages.userNameChange.toggle).toBe(false);
+    
+    store.dispatch(stagesAction.userNameChange());
+    expect(store.getState().stages.userNameChange.toggle).toBe(true);
+    
+    store.dispatch(stagesAction.userNameChange());
+    expect(store.getState().stages.userNameChange.toggle).toBe(false);
+  });
+
+  // Test updateDynamicFields reducer
+  test("should update dynamic fields based on label", () => {
+    store.dispatch(stagesAction.updateDynamicFields({
+      label: CONSTANTS.LOGICAL_FIELD_NAMES.EDUCATION_LEVEL,
+      value: "bachelor"
+    }));
+    
+    const state = store.getState().stages;
+    expect(state.dynamicFields.education_level).toBe("bachelor");
+    
+    // Test another field
+    store.dispatch(stagesAction.updateDynamicFields({
+      label: CONSTANTS.LOGICAL_FIELD_NAMES.DECISION,
+      value: "approve"
+    }));
+    
+    expect(store.getState().stages.dynamicFields.decision).toBe("approve");
+  });
+
+  // Test updateDynamicCityField reducer
+  test("should update cityValue based on label", () => {
+    store.dispatch(stagesAction.updateDynamicCityField({
+      label: CONSTANTS.LOGICAL_FIELD_NAMES.RES_CITY_3,
+      value: "New York"
+    }));
+    
+    const state = store.getState().stages;
+    expect(state.cityDynamicField.cityValue).toBe("New York");
+    
+    // Test another city field
+    store.dispatch(stagesAction.updateDynamicCityField({
+      label: CONSTANTS.LOGICAL_FIELD_NAMES.RES_CITY_4,
+      value: "Los Angeles"
+    }));
+    
+    expect(store.getState().stages.cityDynamicField.cityValue).toBe("Los Angeles");
+  });
+
+  // Test updateCasa reducer
+  test("should update isCasa when updateCasa is called", () => {
+    const casaData = ["casa1", "casa2"];
+    
+    store.dispatch(stagesAction.updateCasa(casaData));
+    
+    const state = store.getState().stages;
+    expect(state.isCasa).toEqual(casaData);
+  });
+
+  // Test setCasaFlag reducer
+  test("should update casaFlags when setCasaFlag is called", () => {
+    const flagsData = ["flag1", "flag2"];
+    
+    store.dispatch(stagesAction.setCasaFlag(flagsData));
+    
+    const state = store.getState().stages;
+    expect(state.casaFlags).toEqual(flagsData);
+  });
+
+  // Test document upload related reducers
+  test("should update document upload related states", () => {
+    // Test updatefileSectionData
+    const fileSectionData = { section: "identity", files: ["file1.jpg"] };
+    store.dispatch(stagesAction.updatefileSectionData(fileSectionData));
+    expect(store.getState().stages.dynamicDocumentsUpload.fileSectionData).toEqual(fileSectionData);
+    
+    // Test updateSuccess
+    store.dispatch(stagesAction.updateSuccess(false));
+    expect(store.getState().stages.dynamicDocumentsUpload.success).toBe(false);
+    
+    // Test updategoBack
+    store.dispatch(stagesAction.updategoBack(true));
+    expect(store.getState().stages.dynamicDocumentsUpload.goBack).toBe(true);
+    
+    // Test updateDocumentCount
+    store.dispatch(stagesAction.updateDocumentCount(3));
+    expect(store.getState().stages.dynamicDocumentsUpload.documentCount).toBe(3);
+    
+    // Test updateShowQRCodePage
+    store.dispatch(stagesAction.updateShowQRCodePage(true));
+    expect(store.getState().stages.dynamicDocumentsUpload.showQRCodePage).toBe(true);
+    
+    // Test updatedocumentData
+    const documentData = [{ id: 1, name: "document1.pdf" }];
+    store.dispatch(stagesAction.updatedocumentData(documentData));
+    expect(store.getState().stages.dynamicDocumentsUpload.documentData).toEqual(documentData);
+    
+    // Test uploadedDocumentData
+    const uploadedDocuments = [{ id: 2, name: "document2.pdf" }];
+    store.dispatch(stagesAction.uploadedDocumentData(uploadedDocuments));
+    expect(store.getState().stages.dynamicDocumentsUpload.uploadedDocuments).toEqual(uploadedDocuments);
+  });
+
+  // Test updateDownShell reducer
+  test("should update downshell when updateDownShell is called", () => {
+    store.dispatch(stagesAction.updateDownShell(true));
+    
+    const state = store.getState().stages;
+    expect(state.userInput.downshell).toBe(true);
+  });
 });
-
-export const stagesAction = stages.actions;
-
-export default stages;
