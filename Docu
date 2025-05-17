@@ -1,47 +1,309 @@
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
-import lovReducer from './lov-slice';
-import { useDispatch } from 'react-redux';
-import { lovAction } from './lov-slice';
+import { createSlice } from "@reduxjs/toolkit";
+import { StageSliceModel } from "../model/common-model";
+import { CONSTANTS } from "../common/constants";
 
-const TestComponent = () => {
-  const dispatch = useDispatch();
-  
-  const handleAddLov = () => {
-    dispatch(lovAction.getLovData({
-      label: 'test_label',
-      value: ['test_value']
-    }));
-  };
-
-  return (
-    <div>
-      <button onClick={handleAddLov}>Add LOV</button>
-    </div>
-  );
+const initialState: StageSliceModel = {
+  stages: [],
+  userInput: {
+    applicants: [{}],
+    missingFields: {},
+    removeFields: {},
+    downshell: false
+  },
+  taxCustom: {
+    toggle: false,
+  },
+  conditionalFields: {
+    newFields: {},
+    removedFields: {},
+  },
+  dependencyFields: {
+    workType: null,
+  },
+  currentStage: null,
+  journeyType: null,
+  investmentToggle: false,
+  userNameChange: {
+    toggle: false,
+  },
+  parentChildFields: {
+    parentChildToggle: false,
+    selectFields: [],
+    addSelectFields: [],
+    deleteSelectFields: [],
+    resFields: [],
+  },
+  natureOfEmployeeField: {
+    employeeToggle: false,
+    addFields: [],
+    deleteFields: [],
+  },
+  pinyinToggle: false,
+  otpResume: false,
+  otpOpen: false,
+  AddressFields: [],
+  dynamicFields: {
+    casa_fatca_declaration_1: "",
+    casa_fatca_declaration_2: "",
+    casa_fatca_declaration_3: "",
+    cash_needs: "",
+    decision: "",
+    supplementary_invest_experience: "",
+    investment_experience: "",
+    education_level: "",
+    financial_product: "",
+    financial_institution: "",
+    financial_product2: "",
+  },
+  cityDynamicField: {
+    cityValue: "",
+  },
+  isCasa:[],
+  casaFlags: [],
+  dynamicDocumentsUpload:{
+    fileSectionData: null,
+    success: true,
+    goBack: false,
+    changeIconColorIdentityProof: true,
+    changeIconIncomeProof: true,
+    documentCount: 0,
+    documentData: [],
+    uploadedDocuments: [],
+    showQRCodePage:false,
+    HKIDQRCodeData:{},
+    zolozDocumentData:[],
+    showUploadFileSuccess:false,
+    HKIDVersionValue:"", 
+    showIncomeProof:"",
+  },
 };
+const stages = createSlice({
+  name: "stages",
+  initialState,
+  reducers: {
+    getStage(state, action) {
+      let newStage = action.payload;
 
-describe('LOV Redux Integration', () => {
-  it('should dispatch getLovData action', () => {
-    const store = configureStore({
-      reducer: {
-        lov: lovReducer
+      if (!(state.stages.length > 0)) {
+        state.stages.push({
+          stageId: newStage.id,
+          stageInfo: newStage.formConfig,
+        });
+      } else {
+        state.stages[0].stageId = newStage.id;
+        state.stages[0].stageInfo = newStage.formConfig;
       }
-    });
-
-    render(
-      <Provider store={store}>
-        <TestComponent />
-      </Provider>
-    );
-
-    const button = screen.getByText('Add LOV');
-    button.click();
-
-    const state = store.getState();
-    expect(state.lov.lov).toHaveLength(1);
-    expect(state.lov.lov[0].label).toBe('test_label');
-  });
+      
+    },
+    modifyStage(state, action) {
+      const stageId = action.payload.fieldData;
+      state.userInput.applicants[0][stageId.fieldName] = stageId.value;
+      if (stageId && stageId.fieldName === "full_name") {
+        state.userInput.applicants[0]["first_name"] = stageId.value;
+      }
+    },
+    updateTaxToggle(state) {
+      state.taxCustom.toggle = !state.taxCustom.toggle;
+    },
+    updateUserInputFields(state, action) {
+      state.userInput.applicants = action.payload;
+    },
+    removeAddToggleField(state, action) {
+      const stageId = action.payload;
+      if (Object.keys(state.userInput).length > 0) {
+        stageId.removeFields?.forEach((remove: string) => {
+          delete state.userInput.applicants[0][remove];
+        });
+        stageId.newFields?.forEach((add: string) => {
+          state.userInput.applicants[0][add] = stageId.value;
+        });
+      }
+      stageId.removeFields?.forEach((remove: string) => {
+        state.conditionalFields.removedFields[remove] = "";
+        delete state.conditionalFields.newFields[remove];
+      });
+      stageId.newFields?.forEach((add: string) => {
+        state.conditionalFields.newFields[add] = stageId.value;
+      });
+    },
+    modifyData(state, action) {
+      if (action.payload && action.payload.value) {
+        state.userInput.applicants[0][action.payload.label] =
+          action.payload.value;
+      }
+    },
+    resetNewAndOldFields(state) {
+      state.conditionalFields.newFields = {};
+      state.conditionalFields.removedFields = {};
+    },
+    updateStageFields(state, action) {
+      const stageId = action.payload;
+      state.stages[0] = stageId;
+    },
+    updateStageId(state, action) {
+      const stageId = action.payload;
+      state.stages[0].stageId = stageId;
+    },
+    removeMandatoryFields(state, action) {
+      state.userInput.missingFields = action.payload;
+    },
+    resetDefaultValue(state, action) {
+      const data = action.payload;
+      if (
+        JSON.stringify(state.dependencyFields.workType) !== JSON.stringify(data)
+      ) {
+        state.dependencyFields.workType = data;
+      }
+    },
+    resetCurrentStage(state, action) {
+      state.currentStage = action.payload;
+    },
+    setJourneyType(state, action) {
+      state.journeyType = action.payload;
+    },
+    updateInvestmentToggle(state) {
+      state.investmentToggle = !state.investmentToggle;
+    },
+    userNameChange(state) {
+      state.userNameChange.toggle = !state.userNameChange.toggle;
+    },
+    updatePinyinToggle(state) {
+      state.pinyinToggle = !state.pinyinToggle;
+    },
+    setOtpResume(state, action) {
+      state.otpResume = action.payload;
+    },
+    setOtpShow(state, action) {
+      state.otpOpen = action.payload;
+    },
+    updateParentChildToggle(state, action) {
+      state.parentChildFields.parentChildToggle =
+        !state.parentChildFields.parentChildToggle;
+      state.parentChildFields.selectFields = action.payload.selectFields;
+      state.parentChildFields.addSelectFields = action.payload.addSelectFields;
+      state.parentChildFields.deleteSelectFields =
+        action.payload.deleteSelectFields;
+      state.parentChildFields.resFields = action.payload.resFields;
+    },
+    updateNatureOfEmployeeField(state, action) {
+      state.natureOfEmployeeField.employeeToggle =
+        !state.natureOfEmployeeField.employeeToggle;
+      state.natureOfEmployeeField.addFields = action.payload.addFields;
+      state.natureOfEmployeeField.deleteFields = action.payload.removeFields;
+    },
+    updateAddressFields(state, action) {
+      state.AddressFields = action.payload;
+    },
+    updateDynamicFields(state, action) {
+      const data = action.payload;
+      switch (data.label) {
+        case CONSTANTS.LOGICAL_FIELD_NAMES.CASA_FACTA_DECLARATION_1:
+          state.dynamicFields.casa_fatca_declaration_1 = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.CASA_FACTA_DECLARATION_2:
+          state.dynamicFields.casa_fatca_declaration_2 = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.CASA_FACTA_DECLARATION_3:
+          state.dynamicFields.casa_fatca_declaration_3 = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.EDUCATION_LEVEL:
+          state.dynamicFields.education_level = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.SUPPLEMENTARY_INVEST_EXPERINECE:
+          state.dynamicFields.supplementary_invest_experience = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.INVESTMENT_EXPERIENCE:
+          state.dynamicFields.investment_experience = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.DECISION:
+          state.dynamicFields.decision = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.CASH_NEEDS:
+          state.dynamicFields.cash_needs = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.FINANCIAL_PRODUCT:
+          state.dynamicFields.financial_product = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.FINANCIAL_PRODUCT_2:
+          state.dynamicFields.financial_product2 = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.FINANCIAL_INSTITUTION:
+          state.dynamicFields.financial_institution = data.value;
+          break;
+        default:
+          return state;
+      }
+    },
+    updateDynamicCityField(state, action) {
+      const data = action.payload;
+      switch (data.label) {
+        case CONSTANTS.LOGICAL_FIELD_NAMES.RES_CITY_3:
+          state.cityDynamicField.cityValue = data.value;
+          break;
+        case CONSTANTS.LOGICAL_FIELD_NAMES.RES_CITY_4:
+          state.cityDynamicField.cityValue = data.value;
+          break;
+        default:
+          return state;
+      }
+    },
+    updateCasa(state,action){
+      state.isCasa = action.payload;
+    },
+    setCasaFlag(state,action){
+      state.casaFlags = action.payload
+    },
+    updatefileSectionData(state, action){
+      state.dynamicDocumentsUpload.fileSectionData= action.payload;
+    },
+    updateSuccess(state, action){
+      state.dynamicDocumentsUpload.success= action.payload;
+    },
+    updategoBack(state, action){
+      state.dynamicDocumentsUpload.goBack= action.payload;
+    },
+    updatechangeIconColorIdentityProof(state, action){
+      state.dynamicDocumentsUpload.changeIconColorIdentityProof= action.payload;
+    },
+    updatechangechangeIconIncomeProof(state, action){
+      state.dynamicDocumentsUpload.changeIconIncomeProof= action.payload;
+    },
+    updateDocumentCount(state, action){
+      state.dynamicDocumentsUpload.documentCount= action.payload;
+    },
+    updateIncomeProofDocument(state, action){
+      state.dynamicDocumentsUpload.documentCount= action.payload;
+    },
+    updateShowQRCodePage(state, action) {
+      state.dynamicDocumentsUpload.showQRCodePage = action.payload;
+    },
+    updateHKIDQRCodeData(state, action) {
+      state.dynamicDocumentsUpload.HKIDQRCodeData = action.payload;
+    },
+    updatezolozDocumentData(state, action) {
+      state.dynamicDocumentsUpload.zolozDocumentData = action.payload;
+    },
+    updateshowUploadFileSuccess(state, action) {
+      state.dynamicDocumentsUpload.showUploadFileSuccess = action.payload;
+    },
+    updateHKIDVersionValue(state, action) {
+      state.dynamicDocumentsUpload.HKIDVersionValue = action.payload;
+    },
+    updateShowIncomeProof(state, action) {
+      state.dynamicDocumentsUpload.showIncomeProof = action.payload;
+    },
+    updatedocumentData(state, action) {
+      state.dynamicDocumentsUpload.documentData = action.payload;
+    },
+    uploadedDocumentData(state, action) {
+      state.dynamicDocumentsUpload.uploadedDocuments = action.payload;
+    },
+    updateDownShell(state, action) {
+      state.userInput.downshell = action.payload;
+    }
+  },
 });
+
+export const stagesAction = stages.actions;
+
+export default stages;
