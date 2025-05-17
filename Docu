@@ -1,319 +1,64 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import configureStore from 'redux-mock-store';
-import OnboardingBeforeStart from './OnboardingBeforeStart';
-import '@testing-library/jest-dom';
+import { createSlice } from "@reduxjs/toolkit";
 
-// Mock dependencies
-jest.mock('../../services/preApprovalServices', () => ({
-  getData: jest.fn(),
-  getPDFData: jest.fn()
-}));
+const initialState: any = {
+  error: [],
+  mandatoryFields: [],
+};
 
-jest.mock('../../../../utils/common/change.utils', () => ({
-  getUrl: {
-    getLanguageInfo: jest.fn().mockReturnValue('EN'),
-    getParameterByName: jest.fn().mockReturnValue('')
-  }
-}));
-
-jest.mock('../../../../services/common-service', () => ({
-  dispatchLoader: jest.fn()
-}));
-
-// Mock PDF component
-jest.mock('../../../../shared/components/pdf/pdf', () => () => <div>Mock PDF Component</div>);
-
-// Mock Spinner component
-jest.mock('../../../../shared/components/spinner/spinner', () => () => <div>Loading...</div>);
-
-const mockStore = configureStore([]);
-
-describe('OnboardingBeforeStart Component', () => {
-  let store: any;
-  const mockOnScrollEnd = jest.fn();
-  const mockNextPage = jest.fn();
-
-  beforeEach(() => {
-    store = mockStore({
-      stages: {
-        stages: [{
-          stageId: 'DOC_3',
-          stageInfo: {
-            products: [{
-              campaign: 'HKPIL23PLSTP10',
-              product_type: '1313'
-            }],
-            applicant_documents: [],
-            application: {
-              channel_reference: 'test123'
+const fieldError = createSlice({
+  name: "fielderror",
+  initialState: initialState,
+  reducers: {
+    getFieldError(state, action) {
+      const newError = action.payload;
+      if (state.error.indexOf(newError.fieldName) === -1) {
+        state.error.push(newError.fieldName);
+      }
+    },
+    removeToggleFieldError(state, action) {
+      const s = action.payload;
+      const position = state.error.indexOf(s);
+      if (position >= 0) {
+        state.error.splice(position, 1);
+      }
+    },
+    getMandatoryFields(state, action) {
+      if (action.payload) {
+        if (state.mandatoryFields && state.mandatoryFields.length > 0) {
+          action.payload.forEach((item: string) => {
+            if (!state.mandatoryFields.includes(item)) {
+              state.mandatoryFields = state.mandatoryFields.concat(item);
             }
+          });
+        } else {
+          state.mandatoryFields = action.payload;
+        }
+      } else {
+        state.mandatoryFields = null;
+      }
+    },
+    removeMandatoryFields(state, action) {
+      const nonMandatoryField = action.payload;
+
+      if (state.mandatoryFields) {
+        nonMandatoryField.forEach((data: string) => {
+          const position = Object.values(state.mandatoryFields).indexOf(data);
+          if (position >= 0) {
+            state.mandatoryFields.splice(position, 1);
           }
-        }]
-      },
-      preApproval: {
-        formConfigmetaData: {
-          products: [{
-            campaign: 'HKPIL23PLSTP10'
-          }]
-        }
+        });
       }
-    });
-
-    // Mock successful API responses
-    const { getData, getPDFData } = require('../../services/preApprovalServices');
-    getData.mockResolvedValue({
-      data: {
-        products: {
-          HKPIL23PLSTP10: [{
-            pdfURL: 'https://example.com/test.pdf'
-          }]
-        },
-        productsMob: {
-          HKPIL23PLSTP10: [{
-            pdfURL: 'https://example.com/mobile-test.pdf'
-          }]
-        },
-        CampaignTnC: {
-          HKPIL23PLSTP10: [{
-            pdfURL: 'https://example.com/tnc.pdf'
-          }]
-        },
-        CampaignTnCMob: {
-          HKPIL23PLSTP10: [{
-            pdfURL: 'https://example.com/mobile-tnc.pdf'
-          }]
-        },
-        tncLinkCampaignCode: {
-          HKPIL23PLSTP10: [{
-            pdfLinks: [
-              { Title: 'Terms and Conditions', url: 'https://example.com/tnc.pdf' },
-              { Title: 'Privacy Policy', url: 'https://example.com/privacy.pdf' }
-            ]
-          }]
-        }
+    },
+    removeFieldError(state, action) {
+      if (action.payload) {
+        state.error = [];
       }
-    });
-    getPDFData.mockResolvedValue('mock-pdf-data');
-
-    // Mock window properties
-    Object.defineProperty(window, 'location', {
-      value: {
-        host: 'localhost:3000',
-        href: '',
-        replaceState: jest.fn()
-      },
-      writable: true
-    });
-
-    // Mock user agent
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      writable: true
-    });
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('renders spinner initially', () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
-  });
-
-  test('renders PDF view after loading', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Mock PDF Component')).toBeInTheDocument();
-    });
-  });
-
-  test('renders download button', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText(/Download/)).toBeInTheDocument();
-    });
-  });
-
-  test('handles PDF download', async () => {
-    // Mock document.createElement
-    const mockCreateElement = document.createElement;
-    document.createElement = jest.fn().mockImplementation((tag) => {
-      if (tag === 'a') {
-        return {
-          href: '',
-          download: '',
-          click: jest.fn(),
-          setAttribute: jest.fn()
-        };
-      }
-      return mockCreateElement(tag);
-    });
-
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      const downloadBtn = screen.getByText(/Download/);
-      fireEvent.click(downloadBtn);
-      expect(document.createElement).toHaveBeenCalledWith('a');
-    });
-
-    // Restore original
-    document.createElement = mockCreateElement;
-  });
-
-  test('renders terms and conditions table for stageID 1', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={1}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Terms and Conditions')).toBeInTheDocument();
-      expect(screen.getByText('Privacy Policy')).toBeInTheDocument();
-    });
-  });
-
-  test('handles scroll to bottom', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      const scrollDiv = screen.getByTestId('pdf-view');
-      fireEvent.scroll(scrollDiv, { target: { scrollTop: 1000 } });
-      expect(mockOnScrollEnd).toHaveBeenCalledWith(true);
-    });
-  });
-
-  test('shows next button when isVisible is true', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId('next-button')).toBeInTheDocument();
-    });
-  });
-
-  test('shows accept button when isVisible is false', async () => {
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={false}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText(/Accept/)).toBeInTheDocument();
-    });
-  });
-
-  test('handles mobile user agent', async () => {
-    Object.defineProperty(navigator, 'userAgent', {
-      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
-      writable: true
-    });
-
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={true}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      // Verify mobile-specific behavior
-      expect(screen.getByText('Mock PDF Component')).toBeInTheDocument();
-    });
-  });
-
-  test('handles Chinese language', async () => {
-    const { getUrl } = require('../../../../utils/common/change.utils');
-    getUrl.getLanguageInfo.mockReturnValue('CN');
-
-    render(
-      <Provider store={store}>
-        <OnboardingBeforeStart 
-          isVisible={false}
-          onScrollEnd={mockOnScrollEnd}
-          stageID={0}
-          nextPage={mockNextPage}
-        />
-      </Provider>
-    );
-
-    await waitFor(() => {
-      // Verify Chinese text appears (you'll need to adjust based on your actual constants)
-      expect(screen.getByText(/下载/)).toBeInTheDocument();
-    });
-  });
+    },
+  },
 });
+
+export const fieldErrorAction = fieldError.actions;
+
+export default fieldError;
+
+Please write an test cases using react and jest
