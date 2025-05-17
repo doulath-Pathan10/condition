@@ -1,393 +1,249 @@
-import { configureStore } from "@reduxjs/toolkit";
-import stagesReducer, { stagesAction } from "../redux/stages"; // Update this path to match your project structure
-import { CONSTANTS } from "../common/constants"; // Update this path to match your project structure
+import React, { useEffect, useState } from 'react';
+import './spinner.scss';
+import { getUrl } from '../../../utils/common/change.utils';
+import { CONSTANTS } from '../../../utils/common/constants';
+import { useDispatch, useSelector } from 'react-redux';
+import { StoreModel } from '../../../utils/model/common-model';
+import { Player } from '@lottiefiles/react-lottie-player';
+import lottieSrc from "./../../../assets/_json/lottie/motorcycle_insurance.json";
+import { postFulFilmentData } from '../../../modules/preApproval/services/preApprovalPostServices';
+import { stagesAction } from '../../../utils/store/stages-slice';
+import { preApprovalAction } from '../../../modules/preApproval/store/preApproval-slice';
+import { HardStop } from '../../../modules/preApproval/services/preApprovalUtilsService';
+import { errorAction } from '../../../utils/store/error-slice';
+import { useNavigate } from 'react-router-dom';
 
-// Mock the CONSTANTS object if needed
-jest.mock("../common/constants", () => ({
-  CONSTANTS: {
-    LOGICAL_FIELD_NAMES: {
-      CASA_FACTA_DECLARATION_1: "casa_fatca_declaration_1",
-      CASA_FACTA_DECLARATION_2: "casa_fatca_declaration_2",
-      CASA_FACTA_DECLARATION_3: "casa_fatca_declaration_3",
-      EDUCATION_LEVEL: "education_level",
-      SUPPLEMENTARY_INVEST_EXPERINECE: "supplementary_invest_experience",
-      INVESTMENT_EXPERIENCE: "investment_experience",
-      DECISION: "decision",
-      CASH_NEEDS: "cash_needs",
-      FINANCIAL_PRODUCT: "financial_product",
-      FINANCIAL_PRODUCT_2: "financial_product2",
-      FINANCIAL_INSTITUTION: "financial_institution",
-      RES_CITY_3: "res_city_3",
-      RES_CITY_4: "res_city_4"
-    }
+
+const Spinner = (props: any) => {
+  const [currentYear, setCurrentYear] = useState(0);
+  const [requestUpdate, setRequestUpdate] = useState(true);
+  const [error, setError] = useState(false);
+  const [ffd2On, setFFD2On] = useState(false);
+  const language = getUrl.getLanguageInfo("lang");
+  const channelRefSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo?.application?.channel_reference);
+  const stageSelector = useSelector((state: StoreModel) => state.stages.stages[0].stageInfo);
+  const stageId = useSelector((state: StoreModel) => state.stages.stages[0].stageId);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    let requestTimer = setTimeout(() => {
+      setRequestUpdate(false);
+    }, 10000);
+
+    const startYear = 1859;
+    const todate = new Date();
+    setCurrentYear(todate.getFullYear() - startYear);
+
+    return () => {
+      clearTimeout(requestTimer);
+    };
+  }, []);
+
+  const getFFD2Status=()=>{
+    setFFD2On(true)
+    postFulFilmentData(stageSelector).then(
+      async (res: any) => {
+        /*istanbul ignore else*/
+        if (res.status >= 200 && res.status < 300) {
+          let responseType =
+            res.data.application.response_type.toUpperCase();
+          let responseAction =
+            res.data.application.response_action.toUpperCase();
+            /*istanbul ignore else*/
+          if (
+            responseAction === "SUCCESS" ||
+            responseType === "INFO" ||
+            (responseType === "SOFT" &&
+              responseAction === "CONTINUE")
+          ) {
+            let stageData = JSON.parse(
+              JSON.stringify(stageSelector)
+            );
+            stageData.applicants = [res.data.applicants];
+            stageData.application = res.data.application;
+            for (let [key, value] of Object.entries(res.data)) {
+              if(key === "applicants") {
+                stageData[key] = [value];
+              }
+              else {
+                stageData[key] = value;
+              }
+            }
+            dispatch(
+              stagesAction.getStage({
+                id: CONSTANTS.STAGE_NAMES.FFD_2,
+                formConfig: stageData,
+              })
+            );
+            dispatch(preApprovalAction.setCurrentStage("FFD"));
+            navigate('/hk/preference');
+          } else {
+            HardStop(res);
+          }
+        }
+        else {
+          setError(true);
+          dispatch(
+            errorAction.getError({
+              statusCode: "error",
+              statusText: "no response",
+            })
+          );
+        }
+      }
+    );
   }
-}));
 
-describe("Stages Slice", () => {
-  let store;
+  return (
+    <>
+      {!props.loaderType && 
+        <div className={`lottie ${!channelRefSelector ? 'opacity': ''}`}>
+          <div className="lottie__container">
+            <Player src={lottieSrc} className="player" loop autoplay />
+            <div className="lottie__body">
+              <div className="lottie__text">
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.processing1 : language === CONSTANTS.LANG_CN?CONSTANTS.processing1_CN : CONSTANTS.processing1_HK}<br/>
+                {stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2 || stageId === CONSTANTS.STAGE_NAMES.ACD_3 || stageId === CONSTANTS.STAGE_NAMES.ACD_4 || stageId === CONSTANTS.STAGE_NAMES.DOC_3 ||stageId === CONSTANTS.STAGE_NAMES.LD_1 ? 
+                  <>
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing3 : language === CONSTANTS.LANG_CN?CONSTANTS.processing3_CN : CONSTANTS.processing3_HK} 
+                  </>
+                  :
+                  <>
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing2 : language === CONSTANTS.LANG_CN?CONSTANTS.processing2_CN : CONSTANTS.processing2_HK} 
+                  </>
+                }
+              </div>
+            </div>
+          </div>
+        </div>  
+      }
+    {/* {!props.loaderType && 
+      <div className="spinner">
+        <div className="spinner__container">
+          <div className="spinner__icon"></div>
+          {props.type === 'saving' &&
+            <div className="spinner__text">{language === CONSTANTS.LANG_EN ? "Saving, Please Wait" : language === CONSTANTS.LANG_CN ? "正在保存，請稍候" : "正在保存，請稍候"}</div>
+          }
 
-  beforeEach(() => {
-    // Create a fresh store for each test
-    store = configureStore({
-      reducer: {
-        stages: stagesReducer,
-      },
-    });
-  });
+        </div>
+      </div>
+    }    */}
 
-  // Test initial state
-  test("should return the initial state", () => {
-    const state = store.getState().stages;
-    expect(state.stages).toEqual([]);
-    expect(state.userInput.applicants).toEqual([{}]);
-    expect(state.currentStage).toBeNull();
-  });
+      {props.loaderType === "showTimmer" &&
+        <div id="spinner" className="hk-spinner blocker-spinner blocker-spinner-modal" ng-if="showTimmer">
+          <div id="hk-spinner" className="blocker---modal---wrapper">
+            <div className="blocker---inner-wrapper">
+              <div className="blocker---header">
+                <p className="loading_bar" data-grunticon-embed></p>
+                <p className="blocker---title-b visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                  {language === CONSTANTS.LANG_CN ? "感謝您的申請！我們正在查閱您的資料" : "Thank you for your application. We are checking your details."}
+                </p><br /><br />
+                <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                  {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
+                </p><br />
+                <p className="timmer" data-grunticon-embed></p>
+                <p className="visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline spinnerSubText3">
+                  {language === CONSTANTS.LANG_CN ? "請稍候" : "Just a moment"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+      {props.loaderType === "resumeTimmer" &&
+        <div className={`lottie ${!channelRefSelector ? 'opacity': ''}`}>
+        <div className="lottie__container">
+          <Player src={lottieSrc} className="player" loop autoplay />
+          <div className="lottie__body">
+            <div className="lottie__text">
+            {language === CONSTANTS.LANG_CN ? "继续申请..." : "Resume application..."}
+            </div>
+          </div>
+        </div>
+      </div>  
+      }
 
-  // Test getStage reducer
-  test("should add a new stage when stages array is empty", () => {
-    const stageData = {
-      id: "stage1",
-      formConfig: { fields: ["field1", "field2"] }
-    };
-    
-    store.dispatch(stagesAction.getStage(stageData));
-    
-    const state = store.getState().stages;
-    expect(state.stages.length).toBe(1);
-    expect(state.stages[0]).toEqual({
-      stageId: "stage1",
-      stageInfo: { fields: ["field1", "field2"] }
-    });
-  });
+      {props.loaderType === "showSearchSpinner" &&
+        <div id="spinner" className="hk-spinner blocker-spinner blocker-spinner-modal" ng-if="showSearchSpinner">
+          <div id="hk-spinner" className="blocker---modal---wrapper">
+            <div className="blocker---inner-wrapper">
+              <div className="blocker---header">
+                <p className="loading_bar" data-grunticon-embed></p>
+                <p className="blocker---title-b visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                  {language === CONSTANTS.LANG_CN ? "我們正在初步審批您的申請" : "We are reviewing your application submission."}
+                </p><br /><br />
+                <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                  {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
+                </p><br />
+                <p className="searchSpinner" data-grunticon-embed></p>
+                <p className="visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline SearchSpinnerSubText3">
+                  {language === CONSTANTS.LANG_CN ? "請稍候" : "Just a moment"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
 
-  test("should update the existing stage when stages array is not empty", () => {
-    // First add a stage
-    const firstStageData = {
-      id: "stage1",
-      formConfig: { fields: ["field1", "field2"] }
-    };
-    store.dispatch(stagesAction.getStage(firstStageData));
-    
-    // Then update it
-    const updatedStageData = {
-      id: "stage2",
-      formConfig: { fields: ["field3", "field4"] }
-    };
-    store.dispatch(stagesAction.getStage(updatedStageData));
-    
-    const state = store.getState().stages;
-    expect(state.stages.length).toBe(1);
-    expect(state.stages[0]).toEqual({
-      stageId: "stage2",
-      stageInfo: { fields: ["field3", "field4"] }
-    });
-  });
+      {(props.loaderType === "lastStep" && !error) &&
 
-  // Test modifyStage reducer
-  test("should update user input when modifyStage is called", () => {
-    const fieldData = {
-      fieldName: "email",
-      value: "test@example.com"
-    };
-    
-    store.dispatch(stagesAction.modifyStage({ fieldData }));
-    
-    const state = store.getState().stages;
-    expect(state.userInput.applicants[0].email).toBe("test@example.com");
-  });
+        <div className={!ffd2On ? "spinner hk-spinner blocker-spinner blocker-spinner-modal" : "lottie"} ng-if="pageType=='FFD1'">
+          {!ffd2On ? 
+            <div className="blocker---modal---wrapper">
+              <div className="blocker---inner-wrapper application-content">
+                <div className="blocker---header ">
+                  <p className="loading_bar" data-grunticon-embed></p>
+                  <p className="blocker---title-b align-left visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                    {language === CONSTANTS.LANG_CN ? "最後一步!" : "You’re at the last step!"}
+                  </p><br /><br />
+                  <p className="blocker---title visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline">
+                    {language === CONSTANTS.LANG_CN ? "請不要關閉或重新整理瀏覽器" : "Please do not close or refresh browser."}
+                  </p><br />
+                </div>
+                <div>
+                  <p className='ffd1-banner' data-grunticon-embed></p>
+                  <p
+                    className="spinnerSubText3 visible-xs-block visible-sm-inline visible-md-inline visible-lg-inline details2">
+                    {language === CONSTANTS.LANG_CN ? "請稍候數分鐘，我們正在審批您的申請" : "Please wait a few minutes while we are reviewing on your application."}
+                  </p>
+                </div>
+                {!ffd2On &&
+                  <div className="ffd1-section">
+                    <button onClick={()=>getFFD2Status()} disabled={!props.enable} className={!props.enable ? "result-btn bg-grey" : "result-btn bg-button"}>
+                      {language === CONSTANTS.LANG_CN ? "查看最終批核結果" : "See final approval result"}
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          :
+          <div className="lottie__container">
+            <Player src={lottieSrc} className="player" loop autoplay />
+            <div className="lottie__body">
+              <div className="lottie__text">
+                {/* {requestUpdate ? <>{language === CONSTANTS.LANG_EN ? CONSTANTS.processing : language === CONSTANTS.LANG_CN?CONSTANTS.processing_CN : CONSTANTS.processing_HK}</> : <>{language === CONSTANTS.LANG_EN ? CONSTANTS.workingOnIt : language === CONSTANTS.LANG_CN?CONSTANTS.workingOnIt_CN : CONSTANTS.workingOnIt_HK}</>} */}
+                {language === CONSTANTS.LANG_EN ? CONSTANTS.processing1 : language === CONSTANTS.LANG_CN?CONSTANTS.processing1_CN : CONSTANTS.processing1_HK}<br/> 
+                {stageId === CONSTANTS.STAGE_NAMES.ACD_1 || stageId === CONSTANTS.STAGE_NAMES.ACD_2 || stageId === CONSTANTS.STAGE_NAMES.ACD_3 || stageId === CONSTANTS.STAGE_NAMES.ACD_4 || stageId === CONSTANTS.STAGE_NAMES.DOC_3 ||stageId === CONSTANTS.STAGE_NAMES.LD_1 ? 
+                  <>
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing3 : language === CONSTANTS.LANG_CN?CONSTANTS.processing3_CN : CONSTANTS.processing3_HK} 
+                  </>
+                  :
+                  <>
+                    {language === CONSTANTS.LANG_EN ? CONSTANTS.processing2 : language === CONSTANTS.LANG_CN?CONSTANTS.processing2_CN : CONSTANTS.processing2_HK} 
+                  </>
+                }
+              </div>
+            </div>
+          </div>
+          }
+        </div>
 
-  test("should update both full_name and first_name when modifying full_name field", () => {
-    const fieldData = {
-      fieldName: "full_name",
-      value: "John Doe"
-    };
-    
-    store.dispatch(stagesAction.modifyStage({ fieldData }));
-    
-    const state = store.getState().stages;
-    expect(state.userInput.applicants[0].full_name).toBe("John Doe");
-    expect(state.userInput.applicants[0].first_name).toBe("John Doe");
-  });
+      }
 
-  // Test updateTaxToggle reducer
-  test("should toggle taxCustom.toggle value", () => {
-    // Initial value should be false
-    expect(store.getState().stages.taxCustom.toggle).toBe(false);
-    
-    store.dispatch(stagesAction.updateTaxToggle());
-    expect(store.getState().stages.taxCustom.toggle).toBe(true);
-    
-    store.dispatch(stagesAction.updateTaxToggle());
-    expect(store.getState().stages.taxCustom.toggle).toBe(false);
-  });
 
-  // Test updateUserInputFields reducer
-  test("should update all applicants in userInput", () => {
-    const newApplicants = [
-      { name: "John", email: "john@example.com" },
-      { name: "Jane", email: "jane@example.com" }
-    ];
-    
-    store.dispatch(stagesAction.updateUserInputFields(newApplicants));
-    
-    const state = store.getState().stages;
-    expect(state.userInput.applicants).toEqual(newApplicants);
-  });
+    </>
+  );
+};
 
-  // Test removeAddToggleField reducer
-  test("should remove and add fields in userInput and conditionalFields", () => {
-    // First add some fields to work with
-    store.dispatch(stagesAction.modifyStage({ 
-      fieldData: { fieldName: "field1", value: "value1" }
-    }));
-    store.dispatch(stagesAction.modifyStage({ 
-      fieldData: { fieldName: "field2", value: "value2" }
-    }));
-    
-    // Now test removeAddToggleField
-    store.dispatch(stagesAction.removeAddToggleField({
-      removeFields: ["field1"],
-      newFields: ["field3"],
-      value: "value3"
-    }));
-    
-    const state = store.getState().stages;
-    // Check field1 was removed
-    expect(state.userInput.applicants[0].field1).toBeUndefined();
-    // Check field3 was added
-    expect(state.userInput.applicants[0].field3).toBe("value3");
-    // Check conditionalFields was updated
-    expect(state.conditionalFields.removedFields.field1).toBe("");
-    expect(state.conditionalFields.newFields.field3).toBe("value3");
-  });
-
-  // Test modifyData reducer
-  test("should update applicant data when modifyData is called", () => {
-    store.dispatch(stagesAction.modifyData({
-      label: "phone",
-      value: "123-456-7890"
-    }));
-    
-    const state = store.getState().stages;
-    expect(state.userInput.applicants[0].phone).toBe("123-456-7890");
-  });
-
-  // Test resetNewAndOldFields reducer
-  test("should reset conditionalFields when resetNewAndOldFields is called", () => {
-    // First set up some conditional fields
-    store.dispatch(stagesAction.removeAddToggleField({
-      removeFields: ["field1"],
-      newFields: ["field3"],
-      value: "value3"
-    }));
-    
-    // Now reset them
-    store.dispatch(stagesAction.resetNewAndOldFields());
-    
-    const state = store.getState().stages;
-    expect(state.conditionalFields.newFields).toEqual({});
-    expect(state.conditionalFields.removedFields).toEqual({});
-  });
-
-  // Test updateStageFields reducer
-  test("should update the entire stage object when updateStageFields is called", () => {
-    const newStage = {
-      stageId: "updatedStage",
-      stageInfo: { title: "Updated Stage" }
-    };
-    
-    // First ensure we have a stage to update
-    store.dispatch(stagesAction.getStage({
-      id: "originalStage",
-      formConfig: { title: "Original Stage" }
-    }));
-    
-    // Now update it
-    store.dispatch(stagesAction.updateStageFields(newStage));
-    
-    const state = store.getState().stages;
-    expect(state.stages[0]).toEqual(newStage);
-  });
-
-  // Test updateStageId reducer
-  test("should update only the stageId when updateStageId is called", () => {
-    // First ensure we have a stage to update
-    store.dispatch(stagesAction.getStage({
-      id: "originalStage",
-      formConfig: { title: "Original Stage" }
-    }));
-    
-    // Now update just the ID
-    store.dispatch(stagesAction.updateStageId("newStageId"));
-    
-    const state = store.getState().stages;
-    expect(state.stages[0].stageId).toBe("newStageId");
-    expect(state.stages[0].stageInfo).toEqual({ title: "Original Stage" });
-  });
-
-  // Test removeMandatoryFields reducer
-  test("should update missingFields when removeMandatoryFields is called", () => {
-    const missingFields = {
-      field1: "required",
-      field2: "required"
-    };
-    
-    store.dispatch(stagesAction.removeMandatoryFields(missingFields));
-    
-    const state = store.getState().stages;
-    expect(state.userInput.missingFields).toEqual(missingFields);
-  });
-
-  // Test resetDefaultValue reducer
-  test("should update workType when resetDefaultValue is called with new data", () => {
-    const workTypeData = {
-      type: "full-time",
-      company: "Acme Inc."
-    };
-    
-    store.dispatch(stagesAction.resetDefaultValue(workTypeData));
-    
-    const state = store.getState().stages;
-    expect(state.dependencyFields.workType).toEqual(workTypeData);
-  });
-
-  // Test resetCurrentStage reducer
-  test("should update currentStage when resetCurrentStage is called", () => {
-    store.dispatch(stagesAction.resetCurrentStage("stage5"));
-    
-    const state = store.getState().stages;
-    expect(state.currentStage).toBe("stage5");
-  });
-
-  // Test setJourneyType reducer
-  test("should update journeyType when setJourneyType is called", () => {
-    store.dispatch(stagesAction.setJourneyType("premium"));
-    
-    const state = store.getState().stages;
-    expect(state.journeyType).toBe("premium");
-  });
-
-  // Test updateInvestmentToggle reducer
-  test("should toggle investmentToggle value", () => {
-    // Initial value should be false
-    expect(store.getState().stages.investmentToggle).toBe(false);
-    
-    store.dispatch(stagesAction.updateInvestmentToggle());
-    expect(store.getState().stages.investmentToggle).toBe(true);
-    
-    store.dispatch(stagesAction.updateInvestmentToggle());
-    expect(store.getState().stages.investmentToggle).toBe(false);
-  });
-
-  // Test userNameChange reducer
-  test("should toggle userNameChange.toggle value", () => {
-    // Initial value should be false
-    expect(store.getState().stages.userNameChange.toggle).toBe(false);
-    
-    store.dispatch(stagesAction.userNameChange());
-    expect(store.getState().stages.userNameChange.toggle).toBe(true);
-    
-    store.dispatch(stagesAction.userNameChange());
-    expect(store.getState().stages.userNameChange.toggle).toBe(false);
-  });
-
-  // Test updateDynamicFields reducer
-  test("should update dynamic fields based on label", () => {
-    store.dispatch(stagesAction.updateDynamicFields({
-      label: CONSTANTS.LOGICAL_FIELD_NAMES.EDUCATION_LEVEL,
-      value: "bachelor"
-    }));
-    
-    const state = store.getState().stages;
-    expect(state.dynamicFields.education_level).toBe("bachelor");
-    
-    // Test another field
-    store.dispatch(stagesAction.updateDynamicFields({
-      label: CONSTANTS.LOGICAL_FIELD_NAMES.DECISION,
-      value: "approve"
-    }));
-    
-    expect(store.getState().stages.dynamicFields.decision).toBe("approve");
-  });
-
-  // Test updateDynamicCityField reducer
-  test("should update cityValue based on label", () => {
-    store.dispatch(stagesAction.updateDynamicCityField({
-      label: CONSTANTS.LOGICAL_FIELD_NAMES.RES_CITY_3,
-      value: "New York"
-    }));
-    
-    const state = store.getState().stages;
-    expect(state.cityDynamicField.cityValue).toBe("New York");
-    
-    // Test another city field
-    store.dispatch(stagesAction.updateDynamicCityField({
-      label: CONSTANTS.LOGICAL_FIELD_NAMES.RES_CITY_4,
-      value: "Los Angeles"
-    }));
-    
-    expect(store.getState().stages.cityDynamicField.cityValue).toBe("Los Angeles");
-  });
-
-  // Test updateCasa reducer
-  test("should update isCasa when updateCasa is called", () => {
-    const casaData = ["casa1", "casa2"];
-    
-    store.dispatch(stagesAction.updateCasa(casaData));
-    
-    const state = store.getState().stages;
-    expect(state.isCasa).toEqual(casaData);
-  });
-
-  // Test setCasaFlag reducer
-  test("should update casaFlags when setCasaFlag is called", () => {
-    const flagsData = ["flag1", "flag2"];
-    
-    store.dispatch(stagesAction.setCasaFlag(flagsData));
-    
-    const state = store.getState().stages;
-    expect(state.casaFlags).toEqual(flagsData);
-  });
-
-  // Test document upload related reducers
-  test("should update document upload related states", () => {
-    // Test updatefileSectionData
-    const fileSectionData = { section: "identity", files: ["file1.jpg"] };
-    store.dispatch(stagesAction.updatefileSectionData(fileSectionData));
-    expect(store.getState().stages.dynamicDocumentsUpload.fileSectionData).toEqual(fileSectionData);
-    
-    // Test updateSuccess
-    store.dispatch(stagesAction.updateSuccess(false));
-    expect(store.getState().stages.dynamicDocumentsUpload.success).toBe(false);
-    
-    // Test updategoBack
-    store.dispatch(stagesAction.updategoBack(true));
-    expect(store.getState().stages.dynamicDocumentsUpload.goBack).toBe(true);
-    
-    // Test updateDocumentCount
-    store.dispatch(stagesAction.updateDocumentCount(3));
-    expect(store.getState().stages.dynamicDocumentsUpload.documentCount).toBe(3);
-    
-    // Test updateShowQRCodePage
-    store.dispatch(stagesAction.updateShowQRCodePage(true));
-    expect(store.getState().stages.dynamicDocumentsUpload.showQRCodePage).toBe(true);
-    
-    // Test updatedocumentData
-    const documentData = [{ id: 1, name: "document1.pdf" }];
-    store.dispatch(stagesAction.updatedocumentData(documentData));
-    expect(store.getState().stages.dynamicDocumentsUpload.documentData).toEqual(documentData);
-    
-    // Test uploadedDocumentData
-    const uploadedDocuments = [{ id: 2, name: "document2.pdf" }];
-    store.dispatch(stagesAction.uploadedDocumentData(uploadedDocuments));
-    expect(store.getState().stages.dynamicDocumentsUpload.uploadedDocuments).toEqual(uploadedDocuments);
-  });
-
-  // Test updateDownShell reducer
-  test("should update downshell when updateDownShell is called", () => {
-    store.dispatch(stagesAction.updateDownShell(true));
-    
-    const state = store.getState().stages;
-    expect(state.userInput.downshell).toBe(true);
-  });
-});
+export default Spinner;
