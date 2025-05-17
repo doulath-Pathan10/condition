@@ -1,47 +1,47 @@
-import { createSlice } from "@reduxjs/toolkit";
-import { KeyWithAnyModel } from "../model/common-model";
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import lovReducer from './lov-slice';
+import { useDispatch } from 'react-redux';
+import { lovAction } from './lov-slice';
 
-const initialState: {lov:Array<KeyWithAnyModel>} = {
-    lov: []
-}
+const TestComponent = () => {
+  const dispatch = useDispatch();
+  
+  const handleAddLov = () => {
+    dispatch(lovAction.getLovData({
+      label: 'test_label',
+      value: ['test_value']
+    }));
+  };
 
-const lov = createSlice({
-    name: 'lov',
-    initialState: initialState,
-    reducers: {
-        getLovData(state, action) {
-            const newStage = action.payload;
-            const existingStages = state.lov.find((item: KeyWithAnyModel) => item.label === newStage.label);
-            if (!existingStages) {
-                state.lov.push({
-                    label: newStage.label,
-                    value: newStage.value
-                })
-            } else if(newStage.label === 'res_city_3') {
-                const objWithIdIndex = state.lov.findIndex((obj: any) => obj.label === newStage.label);
-                if (objWithIdIndex > -1) {
-                    state.lov.splice(objWithIdIndex, 1);
-                    state.lov.push({
-                        label: newStage.label,
-                        value: newStage.value
-                    })
-                }
-            } else if(newStage.label === 'res_city_4') {
-                const objWithIdIndex = state.lov.findIndex((obj: any) => obj.label === newStage.label);
-                if (objWithIdIndex > -1) {
-                    state.lov.splice(objWithIdIndex, 1);
-                    state.lov.push({
-                        label: newStage.label,
-                        value: newStage.value
-                    })
-                }
-            }
-        }
-    }
+  return (
+    <div>
+      <button onClick={handleAddLov}>Add LOV</button>
+    </div>
+  );
+};
+
+describe('LOV Redux Integration', () => {
+  it('should dispatch getLovData action', () => {
+    const store = configureStore({
+      reducer: {
+        lov: lovReducer
+      }
+    });
+
+    render(
+      <Provider store={store}>
+        <TestComponent />
+      </Provider>
+    );
+
+    const button = screen.getByText('Add LOV');
+    button.click();
+
+    const state = store.getState();
+    expect(state.lov.lov).toHaveLength(1);
+    expect(state.lov.lov[0].label).toBe('test_label');
+  });
 });
-
-export const lovAction = lov.actions;
-
-export default lov;
-
-Please write an test cases using react and jest
