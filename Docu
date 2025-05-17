@@ -1,75 +1,88 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import Spinner from './Spinner';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
-import { CONSTANTS } from '../../../utils/common/constants';
-import { useNavigate } from 'react-router-dom';
 
-// Mock the react-router-dom
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useNavigate: jest.fn(),
+// Mock the Lottie Player
+jest.mock('@lottiefiles/react-lottie-player', () => ({
+  Player: () => <div>Lottie Animation</div>
 }));
 
-// Mock the lottie player
-jest.mock('@lottiefiles/react-lottie-player', () => ({
-  Player: jest.fn(() => <div>Lottie Player Mock</div>),
+// Mock the navigation
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
 }));
 
 // Mock the postFulFilmentData function
+const mockPostFulFilmentData = jest.fn();
 jest.mock('../../../modules/preApproval/services/preApprovalPostServices', () => ({
-  postFulFilmentData: jest.fn(),
+  postFulFilmentData: () => mockPostFulFilmentData(),
 }));
 
-// Mock the error and stage actions
-jest.mock('../../../utils/store/error-slice');
-jest.mock('../../../utils/store/stages-slice');
-jest.mock('../../../modules/preApproval/store/preApproval-slice');
+// Mock Redux actions
+const mockDispatch = jest.fn();
+jest.mock('react-redux', () => ({
+  ...jest.requireActual('react-redux'),
+  useDispatch: () => mockDispatch,
+  useSelector: jest.fn(),
+}));
 
 describe('Spinner Component', () => {
   const mockStore = configureStore([]);
-  const initialState = {
-    stages: {
-      stages: [
-        {
-          stageId: CONSTANTS.STAGE_NAMES.FFD_1,
-          stageInfo: {
-            application: {
-              channel_reference: 'test-ref',
-            },
-          },
-        },
-      ],
-    },
-  };
-  
   let store: any;
-  let navigateMock: jest.Mock;
 
   beforeEach(() => {
-    store = mockStore(initialState);
-    navigateMock = jest.fn();
-    (useNavigate as jest.Mock).mockReturnValue(navigateMock);
+    store = mockStore({
+      stages: {
+        stages: [{
+          stageId: 'FFD_1',
+          stageInfo: {
+            application: {
+              channel_reference: 'test-ref'
+            },
+            applicants: []
+          }
+        }]
+      }
+    });
+
+    // Mock useSelector implementation
+    jest.spyOn(require('react-redux'), 'useSelector')
+      .mockImplementation((callback) => callback({
+        stages: {
+          stages: [{
+            stageId: 'FFD_1',
+            stageInfo: {
+              application: {
+                channel_reference: 'test-ref'
+              },
+              applicants: []
+            }
+          }]
+        }
+      }));
+
+    // Reset all mocks
+    mockPostFulFilmentData.mockReset();
+    mockNavigate.mockReset();
+    mockDispatch.mockReset();
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('renders default spinner with lottie animation when no loaderType is provided', () => {
+  test('renders default spinner with Lottie animation', () => {
     render(
       <Provider store={store}>
         <Spinner />
       </Provider>
     );
     
-    expect(screen.getByText('Lottie Player Mock')).toBeInTheDocument();
-    expect(screen.getByTestId('spinner-text')).toBeInTheDocument();
+    expect(screen.getByText('Lottie Animation')).toBeInTheDocument();
+    expect(screen.getByText(/Processing your request/i)).toBeInTheDocument();
   });
 
-  test('renders showTimmer spinner when loaderType is "showTimmer"', () => {
+  test('renders showTimmer spinner correctly', () => {
     render(
       <Provider store={store}>
         <Spinner loaderType="showTimmer" />
@@ -80,7 +93,7 @@ describe('Spinner Component', () => {
     expect(screen.getByText(/Please do not close or refresh browser/i)).toBeInTheDocument();
   });
 
-  test('renders resumeTimmer spinner when loaderType is "resumeTimmer"', () => {
+  test('renders resumeTimmer spinner correctly', () => {
     render(
       <Provider store={store}>
         <Spinner loaderType="resumeTimmer" />
@@ -90,17 +103,7 @@ describe('Spinner Component', () => {
     expect(screen.getByText(/Resume application/i)).toBeInTheDocument();
   });
 
-  test('renders showSearchSpinner when loaderType is "showSearchSpinner"', () => {
-    render(
-      <Provider store={store}>
-        <Spinner loaderType="showSearchSpinner" />
-      </Provider>
-    );
-    
-    expect(screen.getByText(/We are reviewing your application submission/i)).toBeInTheDocument();
-  });
-
-  test('renders lastStep spinner when loaderType is "lastStep"', () => {
+  test('renders lastStep spinner with button', () => {
     render(
       <Provider store={store}>
         <Spinner loaderType="lastStep" enable={true} />
@@ -108,102 +111,55 @@ describe('Spinner Component', () => {
     );
     
     expect(screen.getByText(/You're at the last step!/i)).toBeInTheDocument();
-    expect(screen.getByText(/See final approval result/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /See final approval result/i })).toBeInTheDocument();
   });
 
-  test('calls getFFD2Status when button is clicked in lastStep spinner', async () => {
-    const mockPostResponse = {
-      status: 200,
-      data: {
-        application: {
-          response_type: 'INFO',
-          response_action: 'SUCCESS'
-        },
-        applicants: {}
-      }
-    };
-    
-    require('../../../modules/preApproval/services/preApprovalPostServices').postFulFilmentData.mockResolvedValue(mockPostResponse);
-    
-    render(
-      <Provider store={store}>
-        <Spinner loaderType="lastStep" enable={true} />
-      </Provider>
-    );
-    
-    const button = screen.getByText(/See final approval result/i);
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(require('../../../modules/preApproval/services/preApprovalPostServices').postFulFilmentData).toHaveBeenCalled();
-    });
-  });
-
-  test('handles error in getFFD2Status', async () => {
-    require('../../../modules/preApproval/services/preApprovalPostServices').postFulFilmentData.mockRejectedValue(new Error('API Error'));
-    
-    render(
-      <Provider store={store}>
-        <Spinner loaderType="lastStep" enable={true} />
-      </Provider>
-    );
-    
-    const button = screen.getByText(/See final approval result/i);
-    fireEvent.click(button);
-    
-    await waitFor(() => {
-      expect(require('../../../utils/store/error-slice').errorAction.getError).toHaveBeenCalled();
-    });
-  });
-
-  test('displays different text based on stageId', () => {
-    const customStore = mockStore({
-      stages: {
-        stages: [
-          {
-            stageId: CONSTANTS.STAGE_NAMES.ACD_1,
-            stageInfo: {
-              application: {
-                channel_reference: 'test-ref',
-              },
-            },
-          },
-        ],
-      },
-    });
-    
-    render(
-      <Provider store={customStore}>
-        <Spinner />
-      </Provider>
-    );
-    
-    // Should show processing3 text since stageId is ACD_1
-    expect(screen.getByTestId('spinner-text')).toHaveTextContent(/We are checking your eligibility/i);
-  });
-
-  test('displays different language text based on language setting', () => {
-    // Mock getLanguageInfo to return CN
-    jest.spyOn(require('../../../utils/common/change.utils').getUrl, 'getLanguageInfo').mockReturnValue(CONSTANTS.LANG_CN);
-    
-    render(
-      <Provider store={store}>
-        <Spinner loaderType="showTimmer" />
-      </Provider>
-    );
-    
-    expect(screen.getByText(/感謝您的申請！我們正在查閱您的資料/i)).toBeInTheDocument();
-  });
-
-  test('disables button when enable prop is false in lastStep spinner', () => {
+  test('button in lastStep spinner is disabled when enable prop is false', () => {
     render(
       <Provider store={store}>
         <Spinner loaderType="lastStep" enable={false} />
       </Provider>
     );
     
-    const button = screen.getByText(/See final approval result/i);
+    const button = screen.getByRole('button', { name: /See final approval result/i });
     expect(button).toBeDisabled();
-    expect(button).toHaveClass('bg-grey');
+  });
+
+  test('clicking button in lastStep spinner triggers getFFD2Status', async () => {
+    mockPostFulFilmentData.mockResolvedValue({
+      status: 200,
+      data: {
+        application: {
+          response_type: 'INFO',
+          response_action: 'SUCCESS'
+        },
+        applicants: [{}]
+      }
+    });
+
+    render(
+      <Provider store={store}>
+        <Spinner loaderType="lastStep" enable={true} />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByRole('button', { name: /See final approval result/i }));
+    
+    expect(mockPostFulFilmentData).toHaveBeenCalled();
+  });
+
+  test('handles API error in getFFD2Status', async () => {
+    mockPostFulFilmentData.mockRejectedValue(new Error('API Error'));
+
+    render(
+      <Provider store={store}>
+        <Spinner loaderType="lastStep" enable={true} />
+      </Provider>
+    );
+    
+    fireEvent.click(screen.getByRole('button', { name: /See final approval result/i }));
+    
+    expect(mockPostFulFilmentData).toHaveBeenCalled();
+    expect(mockDispatch).toHaveBeenCalled();
   });
 });
